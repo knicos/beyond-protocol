@@ -165,7 +165,7 @@ void Universe::shutdown() {
 	UNIQUE_LOCK(net_mutex_, lk);
 
 	for (auto &s : peers_) {
-		s->rawClose();
+		if (s) s->rawClose();
 	}
 	
 	peers_.clear();
@@ -310,11 +310,11 @@ void Universe::_installBindings() {
 void Universe::_cleanupPeers() {
 	auto i = peers_.begin();
 	while (i != peers_.end()) {
-		if (!(*i)->isValid() ||
-			(*i)->status() == NodeStatus::kReconnecting ||
-			(*i)->status() == NodeStatus::kDisconnected) {
-			
-			const auto &p = *i;
+		auto &p = *i;
+		if (p && (!p->isValid() ||
+			p->status() == NodeStatus::kReconnecting ||
+			p->status() == NodeStatus::kDisconnected)) {
+
 			LOG(INFO) << "Removing disconnected peer: " << p->id().to_string();
 			_notifyDisconnect(p.get());
 
@@ -328,13 +328,15 @@ void Universe::_cleanupPeers() {
 				}
 			}
 
-			i = peers_.erase(i);
+			//i = peers_.erase(i);
 
 			if (p->status() == NodeStatus::kReconnecting) {
 				reconnects_.push_back({reconnect_attempts_, 1.0f, p});
 			} else {
 				garbage_.push_back(p);
 			}
+
+			p.reset();
 		} else {
 			i++;
 		}

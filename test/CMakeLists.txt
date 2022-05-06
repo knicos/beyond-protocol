@@ -30,7 +30,7 @@ add_test(HandleUnitTest handle_unit)
 
 ### URI ########################################################################
 add_executable(net_integration
-	$<TARGET_OBJECTS:CatchTest>
+	$<TARGET_OBJECTS:CatchTestFTL>
 	./net_integration.cpp)
 target_include_directories(net_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(net_integration beyond-protocol

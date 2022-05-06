@@ -29,9 +29,9 @@ TEST_CASE("Listen and Connect", "[net]") {
 	auto self = ftl::createDummySelf();
 	
 	self->listen(ftl::URI("tcp://localhost:0")); 
-	auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
 	SECTION("valid tcp connection using ipv4") {
+		auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
 		LOG(INFO) << uri;
 		auto p = ftl::createNode(uri);
 		REQUIRE( p );
@@ -39,19 +39,21 @@ TEST_CASE("Listen and Connect", "[net]") {
 		p->waitConnection();
 		
 		REQUIRE( self->numberOfNodes() == 1 );
+		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 
-	/*SECTION("valid tcp connection using hostname") {
-		auto p = b.connect(uri);
+	SECTION("valid tcp connection using hostname") {
+		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
+		auto p = ftl::createNode(uri);
 		REQUIRE( p );
 		
 		p->waitConnection();
 		
-		REQUIRE( a.numberOfPeers() == 1 );
-		REQUIRE( b.numberOfPeers() == 1 );
+		REQUIRE( self->numberOfNodes() == 1 );
+		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 
-	SECTION("invalid protocol") {
+	/*SECTION("invalid protocol") {
 		bool throws = false;
 		try {
 			auto p = b.connect("http://localhost:1234");
