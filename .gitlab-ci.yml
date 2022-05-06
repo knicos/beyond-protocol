@@ -37,8 +37,10 @@ linux:build:
       - build/
 
   artifacts:
+    name: ${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}
     paths:
       - build/
+    expire_in: 1 hour
 
 linux:test:
   only:
