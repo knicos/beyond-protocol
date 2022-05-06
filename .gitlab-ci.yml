@@ -97,9 +97,6 @@ windows:test:
     - windows
   needs: ["windows:build"]
 
-  variables:
-    <<: *variables-windows
-
   cache: # use artifacts instead if multiple runners available
     key: $CI_COMMIT_SHORT_SHA
     paths:
