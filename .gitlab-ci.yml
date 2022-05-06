@@ -24,7 +24,7 @@ linux:build:
   
   stage: build
   tags:
-    - linux
+    - docker
 
   script:
     - mkdir build && cd build
@@ -62,47 +62,47 @@ linux:test:
 
 ### Windows
 
-windows:build:
-  only:
-    - main
-    - merge_requests
+#windows:build:
+#  only:
+#    - main
+#    - merge_requests
 
-  stage: build
-  tags:
-    - windows
+#  stage: build
+#  tags:
+#    - windows
 
-  cache: # use artifacts instead if multiple runners available
-    key: $CI_COMMIT_SHORT_SHA
-    paths:
-      - build/
+#  cache: # use artifacts instead if multiple runners available
+#    key: $CI_COMMIT_SHORT_SHA
+#    paths:
+#      - build/
 
-  script:
-      - Import-Module "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/Common7/Tools/Microsoft.VisualStudio.DevShell.dll"
-      - Enter-VsDevShell -VsInstallPath "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/"
-      - cd $CI_PROJECT_DIR
-      - if (Test-Path build) { Remove-Item build/ -Recurse }
-      - mkdir build
-      - cd build
-      - cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
-      - '& MSBuild.exe beyond-ftl.sln -property:Configuration=Release -nr:false -maxCpuCount'
+#  script:
+#      - Import-Module "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/Common7/Tools/Microsoft.VisualStudio.DevShell.dll"
+#      - Enter-VsDevShell -VsInstallPath "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/"
+#      - cd $CI_PROJECT_DIR
+#      - if (Test-Path build) { Remove-Item build/ -Recurse }
+#      - mkdir build
+#      - cd build
+#      - cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
+#      - '& MSBuild.exe beyond-ftl.sln -property:Configuration=Release -nr:false -maxCpuCount'
 
-windows:test:
-  only:
-    - master
-    - merge_requests
+#windows:test:
+#  only:
+#    - master
+#    - merge_requests
   
-  stage: test
+#  stage: test
 
-  tags:
-    - windows
-  needs: ["windows:build"]
+#  tags:
+#    - windows
+#  needs: ["windows:build"]
 
-  cache: # use artifacts instead if multiple runners available
-    key: $CI_COMMIT_SHORT_SHA
-    paths:
-      - build/
+#  cache: # use artifacts instead if multiple runners available
+#    key: $CI_COMMIT_SHORT_SHA
+#    paths:
+#      - build/
 
-  script:
-    - $env:PATH+=";C:/Shared/Deploy"
-    - cd build
-    - ctest -V --output-on-failure --timeout 60
+#  script:
+#    - $env:PATH+=";C:/Shared/Deploy"
+#    - cd build
+#    - ctest -V --output-on-failure --timeout 60
