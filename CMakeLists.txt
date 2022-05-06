@@ -173,6 +173,6 @@ install(TARGETS beyond-protocol
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-#if (BUILD_TESTS)
-#	add_subdirectory(test)
-#endif()
+if (BUILD_TESTS)
+	add_subdirectory(test)
+endif()
