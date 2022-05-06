@@ -271,6 +271,7 @@ private: // Functions
 	// debug variables, see comments for data() in peer.cpp for details
 	std::atomic_uint64_t dbg_recv_begin_ctr_ = 0;
 	std::atomic_uint64_t dbg_recv_end_ctr_ = 0;
+	std::atomic_int job_count_ = 0;
 
 	// reconnect when clean disconnect received from remote
 	bool reconnect_on_remote_disconnect_ = true;

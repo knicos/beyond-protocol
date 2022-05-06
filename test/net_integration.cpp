@@ -3,6 +3,7 @@
 #include <ftl/protocol/self.hpp>
 #include <ftl/protocol/node.hpp>
 #include <ftl/uri.hpp>
+#include <ftl/exception.hpp>
 
 #include <thread>
 #include <chrono>
@@ -53,10 +54,10 @@ TEST_CASE("Listen and Connect", "[net]") {
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 
-	/*SECTION("invalid protocol") {
+	SECTION("invalid protocol") {
 		bool throws = false;
 		try {
-			auto p = b.connect("http://localhost:1234");
+			auto p = ftl::createNode("http://localhost:1234");
 		}
 		catch (const ftl::exception& ex) {
 			ex.ignore();
@@ -65,7 +66,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		REQUIRE(throws);
 	}
 	
-	SECTION("automatic reconnect, after clean disconnect") {
+	/*SECTION("automatic reconnect, after clean disconnect") {
 		std::mutex mtx;
 		std::condition_variable cv;
 		std::unique_lock<std::mutex> lk(mtx);

@@ -216,6 +216,7 @@ void Peer::close(bool retry) {
 }
 
 void Peer::_close(bool retry) {
+	if (status_ == NodeStatus::kDisconnected) return;
 	status_ = NodeStatus::kDisconnected;
 	
 	if (sock_->is_valid()) {
@@ -325,8 +326,11 @@ void Peer::data() {
 		is_waiting_ = false;
 		lk.unlock();
 
+		++job_count_;
+
 		ftl::pool.push([this](int id) {
 			_data();
+			--job_count_;
 		});
 	}
 }
@@ -372,7 +376,8 @@ bool Peer::_data() {
 	msgpack::object obj = msg_handle.get();
 	
 	// more data: repeat (loop)
-	ftl::pool.push([this](int id) { _data(); });
+	++job_count_;
+	ftl::pool.push([this](int id) { _data(); --job_count_; });
 
 	if (status_ == NodeStatus::kConnecting) {
 		// If not connected, must lock to make sure no other thread performs this step
@@ -537,7 +542,14 @@ int Peer::_send() {
 }
 
 Peer::~Peer() {
-	UNIQUE_LOCK(send_mtx_,lk1);
-	UNIQUE_LOCK(recv_mtx_,lk2);
-	_close(false);
+	{
+		UNIQUE_LOCK(send_mtx_,lk1);
+		UNIQUE_LOCK(recv_mtx_,lk2);
+		_close(false);
+	}
+
+	// Prevent deletion if there are any jobs remaining
+	while (job_count_ > 0) {
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
 }
