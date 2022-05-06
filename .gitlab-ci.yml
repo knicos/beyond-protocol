@@ -27,7 +27,7 @@ linux:build:
     - docker
 
   script:
-    - snap install --classic cmake && apt update && apt install g++ libmsgpack-dev liburiparser-dev
+    - apt update && apt install g++ libmsgpack-dev liburiparser-dev libgnutls28-dev snap && snap install --classic cmake
     - mkdir build && cd build
     - cmake $CI_PROJECT_DIR -GNinja -DCMAKE_CXX_FLAGS="-fdiagnostics-color" -DUSE_CPPCHECK=FALSE -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
     - ninja
