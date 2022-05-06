@@ -13,7 +13,7 @@ namespace ftl {
 namespace protocol {
 class Node;
 class Stream;
-class Listener;
+class Self;
 class Service;
 
 /** Reset network and streams. Used by tests. */
@@ -22,9 +22,10 @@ void reset();
 extern ftl::UUID id;
 }
 
-std::shared_ptr<ftl::protocol::Listener> createListener(const std::string &uri);
+std::shared_ptr<ftl::protocol::Self> getSelf();
+std::shared_ptr<ftl::protocol::Self> createDummySelf();
 std::shared_ptr<ftl::protocol::Service> setServiceProvider(const std::string &uri);
-std::shared_ptr<ftl::protocol::Node> createPeer(const std::string &uri);
+std::shared_ptr<ftl::protocol::Node> createNode(const std::string &uri);
 std::shared_ptr<ftl::protocol::Stream> createStream(const std::string &uri);
 
 }

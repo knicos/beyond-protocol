@@ -27,3 +27,14 @@ target_link_libraries(handle_unit beyond-protocol
 	Threads::Threads ${OS_LIBS})
 
 add_test(HandleUnitTest handle_unit)
+
+### URI ########################################################################
+add_executable(net_integration
+	$<TARGET_OBJECTS:CatchTest>
+	./net_integration.cpp)
+target_include_directories(net_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(net_integration beyond-protocol
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
+
+add_test(NetIntegrationTest net_integration)

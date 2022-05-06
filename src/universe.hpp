@@ -34,7 +34,7 @@ struct Error {
 struct ReconnectInfo {
 	int tries;
 	float delay;
-	Peer *peer;
+	std::shared_ptr<Peer> peer;
 };
 
 struct NetImplDetail;
@@ -86,8 +86,8 @@ public:
 	 *
 	 * @param addr URI giving protocol, interface and port
 	 */
-	Peer *connect(const std::string &addr);
-	Peer *connect(const ftl::URI &addr);
+	std::shared_ptr<Peer> connect(const std::string &addr);
+	std::shared_ptr<Peer> connect(const ftl::URI &addr);
 
 	bool isConnected(const ftl::URI &uri);
 	bool isConnected(const std::string &s);
@@ -101,9 +101,9 @@ public:
 	int waitConnections();
 	
 	/** get peer pointer by peer UUID, returns nullptr if not found */
-	Peer *getPeer(const ftl::UUID &pid) const;
+	std::shared_ptr<Peer> getPeer(const ftl::UUID &pid) const;
 	/** get webservice peer pointer, returns nullptr if not connected to webservice */
-	Peer *getWebService() const;
+	std::shared_ptr<Peer> getWebService() const;
 
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
@@ -161,27 +161,27 @@ public:
 
 	// --- Event Handlers ------------------------------------------------------
 
-	Callback onConnect(const std::function<void(ftl::net::Peer*)>&);
-	Callback onDisconnect(const std::function<void(ftl::net::Peer*)>&);
-	Callback onError(const std::function<void(ftl::net::Peer*, const ftl::net::Error &)>&);
+	Callback onConnect(const std::function<void(const std::shared_ptr<ftl::net::Peer>&)>&);
+	Callback onDisconnect(const std::function<void(const std::shared_ptr<ftl::net::Peer>&)>&);
+	Callback onError(const std::function<void(const std::shared_ptr<Peer>&, const ftl::net::Error &)>&);
 
 	void removeCallback(Callback cbid);
 
 	size_t getSendBufferSize(ftl::URI::scheme_t s);
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
 
-	static inline Universe *getInstance() { return instance_; }
+	static inline std::shared_ptr<Universe> getInstance() { return instance_; }
 	
 private:
 	void _run();
 	SOCKET _setDescriptors(); // TODO: move to implementation
 	void _installBindings();
-	void _installBindings(Peer *);
+	void _installBindings(const std::shared_ptr<ftl::net::Peer>&);
 	//bool _subscribe(const std::string &res);
 	void _cleanupPeers();
-	void _notifyConnect(Peer *);
-	void _notifyDisconnect(Peer *);
-	void _notifyError(Peer *, const ftl::net::Error &);
+	void _notifyConnect(ftl::net::Peer *);
+	void _notifyDisconnect(ftl::net::Peer *);
+	void _notifyError(ftl::net::Peer *, const ftl::net::Error &);
 	void _periodic();
 	
 	static void __start(Universe *u);
@@ -194,14 +194,14 @@ private:
 	std::unique_ptr<NetImplDetail> impl_;
 	
 	std::vector<std::unique_ptr<ftl::net::internal::SocketServer>> listeners_;
-	std::vector<ftl::net::Peer*> peers_;
-	std::unordered_map<std::string, ftl::net::Peer*> peer_by_uri_;
-	std::map<ftl::UUID, ftl::net::Peer*> peer_ids_;
+	std::vector<std::shared_ptr<ftl::net::Peer>> peers_;
+	std::unordered_map<std::string, size_t> peer_by_uri_;
+	std::map<ftl::UUID, size_t> peer_ids_;
 
 	ftl::net::Dispatcher disp_;
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
-	std::list<ftl::net::Peer*> garbage_;
+	std::list<std::shared_ptr<ftl::net::Peer>> garbage_;
 	ftl::Handle garbage_timer_;
 
 	size_t send_size_;
@@ -211,12 +211,12 @@ private:
 
 	struct ConnHandler {
 		Callback id;
-		std::function<void(ftl::net::Peer*)> h;
+		std::function<void(const std::shared_ptr<ftl::net::Peer>&)> h;
 	};
 
 	struct ErrHandler {
 		Callback id;
-		std::function<void(ftl::net::Peer*, const ftl::net::Error &)> h;
+		std::function<void(const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &)> h;
 	};
 
 	// Handlers
@@ -225,7 +225,7 @@ private:
 	std::list<ErrHandler> on_error_;
 
 	static Callback cbid__;
-	static Universe *instance_;
+	static std::shared_ptr<Universe> instance_;
 
 	// NOTE: Must always be last member
 	std::thread thread_;

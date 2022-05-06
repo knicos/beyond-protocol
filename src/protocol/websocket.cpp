@@ -1,6 +1,9 @@
 #include "websocket.hpp"
+#include <ftl/lib/loguru.hpp>
 
 #include <ftl/utility/base64.hpp>
+
+using uchar = unsigned char;
 
 #ifdef HAVE_GNUTLS
 #include <gnutls/crypto.h>

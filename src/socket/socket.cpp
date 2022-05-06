@@ -1,6 +1,6 @@
 // OS specific implementations for TCP sockets
 
-#include "../socket.hpp"
+#include "../socketImpl.hpp"
 
 #ifdef WIN32
 #include "socket_windows.cpp"

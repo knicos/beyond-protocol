@@ -2,6 +2,7 @@
 
 #include <ftl/exception.hpp>
 #include "tcp.hpp"
+#include <ftl/lib/loguru.hpp>
 
 using namespace ftl::net::internal;
 

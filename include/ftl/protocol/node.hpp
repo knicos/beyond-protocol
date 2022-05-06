@@ -35,8 +35,9 @@ enum struct NodeStatus {
  * created directly.
  */
 class Node {	
+	public:
 	/** Peer for outgoing connection: resolve address and connect */
-	explicit Node(const std::unique_ptr<ftl::net::Peer> &impl);
+	explicit Node(const std::shared_ptr<ftl::net::Peer> &impl);
 	virtual ~Node();
 	
 	/**
@@ -108,7 +109,7 @@ class Node {
 	unsigned int localID();
 
 	protected:
-	std::unique_ptr<ftl::net::Peer> peer_;
+	std::shared_ptr<ftl::net::Peer> peer_;
 };
 
 }

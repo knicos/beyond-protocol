@@ -160,6 +160,16 @@ add_library(beyond-protocol STATIC
     src/uri.cpp
 	src/config.cpp
 	src/time.cpp
+	src/node.cpp
+	src/self.cpp
+	src/socket/socket.cpp
+	src/protocol/connection.cpp
+	src/protocol/factory.cpp
+	src/protocol/tcp.cpp
+	src/protocol/tls.cpp
+	src/protocol/websocket.cpp
+	src/base64.cpp
+	src/protocol.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

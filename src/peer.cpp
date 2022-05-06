@@ -493,8 +493,8 @@ bool Peer::waitConnection() {
 	std::unique_lock<std::mutex> lk(m);
 	std::condition_variable cv;
 
-	Callback h = net_->onConnect([this, &cv](Peer *p) {
-		if (p == this) {
+	Callback h = net_->onConnect([this, &cv](const std::shared_ptr<Peer> &p) {
+		if (p.get() == this) {
 			cv.notify_one();
 		}
 	});
