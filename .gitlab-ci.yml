@@ -51,7 +51,7 @@ linux:test:
   
   needs: ["linux:build"]
   script:
-    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 libgnutls28 cmake
+    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake
     - cd build
     - ctest -V --output-junit report.xml
 
