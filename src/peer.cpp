@@ -498,14 +498,14 @@ bool Peer::waitConnection() {
 	std::unique_lock<std::mutex> lk(m);
 	std::condition_variable cv;
 
-	Callback h = net_->onConnect([this, &cv](const std::shared_ptr<Peer> &p) {
+	auto h = net_->onConnect([this, &cv](const std::shared_ptr<Peer> &p) {
 		if (p.get() == this) {
 			cv.notify_one();
 		}
+		return true;
 	});
 
 	cv.wait_for(lk, seconds(1), [this]() { return status_ == NodeStatus::kConnected;});
-	net_->removeCallback(h);
 	return status_ == NodeStatus::kConnected;
 }
 

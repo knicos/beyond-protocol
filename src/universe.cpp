@@ -69,7 +69,6 @@ struct NetImplDetail {
 #define WS_SEND_BUFFER_SIZE	(1024*1024)
 #define WS_RECEIVE_BUFFER_SIZE	(62*1024)
 
-Callback ftl::net::Universe::cbid__ = 0;
 std::shared_ptr<Universe> Universe::instance_ = nullptr;
 
 Universe::Universe() :
@@ -508,61 +507,16 @@ void Universe::_run() {
 	}
 }
 
-Callback Universe::onConnect(const std::function<void(const std::shared_ptr<Peer>&)> &cb) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	Callback id = cbid__++;
-	on_connect_.push_back({id, cb});
-	return id;
+ftl::Handle Universe::onConnect(const std::function<bool(const std::shared_ptr<Peer>&)> &cb) {
+	return on_connect_.on(cb);
 }
 
-Callback Universe::onDisconnect(const std::function<void(const std::shared_ptr<Peer>&)> &cb) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	Callback id = cbid__++;
-	on_disconnect_.push_back({id, cb});
-	return id;
+ftl::Handle Universe::onDisconnect(const std::function<bool(const std::shared_ptr<Peer>&)> &cb) {
+	return on_disconnect_.on(cb);
 }
 
-Callback Universe::onError(const std::function<void(const std::shared_ptr<Peer>&, const ftl::net::Error &)> &cb) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	Callback id = cbid__++;
-	on_error_.push_back({id, cb});
-	return id;
-}
-
-void Universe::removeCallback(Callback cbid) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	{
-		auto i = on_connect_.begin();
-		while (i != on_connect_.end()) {
-			if ((*i).id == cbid) {
-				i = on_connect_.erase(i);
-			} else {
-				i++;
-			}
-		}
-	}
-
-	{
-		auto i = on_disconnect_.begin();
-		while (i != on_disconnect_.end()) {
-			if ((*i).id == cbid) {
-				i = on_disconnect_.erase(i);
-			} else {
-				i++;
-			}
-		}
-	}
-
-	{
-		auto i = on_error_.begin();
-		while (i != on_error_.end()) {
-			if ((*i).id == cbid) {
-				i = on_error_.erase(i);
-			} else {
-				i++;
-			}
-		}
-	}
+ftl::Handle Universe::onError(const std::function<bool(const std::shared_ptr<Peer>&, const ftl::net::Error &)> &cb) {
+	return on_error_.on(cb);
 }
 
 static std::shared_ptr<Peer> findPeer(const std::vector<std::shared_ptr<Peer>> &peers, const Peer *p) {
@@ -578,27 +532,21 @@ void Universe::_notifyConnect(Peer *p) {
 
 	peer_ids_[ptr->id()] = ptr->localID();
 
-	for (auto &i : on_connect_) {
-		try {
-			i.h(ptr);
-		} catch(...) {
-			LOG(ERROR) << "Exception inside OnConnect hander: " << i.id;
-		}
+	try {
+		on_connect_.trigger(ptr);
+	} catch(const std::exception &e) {
+		LOG(ERROR) << "Exception inside OnConnect hander: " << e.what();
 	}
 }
 
 void Universe::_notifyDisconnect(Peer *p) {
-	// In all cases, should already be locked outside this function call
-	//unique_lock<mutex> lk(net_mutex_);
 	UNIQUE_LOCK(handler_mutex_,lk);
 	const auto ptr = findPeer(peers_, p);
 
-	for (auto &i : on_disconnect_) {
-		try {
-			i.h(ptr);
-		} catch(...) {
-			LOG(ERROR) << "Exception inside OnDisconnect hander: " << i.id;
-		}
+	try {
+		on_disconnect_.trigger(ptr);
+	} catch(const std::exception &e) {
+		LOG(ERROR) << "Exception inside OnDisconnect hander: " << e.what();
 	}
 }
 

@@ -66,58 +66,64 @@ TEST_CASE("Listen and Connect", "[net]") {
 		REQUIRE(throws);
 	}
 	
-	/*SECTION("automatic reconnect, after clean disconnect") {
+	SECTION("automatic reconnect, after clean disconnect") {
 		std::mutex mtx;
 		std::condition_variable cv;
 		std::unique_lock<std::mutex> lk(mtx);
 
-		auto p_connecting = b.connect(uri);
+		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
+
+		auto p_connecting = ftl::createNode(uri);
 		REQUIRE(p_connecting);
 		
 		bool disconnected_once = false;
 
-		a.onConnect([&](ftl::net::Peer* p_listening) {
+		auto h = ftl::getSelf()->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
 			if (!disconnected_once) {
 				// remote closes on first connection
 				disconnected_once = true;
-				p_listening->close();
+				p_listening->close(true);
 				LOG(INFO) << "disconnected";
 			} else {
 				// notify on second
 				cv.notify_one();
 			}
+			return true;
 		});
 
 		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
 		REQUIRE(p_connecting->isConnected());
 	}
 
-	SECTION("automatic reconnect, socket close") {
+	SECTION("automatic reconnect from originating connection") {
 		std::mutex mtx;
 		std::condition_variable cv;
 		std::unique_lock<std::mutex> lk(mtx);
 
-		auto p_connecting = b.connect(uri);
+		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
+
+		auto p_connecting = ftl::createNode(uri);
 		REQUIRE(p_connecting);
 		
 		bool disconnected_once = false;
 
-		a.onConnect([&](ftl::net::Peer* p_listening) {
+		auto h = ftl::getSelf()->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
 			if (!disconnected_once) {
 				// disconnect on first connection
 				disconnected_once = true;
-				p_listening->rawClose();
+				p_connecting->close(true);
 				LOG(INFO) << "disconnected";
 			}
 			else {
 				// notify on second
 				cv.notify_one();
 			}
+			return true;
 		});
 
 		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
 		REQUIRE(p_connecting->isConnected());
-	}*/
+	}
 }
 
 /*TEST_CASE("Universe::onConnect()", "[net]") {

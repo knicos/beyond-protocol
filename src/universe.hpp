@@ -161,11 +161,9 @@ public:
 
 	// --- Event Handlers ------------------------------------------------------
 
-	Callback onConnect(const std::function<void(const std::shared_ptr<ftl::net::Peer>&)>&);
-	Callback onDisconnect(const std::function<void(const std::shared_ptr<ftl::net::Peer>&)>&);
-	Callback onError(const std::function<void(const std::shared_ptr<Peer>&, const ftl::net::Error &)>&);
-
-	void removeCallback(Callback cbid);
+	ftl::Handle onConnect(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&)>&);
+	ftl::Handle onDisconnect(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&)>&);
+	ftl::Handle onError(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &)>&);
 
 	size_t getSendBufferSize(ftl::URI::scheme_t s);
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
@@ -209,22 +207,10 @@ private:
 	double periodic_time_;
 	int reconnect_attempts_;
 
-	struct ConnHandler {
-		Callback id;
-		std::function<void(const std::shared_ptr<ftl::net::Peer>&)> h;
-	};
+	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_connect_;
+	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_disconnect_;
+	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &> on_error_;
 
-	struct ErrHandler {
-		Callback id;
-		std::function<void(const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &)> h;
-	};
-
-	// Handlers
-	std::list<ConnHandler> on_connect_;
-	std::list<ConnHandler> on_disconnect_;
-	std::list<ErrHandler> on_error_;
-
-	static Callback cbid__;
 	static std::shared_ptr<Universe> instance_;
 
 	// NOTE: Must always be last member
