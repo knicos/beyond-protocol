@@ -59,6 +59,9 @@ linux:build:
   #  paths:
   #    - build/
 
+  needs: []
+  dependencies: []
+
   artifacts:
     name: ${CI_PROJECT_NAME}-${CI_COMMIT_SHORT_SHA}
     paths:
