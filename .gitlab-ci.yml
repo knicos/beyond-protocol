@@ -21,52 +21,19 @@ image: ubuntu:jammy
 
 code_quality:
   stage: test
-  image: docker:20.10.12
-  allow_failure: true
-  services:
-    - name: 'docker:20.10.12-dind'
-  tags:
-    - docker
   only:
     - main
     - merge_requests
-  variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_TLS_CERTDIR: ""
-    CODE_QUALITY_IMAGE: "registry.gitlab.com/gitlab-org/ci-cd/codequality:0.85.26"
-  needs: []
+  tags:
+    - docker
   script:
-    - export SOURCE_CODE=$PWD
-    - | # this is required to avoid undesirable reset of Docker image ENV variables being set on build stage
-      function propagate_env_vars() {
-        CURRENT_ENV=$(printenv)
-
-        for VAR_NAME; do
-          echo $CURRENT_ENV | grep "${VAR_NAME}=" > /dev/null && echo "--env $VAR_NAME "
-        done
-      }
-    - docker pull --quiet "$CODE_QUALITY_IMAGE"
-    - |
-      docker run --rm \
-        $(propagate_env_vars \
-          SOURCE_CODE \
-          TIMEOUT_SECONDS \
-          CODECLIMATE_DEBUG \
-          CODECLIMATE_DEV \
-          REPORT_STDOUT \
-          REPORT_FORMAT \
-          ENGINE_MEMORY_LIMIT_BYTES \
-          CODECLIMATE_PREFIX \
-        ) \
-        --volume "$PWD":/code \
-        --volume /var/run/docker.sock:/var/run/docker.sock \
-        "$CODE_QUALITY_IMAGE" /code
+    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y python3 cppcheck
+    - python3 -m pip install -U cppcheck_codequality
+    - cppcheck --xml --enable=warning,style,performance --std=c++14 --suppress=*:*catch.hpp --suppress=*:*json.hpp ./ 2> cppcheck_out.xml
+    - cppcheck-codequality --input-file=cppcheck_out.xml --output-file=cppcheck.json
   artifacts:
     reports:
-      codequality: gl-code-quality-report.json
-    expire_in: 1 week
-  dependencies: []
-
+      codequality: cppcheck.json
 
 linux:build:
   only:
