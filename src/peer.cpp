@@ -329,7 +329,11 @@ void Peer::data() {
 		++job_count_;
 
 		ftl::pool.push([this](int id) {
-			_data();
+			try {
+				_data();
+			} catch (const std::exception &e) {
+				LOG(ERROR) << "Error processing packet: " << e.what();	
+			}
 			--job_count_;
 		});
 	}
@@ -377,7 +381,14 @@ bool Peer::_data() {
 	
 	// more data: repeat (loop)
 	++job_count_;
-	ftl::pool.push([this](int id) { _data(); --job_count_; });
+	ftl::pool.push([this](int id) {
+		try {
+			_data();
+		} catch (const std::exception &e) {
+			LOG(ERROR) << "Error processing packet: " << e.what();	
+		}
+		--job_count_;
+	});
 
 	if (status_ == NodeStatus::kConnecting) {
 		// If not connected, must lock to make sure no other thread performs this step

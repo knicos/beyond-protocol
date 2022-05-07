@@ -158,16 +158,16 @@ void Universe::shutdown() {
 	if (!active_) return;
 	LOG(INFO) << "Cleanup Network ...";
 
+	{
+		UNIQUE_LOCK(net_mutex_, lk);
+
+		for (auto &s : peers_) {
+			if (s) s->rawClose();
+		}
+	}
+
 	active_ = false;
 	thread_.join();
-	
-	UNIQUE_LOCK(net_mutex_, lk);
-
-	for (auto &s : peers_) {
-		if (s) s->rawClose();
-	}
-	
-	peers_.clear();
 	
 	for (auto &l : listeners_) {
 		l->close();
@@ -193,16 +193,14 @@ bool Universe::listen(const ftl::URI &addr) {
 }
 
 std::vector<ftl::URI> Universe::getListeningURIs() {
-	UNIQUE_LOCK(net_mutex_, lk);
-	std::vector<ftl::URI> uris;
-	for (auto& l : listeners_) {
-		uris.push_back(l->uri());
-	}
+	SHARED_LOCK(net_mutex_, lk);
+	std::vector<ftl::URI> uris(listeners_.size());
+	std::transform(listeners_.begin(), listeners_.end(), uris.begin(), [](const auto &l){ return l->uri(); });
 	return uris;
 }
 
 bool Universe::isConnected(const ftl::URI &uri) {
-	UNIQUE_LOCK(net_mutex_,lk);
+	SHARED_LOCK(net_mutex_,lk);
 	return (peer_by_uri_.find(uri.getBaseURI()) != peer_by_uri_.end());
 }
 
@@ -215,18 +213,16 @@ std::shared_ptr<Peer> Universe::connect(const ftl::URI &u) {
 
 	// Check if already connected or if self (when could this happen?)
 	{
-		UNIQUE_LOCK(net_mutex_,lk);
+		SHARED_LOCK(net_mutex_,lk);
 		if (peer_by_uri_.find(u.getBaseURI()) != peer_by_uri_.end()) {
 			return peers_[peer_by_uri_.at(u.getBaseURI())];
 		}
 
-		//if (u.getHost() == "localhost" || u.getHost() == "127.0.0.1") {
-			//for (const auto &l : listeners_) {
-				//if (l->port() == u.getPort()) {
-				//	throw FTL_Error("Cannot connect to self");
-				//} // TODO extend api
-			//}
-		//}
+		if (u.getHost() == "localhost" || u.getHost() == "127.0.0.1") {
+			if (std::any_of(listeners_.begin(), listeners_.end(), [u](const auto &l) { return l->port() == u.getPort(); })) {
+				throw FTL_Error("Cannot connect to self");
+			}
+		}
 	}
 	
 	auto p = std::make_shared<Peer>(u, this, &disp_);
@@ -455,56 +451,65 @@ void Universe::_run() {
 			continue;
 		}
 
-		{
-			// TODO:(Nick) Shared lock unless connection is made
-			UNIQUE_LOCK(net_mutex_,lk);
+		SHARED_LOCK(net_mutex_,lk);
 
-			//If connection request is waiting
-			for (auto &l : listeners_) {
-				if (l && l->is_listening()) {
-					if (FD_ISSET(l->fd(), &(impl_->sfdread_))) {
+		//If connection request is waiting
+		for (auto &l : listeners_) {
+			if (l && l->is_listening()) {
+				if (FD_ISSET(l->fd(), &(impl_->sfdread_))) {
+					lk.unlock();
+					try {
+						UNIQUE_LOCK(net_mutex_,ulk);
+						auto csock = l->accept();
+						auto p = std::make_shared<Peer>(std::move(csock), this, &disp_);
+						peers_.push_back(p);
 
-						try {
-							auto csock = l->accept();
-							auto p = std::make_shared<Peer>(std::move(csock), this, &disp_);
-							peers_.push_back(p);
-
-						} catch (const std::exception &ex) {
-							LOG(ERROR) << "Connection failed: " << ex.what();
-						}
+					} catch (const std::exception &ex) {
+						LOG(ERROR) << "Connection failed: " << ex.what();
 					}
+					lk.lock();
 				}
 			}
 		}
 
-		{
-			SHARED_LOCK(net_mutex_, lk);
 
-			// Also check each clients socket to see if any messages or errors are waiting
-			for (size_t p=0; p<peers_.size(); ++p) {
-				auto s = peers_[(p+phase_)%peers_.size()];
+		// Also check each clients socket to see if any messages or errors are waiting
+		for (size_t p=0; p<peers_.size(); ++p) {
+			auto s = peers_[(p+phase_)%peers_.size()];
 
-				if (s != NULL && s->isValid()) {
-					// Note: It is possible that the socket becomes invalid after check but before
-					// looking at the FD sets, therefore cache the original socket
-					SOCKET sock = s->_socket();
-					if (sock == INVALID_SOCKET) continue;
+			if (s != NULL && s->isValid()) {
+				// Note: It is possible that the socket becomes invalid after check but before
+				// looking at the FD sets, therefore cache the original socket
+				SOCKET sock = s->_socket();
+				if (sock == INVALID_SOCKET) continue;
 
-					if (FD_ISSET(sock, &impl_->sfderror_)) {
-						if (s->socketError()) {
-							s->close();
-							continue;  // No point in reading data...
-						}
-					}
-					//If message received from this client then deal with it
-					if (FD_ISSET(sock, &impl_->sfdread_)) {
-						s->data();
+				if (FD_ISSET(sock, &impl_->sfderror_)) {
+					if (s->socketError()) {
+						s->close();
+						continue;  // No point in reading data...
 					}
 				}
+				//If message received from this client then deal with it
+				if (FD_ISSET(sock, &impl_->sfdread_)) {
+					s->data();
+				}
 			}
-			++phase_;
 		}
+		++phase_;
 	}
+
+	// Garbage is a threadsafe container, moving there first allows the destructor to be called
+	// without the lock.
+	{
+		UNIQUE_LOCK(net_mutex_,lk);
+		garbage_.insert(garbage_.end(), peers_.begin(), peers_.end());
+		reconnects_.clear();
+		peers_.clear();
+		peer_by_uri_.clear();
+		peer_ids_.clear();
+	}
+
+	garbage_.clear();
 }
 
 ftl::Handle Universe::onConnect(const std::function<bool(const std::shared_ptr<Peer>&)> &cb) {

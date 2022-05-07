@@ -21,6 +21,7 @@ namespace ftl {
 	 */
 	class URI {
 		public:
+		URI(): m_valid(false) {}
 		explicit URI(uri_t puri);
 		explicit URI(const std::string &puri);
 		explicit URI(const URI &c);
@@ -92,8 +93,8 @@ namespace ftl {
 		std::string m_base;
 		std::string m_userinfo;
 		std::vector<std::string> m_pathseg;
-		int m_port;
-		scheme_t m_proto;
+		int m_port = 0;
+		scheme_t m_proto = scheme_t::SCHEME_NONE;
 		std::string m_protostr;
 		// std::string m_query;
 		std::map<std::string, std::string> m_qmap;
