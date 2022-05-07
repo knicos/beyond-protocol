@@ -101,7 +101,7 @@ linux:valgrind:
   script:
     - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 valgrind
     - cd build
-    - valgrind --error-exitcode=1 ./test/net_integration
+    - valgrind --error-exitcode=1 --leak-check=full --show-leak-kinds=all --track-origins=yes ./test/net_integration
 
   artifacts:
     when: always
