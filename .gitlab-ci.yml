@@ -7,11 +7,12 @@
 # See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
 
 stages:
+  - static
   - build
   - test
 
 flawfinder-sast:
-  stage: test
+  stage: static
   needs: []
   dependencies: []
 
@@ -21,7 +22,7 @@ include:
 image: ubuntu:jammy
 
 code_quality:
-  stage: test
+  stage: static
   allow_failure: true
   needs: []
   dependencies: []
@@ -78,6 +79,26 @@ linux:test:
     - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake
     - cd build
     - ctest -V --output-junit report.xml
+
+  artifacts:
+    when: always
+    reports:
+      junit: build/report.xml
+
+linux:valgrind:
+  only:
+    - main
+    - merge_requests
+
+  stage: test
+  tags:
+    - docker
+  
+  needs: ["linux:build"]
+  script:
+    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 valgrind
+    - cd build
+    - valgrind --error-exitcode=1 ./test/net_integration
 
   artifacts:
     when: always
