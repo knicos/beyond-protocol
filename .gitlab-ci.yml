@@ -10,19 +10,18 @@ stages:
   - build
   - test
 
-include:
-- template: Security/SAST.gitlab-ci.yml
-
-
-image: ubuntu:jammy
-
-sast:
+flawfinder-sast:
   stage: test
   needs: []
   dependencies: []
   only:
     - main
     - merge_requests
+
+include:
+- template: Security/SAST.gitlab-ci.yml
+
+image: ubuntu:jammy
 
 code_quality:
   stage: test
