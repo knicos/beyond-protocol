@@ -17,7 +17,7 @@ class WebSocketBase : public SocketT {
 public:
 	WebSocketBase();
 	ftl::URI::scheme_t scheme() const override;
-	void connect(const ftl::URI& uri, int timeout=0);
+	void connect(const ftl::URI& uri, int timeout=0) override;
 
 	bool prepare_next(char* buffer, size_t len, size_t &offset) override;
 

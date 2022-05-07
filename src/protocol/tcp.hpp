@@ -38,7 +38,7 @@ public:
 	Connection_TCP();
 	
 	ftl::URI::scheme_t scheme() const override { return ftl::URI::SCHEME_TCP; }
-	bool connect(std::string hostname, int port, int timeout=0);
+	bool connect(const std::string &hostname, int port, int timeout=0);
 	void connect(const ftl::URI& uri, int timeout=0) override;
 };
 

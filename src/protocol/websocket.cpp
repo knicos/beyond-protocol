@@ -268,7 +268,6 @@ bool WebSocketBase<SocketT>::prepare_next(char* data, size_t data_len, size_t& o
 	wsheader_type header;
 	if (!ws_parse(data, data_len, header)) {
 		throw FTL_Error("corrupted WS header");
-		return false;
 	}
 
 	if ((header.N + header.header_size) > data_len) {

@@ -39,7 +39,7 @@ bool ftl::net::internal::resolve_inet_address(const std::string &hostname, int p
 // Socket
 
 Socket::Socket(int domain, int type, int protocol) :
-		status_(STATUS::UNCONNECTED), fd_(-1), family_(domain) {
+		status_(STATUS::UNCONNECTED), fd_(-1), family_(domain), err_(0) {
 
 	int retval = socket(domain, type, protocol);
 

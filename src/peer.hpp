@@ -49,7 +49,7 @@ struct virtual_caller {
 template <typename T>
 struct caller : virtual_caller {
 	explicit caller(std::function<void(const T&)> &f) : f_(f) {};
-	void operator()(msgpack::object &o) { T r = o.as<T>(); f_(r); };
+	void operator()(msgpack::object &o) override { T r = o.as<T>(); f_(r); };
 	std::function<void(const T&)> f_;
 };
 

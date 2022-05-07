@@ -107,6 +107,7 @@ int Socket::listen(int backlog) {
 		::closesocket(fd_);
 		status_ = STATUS::CLOSED;
 		fd_ = INVALID_SOCKET;
+		return retval;
 	}
 }
 
@@ -185,6 +186,9 @@ std::string Socket::get_error_string() {
 	wchar_t* s = NULL;
 	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL, err_, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
+	if (!s) {
+		return "Unknown";
+	}
 	std::wstring ws(s);
 	std::string msg(ws.begin(), ws.end());
 	LocalFree(s);

@@ -320,9 +320,9 @@ void Universe::_cleanupPeers() {
 			auto ix = peer_ids_.find(p->id());
 			if (ix != peer_ids_.end()) peer_ids_.erase(ix);
 
-			for (auto i=peer_by_uri_.begin(); i != peer_by_uri_.end(); ++i) {
-				if (peers_[i->second] == p) {
-					peer_by_uri_.erase(i);
+			for (auto j=peer_by_uri_.begin(); j != peer_by_uri_.end(); ++j) {
+				if (peers_[j->second] == p) {
+					peer_by_uri_.erase(j);
 					break;
 				}
 			}

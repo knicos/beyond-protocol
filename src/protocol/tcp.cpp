@@ -21,7 +21,7 @@ Connection_TCP::Connection_TCP() : SocketConnection(create_tcp_socket(), {}) {
 }
 
 
-bool Connection_TCP::connect(std::string hostname, int port, int timeout) {
+bool Connection_TCP::connect(const std::string &hostname, int port, int timeout) {
 	if (!resolve_inet_address(hostname, port, addr_)) {
 		throw FTL_Error("could not resolve hostname: " + hostname);
 	}

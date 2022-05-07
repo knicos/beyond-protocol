@@ -90,7 +90,7 @@ if (USE_CPPCHECK)
 	find_program(CPPCHECK_FOUND cppcheck)
 	if (CPPCHECK_FOUND)
 		message(STATUS "Found cppcheck: will perform source checks")
-		set(CMAKE_CXX_CPPCHECK "cppcheck" "-D__align__(A)" "--enable=warning,performance,style" "--inline-suppr" "--std=c++14" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*json.hpp" "--quiet")
+		set(CMAKE_CXX_CPPCHECK "cppcheck" "-D__align__(A)" "--enable=warning,performance,style" "--inline-suppr" "--std=c++17" "--suppress=*:*loguru.*" "--suppress=*:*catch.hpp" "--suppress=*:*elas*" "--suppress=*:*json.hpp" "--quiet")
 	endif()
 endif()
 
