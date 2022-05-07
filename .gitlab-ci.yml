@@ -19,6 +19,14 @@ include:
 
 image: ubuntu:jammy
 
+flawfinder-sast:
+  stage: test
+  needs: []
+  dependencies: []
+  only:
+    - main
+    - merge_requests
+
 code_quality:
   stage: test
   allow_failure: true
@@ -32,7 +40,7 @@ code_quality:
   script:
     - DEBIAN_FRONTEND=noninteractive apt update && apt install -y python3 python3-pip cppcheck
     - python3 -m pip install -U cppcheck_codequality
-    - cppcheck --xml --enable=warning,style,performance --std=c++14 --suppress=*:*catch.hpp --suppress=*:*json.hpp ./ 2> cppcheck_out.xml
+    - cppcheck --xml --enable=warning,style,performance --std=c++14 --suppress=*:*catch.hpp --suppress=*:*loguru.cpp --suppress=*:*json.hpp ./ 2> cppcheck_out.xml
     - cppcheck-codequality --input-file=cppcheck_out.xml --output-file=cppcheck.json
   artifacts:
     reports:
