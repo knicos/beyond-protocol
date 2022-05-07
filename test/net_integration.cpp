@@ -13,14 +13,14 @@ using std::chrono::milliseconds;
 
 // --- Support -----------------------------------------------------------------
 
-/*static bool try_for(int count, const std::function<bool()> &f) {
+static bool try_for(int count, const std::function<bool()> &f) {
 	int i=count;
 	while (i-- > 0) {
 		if (f()) return true;
 		sleep_for(milliseconds(10));
 	}
 	return false;
-}*/
+}
 
 // --- Tests -------------------------------------------------------------------
 
@@ -126,39 +126,44 @@ TEST_CASE("Listen and Connect", "[net]") {
 	}
 }
 
-/*TEST_CASE("Universe::onConnect()", "[net]") {
-	Universe a;
-	Universe b;
+TEST_CASE("Self::onConnect()", "[net]") {
+	ftl::protocol::reset();
+
+	auto self = ftl::createDummySelf();
 	
-	a.listen(ftl::URI("tcp://localhost:0"));
-	auto uri = "tcp://localhost:" + std::to_string(a.getListeningURIs().front().getPort());
+	self->listen(ftl::URI("tcp://localhost:0")); 
+
+	auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
 	SECTION("single valid remote init connection") {
 		bool done = false;
 
-		a.onConnect([&done](Peer *p) {
+		auto h = self->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
 			done = true;
+			return true;
 		});
 
-		b.connect(uri)->waitConnection();
+		auto n = ftl::createNode(uri)->waitConnection();
 
-		REQUIRE( try_for(20, [&done]{ return done; }) );
+		bool result = try_for(20, [&done]{ return done; });
+		REQUIRE( result );
 	}
 
 	SECTION("single valid init connection") {
 		bool done = false;
 
-		b.onConnect([&done](Peer *p) {
+		auto h = ftl::getSelf()->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
 			done = true;
+			return true;
 		});
 
-		b.connect(uri)->waitConnection();
-		//sleep_for(milliseconds(100));
+		auto n = ftl::createNode(uri)->waitConnection();
+
 		REQUIRE( done );
 	}
 }
 
-TEST_CASE("Universe::onDisconnect()", "[net]") {
+/*TEST_CASE("Universe::onDisconnect()", "[net]") {
 	Universe a;
 	Universe b;
 
