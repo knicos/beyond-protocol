@@ -24,6 +24,7 @@
 
 #ifndef WIN32
 #include <signal.h>
+#include <poll.h>
 #endif
 
 using std::string;
@@ -55,8 +56,10 @@ std::unique_ptr<SocketServer> create_listener(const ftl::URI &uri) {
 }
 
 struct NetImplDetail {
-	fd_set sfderror_;
-	fd_set sfdread_;
+	//fd_set sfderror_;
+	//fd_set sfdread_;
+	std::vector<pollfd> pollfds;
+	std::unordered_map<int,size_t> idMap;
 };
 
 }
@@ -281,20 +284,28 @@ int Universe::waitConnections() {
 
 socket_t Universe::_setDescriptors() {
 	//Reset all file descriptors
-	FD_ZERO(&impl_->sfdread_);
-	FD_ZERO(&impl_->sfderror_);
+	//FD_ZERO(&impl_->sfdread_);
+	//FD_ZERO(&impl_->sfderror_);
 
 	socket_t n = 0;
 
 	SHARED_LOCK(net_mutex_, lk);
+
+	impl_->pollfds.clear();
 
 	//Set file descriptor for the listening sockets.
 	for (auto &l : listeners_) {
 		if (l) {
 			auto sock = l->fd();
 			if (sock != INVALID_SOCKET) {
-				FD_SET(sock, &impl_->sfdread_);
-				FD_SET(sock, &impl_->sfderror_);
+				pollfd fdentry;
+				fdentry.events = POLLIN | POLLERR;
+				fdentry.fd = sock;
+				impl_->pollfds.push_back(fdentry);
+				impl_->idMap[sock] = impl_->pollfds.size() - 1;
+
+				//FD_SET(sock, &impl_->sfdread_);
+				//FD_SET(sock, &impl_->sfderror_);
 			}
 			n = std::max<socket_t>(n, l->fd());
 		}
@@ -306,8 +317,14 @@ socket_t Universe::_setDescriptors() {
 			auto sock = s->_socket();
 			n = std::max<socket_t>(n, sock);
 			if (sock != INVALID_SOCKET) {
-				FD_SET(sock, &impl_->sfdread_);
-				FD_SET(s->_socket(), &impl_->sfderror_);
+				pollfd fdentry;
+				fdentry.events = POLLIN | POLLERR;
+				fdentry.fd = sock;
+				impl_->pollfds.push_back(fdentry);
+				impl_->idMap[sock] = impl_->pollfds.size() - 1;
+
+				//FD_SET(sock, &impl_->sfdread_);
+				//FD_SET(s->_socket(), &impl_->sfderror_);
 			}
 		}
 	}
@@ -438,8 +455,6 @@ void Universe::__start(Universe *u) {
 }
 
 void Universe::_run() {
-	timeval block;
-
 	auto start = std::chrono::high_resolution_clock::now();
 
 	while (active_) {
@@ -463,10 +478,7 @@ void Universe::_run() {
 			continue;
 		}
 
-		//Wait for a network event or timeout in 3 seconds
-		block.tv_sec = 0;
-		block.tv_usec = 100000;
-		selres = select(n+1u, &(impl_->sfdread_), 0, &(impl_->sfderror_), &block);
+		selres = poll(impl_->pollfds.data(), impl_->pollfds.size(), 100);
 
 		// NOTE Nick: Is it possible that not all the recvs have been called before I
 		// again reach a select call!? What are the consequences of this? A double recv attempt?
@@ -488,7 +500,7 @@ void Universe::_run() {
 
 		//If connection request is waiting
 		for (auto &l : listeners_) {
-			if (l && l->is_listening() && FD_ISSET(l->fd(), &(impl_->sfdread_))) {
+			if (l && l->is_listening() && (impl_->pollfds[impl_->idMap[l->fd()]].revents & POLLIN)) {
 				std::unique_ptr<ftl::net::internal::SocketConnection> csock;
 				try {
 					csock = l->accept();
@@ -518,7 +530,7 @@ void Universe::_run() {
 				SOCKET sock = s->_socket();
 				if (sock == INVALID_SOCKET) continue;
 
-				if (FD_ISSET(sock, &impl_->sfderror_)) {
+				if (impl_->pollfds[impl_->idMap[sock]].revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
@@ -527,7 +539,7 @@ void Universe::_run() {
 					}
 				}
 				//If message received from this client then deal with it
-				if (FD_ISSET(sock, &impl_->sfdread_)) {
+				if (impl_->pollfds[impl_->idMap[sock]].revents & POLLIN) {
 					//lk.unlock();
 					s->data();
 					//lk.lock();
