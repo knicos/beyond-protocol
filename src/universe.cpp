@@ -291,21 +291,24 @@ socket_t Universe::_setDescriptors() {
 	//Set file descriptor for the listening sockets.
 	for (auto &l : listeners_) {
 		if (l) {
-			FD_SET(l->fd(), &impl_->sfdread_);
-			FD_SET(l->fd(), &impl_->sfderror_);
+			auto sock = l->fd();
+			if (sock != INVALID_SOCKET) {
+				FD_SET(sock, &impl_->sfdread_);
+				FD_SET(sock, &impl_->sfderror_);
+			}
 			n = std::max<socket_t>(n, l->fd());
 		}
 	}
 
 	//Set the file descriptors for each client
 	for (const auto &s : peers_) {
-		// NOTE: s->isValid() should return true only and only if a valid OS
-		//       socket exists.
-
 		if (s && s->isValid()) {
-			n = std::max<socket_t>(n, s->_socket());
-			FD_SET(s->_socket(), &impl_->sfdread_);
-			FD_SET(s->_socket(), &impl_->sfderror_);
+			auto sock = s->_socket();
+			n = std::max<socket_t>(n, sock);
+			if (sock != INVALID_SOCKET) {
+				FD_SET(sock, &impl_->sfdread_);
+				FD_SET(s->_socket(), &impl_->sfderror_);
+			}
 		}
 	}
 
