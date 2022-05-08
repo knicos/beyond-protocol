@@ -39,3 +39,13 @@ target_link_libraries(net_integration beyond-protocol
 	${URIPARSER_LIBRARIES})
 
 add_test(NetIntegrationTest net_integration)
+
+### Net performance ############################################################
+add_executable(net_performance
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./net_performance.cpp)
+target_include_directories(net_performance PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}../include")
+target_link_libraries(net_performance beyond-protocol
+	GnuTLS::GnuTLS Threads::Threads ${UUID_LIBRARIES} ${URIPARSER_LIBRARIES} ${OS_LIBS})
+
+add_test(NetPerformance net_performance)

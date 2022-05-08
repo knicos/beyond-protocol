@@ -172,6 +172,12 @@ void Universe::shutdown() {
 
 	active_ = false;
 	thread_.join();
+
+	// FIXME: This shouldn't be needed
+	while (peer_instances_ > 0 && ftl::pool.size() > 0) {
+		LOG(INFO) << "waiting for peers to destroy...";
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
+	}
 }
 
 bool Universe::listen(const ftl::URI &addr) {
@@ -291,8 +297,6 @@ socket_t Universe::_setDescriptors() {
 		}
 	}
 
-	// FIXME: Bug, it crashes here sometimes, segfault on reading the shared_ptr
-
 	//Set the file descriptors for each client
 	for (const auto &s : peers_) {
 		// NOTE: s->isValid() should return true only and only if a valid OS
@@ -386,7 +390,7 @@ void Universe::_periodic() {
 		std::string addr = i->peer->getURI();
 
 		{
-			UNIQUE_LOCK(net_mutex_,lk);
+			SHARED_LOCK(net_mutex_,lk);
 			ftl::URI u(addr);
 			bool removed = false;
 
@@ -452,8 +456,7 @@ void Universe::_run() {
 		// It is an error to use "select" with no sockets ... so just sleep
 		if (n == 0) {
 			std::shared_lock lk(net_mutex_);
-			socket_cv_.wait_for(lk, std::chrono::milliseconds(300), [this](){ return listeners_.size() > 0 || connection_count_ > 0; });
-			//std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			socket_cv_.wait_for(lk, std::chrono::milliseconds(100), [this](){ return listeners_.size() > 0 || connection_count_ > 0; });
 			continue;
 		}
 
@@ -506,7 +509,7 @@ void Universe::_run() {
 		for (size_t p=0; p<peers_.size(); ++p) {
 			auto s = peers_[(p+phase_)%peers_.size()];
 
-			if (s != NULL && s->isValid()) {
+			if (s && s->isValid()) {
 				// Note: It is possible that the socket becomes invalid after check but before
 				// looking at the FD sets, therefore cache the original socket
 				SOCKET sock = s->_socket();
@@ -514,13 +517,17 @@ void Universe::_run() {
 
 				if (FD_ISSET(sock, &impl_->sfderror_)) {
 					if (s->socketError()) {
+						//lk.unlock();
 						s->close();
+						//lk.lock();
 						continue;  // No point in reading data...
 					}
 				}
 				//If message received from this client then deal with it
 				if (FD_ISSET(sock, &impl_->sfdread_)) {
+					//lk.unlock();
 					s->data();
+					//lk.lock();
 				}
 			}
 		}

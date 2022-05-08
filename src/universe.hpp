@@ -205,8 +205,8 @@ private:
 	std::list<std::shared_ptr<ftl::net::Peer>> garbage_;
 	ftl::Handle garbage_timer_;
 
-	size_t send_size_;
-	size_t recv_size_;
+	// size_t send_size_;
+	// size_t recv_size_;
 	double periodic_time_;
 	int reconnect_attempts_;
 	std::atomic_int connection_count_ = 0;	// Active connections
@@ -236,7 +236,7 @@ void Universe::bind(const std::string &name, F func) {
 template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
 	SHARED_LOCK(net_mutex_,lk);
-	for (auto p : peers_) {
+	for (auto &p : peers_) {
 		if (!p->waitConnection()) continue;
 		p->send(name, args...);
 	}
@@ -265,7 +265,7 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 
 	{
 		SHARED_LOCK(net_mutex_,lk);
-		for (auto p : peers_) {
+		for (auto &p : peers_) {
 			if (!p->waitConnection()) continue;
 			p->asyncCall<std::optional<R>>(name, handler, args...);
 		}
@@ -302,7 +302,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 
 	{
 		SHARED_LOCK(net_mutex_,lk);
-		for (auto p : peers_) {
+		for (auto &p : peers_) {
 			if (!p->waitConnection()) continue;
 			++sdata->sentcount;
 			p->asyncCall<std::vector<R>>(name, handler, args...);
