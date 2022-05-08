@@ -57,7 +57,7 @@ class Node {
 	 * 
 	 * @return True if all connections were successful, false if timeout or error.
 	 */
-	bool waitConnection();
+	bool waitConnection(int seconds = 1);
 
 	/**
 	 * Make a reconnect attempt. Called internally by Universe object.

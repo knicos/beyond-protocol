@@ -48,7 +48,7 @@ struct virtual_caller {
 
 template <typename T>
 struct caller : virtual_caller {
-	explicit caller(std::function<void(const T&)> &f) : f_(f) {};
+	explicit caller(const std::function<void(const T&)> &f) : f_(f) {};
 	void operator()(msgpack::object &o) override { T r = o.as<T>(); f_(r); };
 	std::function<void(const T&)> f_;
 };
@@ -87,7 +87,7 @@ class Peer {
 	 * 
 	 * @return True if all connections were successful, false if timeout or error.
 	 */
-	bool waitConnection();
+	bool waitConnection(int seconds = 1);
 
 	/**
 	 * Make a reconnect attempt. Called internally by Universe object.
@@ -121,6 +121,8 @@ class Peer {
 	 * the same as the initial connection string on the client.
 	 */
 	std::string getURI() const { return uri_.to_string(); };
+
+	const ftl::URI &getURIObject() const { return uri_; }
 	
 	/**
 	 * Get the UUID for this peer.
@@ -256,7 +258,7 @@ private: // Functions
 	RECURSIVE_MUTEX cb_mtx_;
 	
 	const bool outgoing_;
-	const unsigned int local_id_;
+	unsigned int local_id_;
 	ftl::URI uri_;					// Original connection URI, or assumed URI
 	ftl::UUID peerid_;				// Received in handshake or allocated
 	ftl::protocol::NodeStatus status_;					// Connected, errored, reconnecting..
@@ -281,7 +283,6 @@ private: // Functions
 	bool reconnect_on_protocol_error_ = false;
 
 	static std::atomic_int rpcid__;				// Return ID for RPC calls
-	static std::atomic_int local_peer_ids__;
 };
 
 // --- Inline Template Implementations -----------------------------------------

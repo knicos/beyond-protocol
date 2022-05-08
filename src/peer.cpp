@@ -40,7 +40,6 @@ using ftl::protocol::NodeStatus;
 using ftl::protocol::NodeType;
 
 std::atomic_int Peer::rpcid__ = 0;
-std::atomic_int Peer::local_peer_ids__ = 0;
 
 int Peer::_socket() const {
 	if (sock_->is_valid()) {
@@ -105,10 +104,7 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, UUID pid) {
 			_send_handshake();
 		}
 
-		// Ensure handlers called later or in new thread
-		ftl::pool.push([this](int id) {
-			net_->_notifyConnect(this);
-		});
+		net_->_notifyConnect(this);
 	}
 }
 
@@ -130,7 +126,7 @@ void Peer::_bind_rpc() {
 }
 
 Peer::Peer(std::unique_ptr<internal::SocketConnection> s, Universe* u, Dispatcher* d) :
-		is_waiting_(true), outgoing_(false), local_id_(local_peer_ids__++),
+		is_waiting_(true), outgoing_(false), local_id_(0),
 		uri_("0"), status_(NodeStatus::kConnecting), can_reconnect_(false),
 		net_(u), sock_(std::move(s)) {
 	
@@ -144,10 +140,11 @@ Peer::Peer(std::unique_ptr<internal::SocketConnection> s, Universe* u, Dispatche
 	
 	_bind_rpc();
 	_send_handshake();
+	++net_->peer_instances_;
 }
 
 Peer::Peer(const ftl::URI& uri, Universe *u, Dispatcher *d) : 
-		outgoing_(true), local_id_(local_peer_ids__++), uri_(uri),
+		outgoing_(true), local_id_(0), uri_(uri),
 		status_(NodeStatus::kInvalid), can_reconnect_(true), net_(u) {
 	
 	/* Outgoing connection constructor */
@@ -159,6 +156,7 @@ Peer::Peer(const ftl::URI& uri, Universe *u, Dispatcher *d) :
 
 	_bind_rpc();
 	_connect();
+	++net_->peer_instances_;
 }
 
 void Peer::_connect() {
@@ -216,7 +214,7 @@ void Peer::close(bool retry) {
 }
 
 void Peer::_close(bool retry) {
-	if (status_ == NodeStatus::kDisconnected) return;
+	if (status_ != NodeStatus::kConnected && status_ != NodeStatus::kConnecting) return;
 	status_ = NodeStatus::kDisconnected;
 	
 	if (sock_->is_valid()) {
@@ -410,6 +408,7 @@ bool Peer::_data() {
 					if (status_ == NodeStatus::kConnecting) {
 						LOG(ERROR) << "failed to get handshake";
 						close(reconnect_on_protocol_error_);
+						lk.lock();
 						return false;
 					}
 				} else {
@@ -431,6 +430,8 @@ bool Peer::_data() {
 					return false;
 				}
 			}
+		} else {
+			lk.unlock();
 		}
 	}
 	
@@ -501,7 +502,7 @@ void Peer::_waitCall(int id, std::condition_variable &cv, bool &hasreturned, con
 	}
 }
 
-bool Peer::waitConnection() {
+bool Peer::waitConnection(int s) {
 	if (status_ == NodeStatus::kConnected) return true;
 	else if (status_ != NodeStatus::kConnecting) return false;
 	
@@ -516,7 +517,7 @@ bool Peer::waitConnection() {
 		return true;
 	});
 
-	cv.wait_for(lk, seconds(1), [this]() { return status_ == NodeStatus::kConnected;});
+	cv.wait_for(lk, seconds(s), [this]() { return status_ == NodeStatus::kConnected;});
 	return status_ == NodeStatus::kConnected;
 }
 
@@ -553,6 +554,7 @@ int Peer::_send() {
 }
 
 Peer::~Peer() {
+	--net_->peer_instances_;
 	{
 		UNIQUE_LOCK(send_mtx_,lk1);
 		UNIQUE_LOCK(recv_mtx_,lk2);
@@ -560,7 +562,8 @@ Peer::~Peer() {
 	}
 
 	// Prevent deletion if there are any jobs remaining
-	while (job_count_ > 0) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	while (job_count_ > 0 && ftl::pool.size() > 0) {
+		LOG(INFO) << "waiting for peer jobs...";
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }

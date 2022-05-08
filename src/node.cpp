@@ -16,8 +16,8 @@ bool Node::isConnected() const {
     return peer_->isConnected();
 }
 
-bool Node::waitConnection() {
-    return peer_->waitConnection();
+bool Node::waitConnection(int s) {
+    return peer_->waitConnection(s);
 }
 
 bool Node::reconnect() {

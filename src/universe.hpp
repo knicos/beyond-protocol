@@ -92,7 +92,7 @@ public:
 	bool isConnected(const ftl::URI &uri);
 	bool isConnected(const std::string &s);
 	
-	size_t numberOfPeers() const { return peers_.size(); }
+	size_t numberOfPeers() const { return connection_count_; }
 
 	/**
 	 * Will block until all currently registered connnections have completed.
@@ -181,13 +181,16 @@ private:
 	void _notifyDisconnect(ftl::net::Peer *);
 	void _notifyError(ftl::net::Peer *, const ftl::net::Error &);
 	void _periodic();
+	std::shared_ptr<ftl::net::Peer> _findPeer(const ftl::net::Peer *p);
+	void _removePeer(std::shared_ptr<Peer> &p);
+	void _insertPeer(const std::shared_ptr<ftl::net::Peer> &ptr);
 	
 	static void __start(Universe *u);
 	
 	bool active_;
 	ftl::UUID this_peer;
 	mutable SHARED_MUTEX net_mutex_;
-	RECURSIVE_MUTEX handler_mutex_;
+	std::condition_variable_any socket_cv_;
 	
 	std::unique_ptr<NetImplDetail> impl_;
 	
@@ -206,6 +209,8 @@ private:
 	size_t recv_size_;
 	double periodic_time_;
 	int reconnect_attempts_;
+	std::atomic_int connection_count_ = 0;	// Active connections
+	std::atomic_int peer_instances_ = 0;	// Actual peers dependent on Universe
 
 	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_connect_;
 	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_disconnect_;

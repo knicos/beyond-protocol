@@ -217,6 +217,7 @@ bool SocketServer::bind(int backlog) {
 }
 
 bool SocketServer::close() {
+	is_listening_ = false;
 	return sock_.close();
 }
 

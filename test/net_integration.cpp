@@ -37,7 +37,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		auto p = ftl::createNode(uri);
 		REQUIRE( p );
 		
-		p->waitConnection();
+		REQUIRE( p->waitConnection(5) );
 		
 		REQUIRE( self->numberOfNodes() == 1 );
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
@@ -48,7 +48,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		auto p = ftl::createNode(uri);
 		REQUIRE( p );
 		
-		p->waitConnection();
+		REQUIRE( p->waitConnection(5) );
 		
 		REQUIRE( self->numberOfNodes() == 1 );
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
@@ -143,7 +143,7 @@ TEST_CASE("Self::onConnect()", "[net]") {
 			return true;
 		});
 
-		auto n = ftl::createNode(uri)->waitConnection();
+		REQUIRE( ftl::createNode(uri)->waitConnection(5) );
 
 		bool result = try_for(20, [&done]{ return done; });
 		REQUIRE( result );
@@ -157,7 +157,7 @@ TEST_CASE("Self::onConnect()", "[net]") {
 			return true;
 		});
 
-		auto n = ftl::createNode(uri)->waitConnection();
+		REQUIRE( ftl::createNode(uri)->waitConnection(5) );
 
 		REQUIRE( done );
 	}

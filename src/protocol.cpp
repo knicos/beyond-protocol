@@ -4,7 +4,8 @@
 
 static std::shared_ptr<ftl::net::Universe> universe;
 
-ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
+//ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
+ctpl::thread_pool ftl::pool(4);
 
 void ftl::protocol::reset() {
     universe.reset();

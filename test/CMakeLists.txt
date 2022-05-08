@@ -24,7 +24,8 @@ add_executable(handle_unit
 )
 target_include_directories(handle_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(handle_unit beyond-protocol
-	Threads::Threads ${OS_LIBS})
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
 
 add_test(HandleUnitTest handle_unit)
 

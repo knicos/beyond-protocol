@@ -88,7 +88,7 @@ struct Handler : BaseHandler {
 	Handler() {}
 	~Handler() {
 		// Ensure all thread pool jobs are done
-		while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 
 	/**
@@ -109,12 +109,19 @@ struct Handler : BaseHandler {
 	 * return true.
 	 */
 	void trigger(ARGS ...args) {
+		bool hadFault = false;
 		std::unique_lock<std::mutex> lk(mutex_);
 		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
-			bool keep = i->second(std::forward<ARGS>(args)...);
+			bool keep = true;
+			try {
+				keep = i->second(std::forward<ARGS>(args)...);
+			} catch(...) {
+				hadFault = true;
+			}
 			if (!keep) i = callbacks_.erase(i);
 			else ++i;
 		}
+		if (hadFault) throw FTL_Error("Callback exception");
 	}
 
 	/**
@@ -122,13 +129,22 @@ struct Handler : BaseHandler {
 	 * single thread, not in parallel.
 	 */
 	void triggerAsync(ARGS ...args) {
+		++jobs_;
 		ftl::pool.push([this, args...](int id) {
+			bool hadFault = false;
 			std::unique_lock<std::mutex> lk(mutex_);
 			for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
-				bool keep = i->second(std::forward<ARGS>(args)...);
+				bool keep = true;
+				try {
+					keep = i->second(std::forward<ARGS>(args)...);
+				} catch (...) {
+					hadFault = true;
+				}
 				if (!keep) i = callbacks_.erase(i);
 				else ++i;
 			}
+			--jobs_;
+			if (hadFault) throw FTL_Error("Callback exception");
 		});
 	}
 
@@ -163,13 +179,17 @@ struct Handler : BaseHandler {
 			callbacks_.erase(h.id());
 		}
 		// Make sure any possible call to removed callback has finished.
-		while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 
 	void removeUnsafe(const Handle &h) override {
 		callbacks_.erase(h.id());
 		// Make sure any possible call to removed callback has finished.
-		while (jobs_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+	}
+
+	void clear() {
+		callbacks_.clear();
 	}
 
 	private:

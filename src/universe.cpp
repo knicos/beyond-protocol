@@ -75,9 +75,10 @@ Universe::Universe() :
 		active_(true),
 		this_peer(ftl::protocol::id),
 		impl_(new ftl::net::NetImplDetail()),
+		peers_(10),
 		phase_(0),
 		periodic_time_(1.0),
-		reconnect_attempts_(50),
+		reconnect_attempts_(5),
 		thread_(Universe::__start, this) {
 
 	_installBindings();
@@ -99,16 +100,15 @@ Universe::Universe() :
 		}
 		return true;
 	});*/
-
-	if (instance_ != nullptr) LOG(FATAL) << "Multiple net instances";
-	//instance_ = this;
 }
 
 Universe::~Universe() {
 	shutdown();
+	CHECK(peer_instances_ == 0);
 }
 
 size_t Universe::getSendBufferSize(ftl::URI::scheme_t s) {
+	// TODO: Allow these to be configured again.
 	switch(s) {
 		case ftl::URI::scheme_t::SCHEME_WS:
 		case ftl::URI::scheme_t::SCHEME_WSS:
@@ -159,7 +159,11 @@ void Universe::shutdown() {
 	LOG(INFO) << "Cleanup Network ...";
 
 	{
-		UNIQUE_LOCK(net_mutex_, lk);
+		SHARED_LOCK(net_mutex_, lk);
+
+		for (auto &l : listeners_) {
+			l->close();
+		}
 
 		for (auto &s : peers_) {
 			if (s) s->rawClose();
@@ -168,12 +172,6 @@ void Universe::shutdown() {
 
 	active_ = false;
 	thread_.join();
-	
-	for (auto &l : listeners_) {
-		l->close();
-	}
-	
-	listeners_.clear();
 }
 
 bool Universe::listen(const ftl::URI &addr) {
@@ -181,9 +179,12 @@ bool Universe::listen(const ftl::URI &addr) {
 		auto l = create_listener(addr);
 		l->bind();
 
-		UNIQUE_LOCK(net_mutex_,lk);
-		LOG(INFO) << "listening on " << l->uri().to_string();
-		listeners_.push_back(std::move(l));
+		{
+			UNIQUE_LOCK(net_mutex_,lk);
+			LOG(INFO) << "listening on " << l->uri().to_string();
+			listeners_.push_back(std::move(l));
+		}
+		socket_cv_.notify_one();
 		return true;
 
 	} catch (const std::exception &ex) {
@@ -209,6 +210,24 @@ bool Universe::isConnected(const std::string &s) {
 	return isConnected(uri);
 }
 
+void Universe::_insertPeer(const std::shared_ptr<Peer> &ptr) {
+	UNIQUE_LOCK(net_mutex_,lk);
+	for (size_t i=0; i<peers_.size(); ++i) {
+		if (!peers_[i]) {
+			++connection_count_;
+			peers_[i] = ptr;
+			peer_by_uri_[ptr->getURIObject().getBaseURI()] = i;
+			peer_ids_[ptr->id()] = i;
+			ptr->local_id_ = i;
+
+			lk.unlock();
+			socket_cv_.notify_one();
+			return;
+		}
+	}
+	throw FTL_Error("Too many connections");
+}
+
 std::shared_ptr<Peer> Universe::connect(const ftl::URI &u) {
 
 	// Check if already connected or if self (when could this happen?)
@@ -228,9 +247,7 @@ std::shared_ptr<Peer> Universe::connect(const ftl::URI &u) {
 	auto p = std::make_shared<Peer>(u, this, &disp_);
 	
 	if (p->status() != NodeStatus::kInvalid) {
-		UNIQUE_LOCK(net_mutex_,lk);
-		peers_.push_back(p);
-		peer_by_uri_[u.getBaseURI()] = peers_.size() - 1;
+		_insertPeer(p);
 	}
 	else {
 		LOG(ERROR) << "Peer in invalid state";
@@ -251,11 +268,9 @@ void Universe::unbind(const std::string &name) {
 
 int Universe::waitConnections() {
 	SHARED_LOCK(net_mutex_, lk);
-	int count = 0;
-	for (auto p : peers_) {
-		if (p->waitConnection()) count++;
-	}
-	return count;
+	return std::count_if(peers_.begin(), peers_.end(), [](const auto &p) {
+		return p && p->waitConnection();
+	});
 }
 
 socket_t Universe::_setDescriptors() {
@@ -265,8 +280,7 @@ socket_t Universe::_setDescriptors() {
 
 	socket_t n = 0;
 
-	// TODO: Shared lock for some of the time...
-	UNIQUE_LOCK(net_mutex_, lk);
+	SHARED_LOCK(net_mutex_, lk);
 
 	//Set file descriptor for the listening sockets.
 	for (auto &l : listeners_) {
@@ -277,8 +291,10 @@ socket_t Universe::_setDescriptors() {
 		}
 	}
 
+	// FIXME: Bug, it crashes here sometimes, segfault on reading the shared_ptr
+
 	//Set the file descriptors for each client
-	for (auto s : peers_) {
+	for (const auto &s : peers_) {
 		// NOTE: s->isValid() should return true only and only if a valid OS
 		//       socket exists.
 
@@ -288,7 +304,6 @@ socket_t Universe::_setDescriptors() {
 			FD_SET(s->_socket(), &impl_->sfderror_);
 		}
 	}
-	_cleanupPeers();
 
 	return n;
 }
@@ -301,37 +316,48 @@ void Universe::_installBindings() {
 
 }
 
-// Note: should be called inside a net lock
+void Universe::_removePeer(std::shared_ptr<Peer> &p) {
+	UNIQUE_LOCK(net_mutex_, ulk);
+			
+	if (p && (!p->isValid() ||
+		p->status() == NodeStatus::kReconnecting ||
+		p->status() == NodeStatus::kDisconnected)) {
+
+		LOG(INFO) << "Removing disconnected peer: " << p->id().to_string();
+		on_disconnect_.triggerAsync(p);
+	
+		auto ix = peer_ids_.find(p->id());
+		if (ix != peer_ids_.end()) peer_ids_.erase(ix);
+
+		for (auto j=peer_by_uri_.begin(); j != peer_by_uri_.end(); ++j) {
+			if (peers_[j->second] == p) {
+				peer_by_uri_.erase(j);
+				break;
+			}
+		}
+
+		if (p->status() == NodeStatus::kReconnecting) {
+			reconnects_.push_back({reconnect_attempts_, 1.0f, p});
+		} else {
+			garbage_.push_back(p);
+		}
+
+		--connection_count_;
+		p.reset();
+	}
+}
+
 void Universe::_cleanupPeers() {
+	SHARED_LOCK(net_mutex_, lk);
 	auto i = peers_.begin();
 	while (i != peers_.end()) {
 		auto &p = *i;
 		if (p && (!p->isValid() ||
 			p->status() == NodeStatus::kReconnecting ||
 			p->status() == NodeStatus::kDisconnected)) {
-
-			LOG(INFO) << "Removing disconnected peer: " << p->id().to_string();
-			_notifyDisconnect(p.get());
-
-			auto ix = peer_ids_.find(p->id());
-			if (ix != peer_ids_.end()) peer_ids_.erase(ix);
-
-			for (auto j=peer_by_uri_.begin(); j != peer_by_uri_.end(); ++j) {
-				if (peers_[j->second] == p) {
-					peer_by_uri_.erase(j);
-					break;
-				}
-			}
-
-			//i = peers_.erase(i);
-
-			if (p->status() == NodeStatus::kReconnecting) {
-				reconnects_.push_back({reconnect_attempts_, 1.0f, p});
-			} else {
-				garbage_.push_back(p);
-			}
-
-			p.reset();
+			lk.unlock();
+			_removePeer(p);
+			lk.lock();
 		} else {
 			i++;
 		}
@@ -347,12 +373,10 @@ std::shared_ptr<Peer> Universe::getPeer(const UUID &id) const {
 
 std::shared_ptr<Peer> Universe::getWebService() const {
 	SHARED_LOCK(net_mutex_,lk);
-	for (const auto &p : peers_) {
-		if (p->getType() == NodeType::kWebService) {
-			return p;
-		}
-	}
-	return nullptr;
+	auto it = std::find_if(peers_.begin(), peers_.end(), [](const auto &p) {
+		return p && p->getType() == NodeType::kWebService;
+	});
+	return (it != peers_.end()) ? *it : nullptr;
 }
 
 void Universe::_periodic() {
@@ -383,8 +407,7 @@ void Universe::_periodic() {
 		}
 
 		if ((*i).peer->reconnect()) {
-			UNIQUE_LOCK(net_mutex_,lk);
-			peers_.push_back((*i).peer);
+			_insertPeer((*i).peer);
 			i = reconnects_.erase(i);
 		}
 		else if ((*i).tries > 0) {
@@ -416,6 +439,8 @@ void Universe::_run() {
 		SOCKET n = _setDescriptors();
 		int selres = 1;
 
+		_cleanupPeers();
+
 		// Do periodics
 		auto now = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = now - start;
@@ -426,7 +451,9 @@ void Universe::_run() {
 
 		// It is an error to use "select" with no sockets ... so just sleep
 		if (n == 0) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(300));
+			std::shared_lock lk(net_mutex_);
+			socket_cv_.wait_for(lk, std::chrono::milliseconds(300), [this](){ return listeners_.size() > 0 || connection_count_ > 0; });
+			//std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			continue;
 		}
 
@@ -455,20 +482,22 @@ void Universe::_run() {
 
 		//If connection request is waiting
 		for (auto &l : listeners_) {
-			if (l && l->is_listening()) {
-				if (FD_ISSET(l->fd(), &(impl_->sfdread_))) {
-					lk.unlock();
-					try {
-						UNIQUE_LOCK(net_mutex_,ulk);
-						auto csock = l->accept();
-						auto p = std::make_shared<Peer>(std::move(csock), this, &disp_);
-						peers_.push_back(p);
-
-					} catch (const std::exception &ex) {
-						LOG(ERROR) << "Connection failed: " << ex.what();
-					}
-					lk.lock();
+			if (l && l->is_listening() && FD_ISSET(l->fd(), &(impl_->sfdread_))) {
+				std::unique_ptr<ftl::net::internal::SocketConnection> csock;
+				try {
+					csock = l->accept();
+				} catch (const std::exception &ex) {
+					LOG(ERROR) << "Connection failed: " << ex.what();
 				}
+
+				lk.unlock();
+
+				if (csock) {
+					auto p = std::make_shared<Peer>(std::move(csock), this, &disp_);
+					_insertPeer(p);
+				}
+
+				lk.lock();
 			}
 		}
 
@@ -507,6 +536,7 @@ void Universe::_run() {
 		peers_.clear();
 		peer_by_uri_.clear();
 		peer_ids_.clear();
+		listeners_.clear();
 	}
 
 	garbage_.clear();
@@ -524,35 +554,28 @@ ftl::Handle Universe::onError(const std::function<bool(const std::shared_ptr<Pee
 	return on_error_.on(cb);
 }
 
-static std::shared_ptr<Peer> findPeer(const std::vector<std::shared_ptr<Peer>> &peers, const Peer *p) {
-	for (const auto &pp : peers) {
+std::shared_ptr<Peer> Universe::_findPeer(const Peer *p) {
+	SHARED_LOCK(net_mutex_,lk);
+	for (const auto &pp : peers_) {
 		if (pp.get() == p) return pp;
 	}
 	return nullptr;
 }
 
 void Universe::_notifyConnect(Peer *p) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	const auto ptr = findPeer(peers_, p);
+	const auto ptr = _findPeer(p);
 
-	peer_ids_[ptr->id()] = ptr->localID();
+	// The peer could have been removed from valid peers already.
+	if (!ptr) return;
 
-	try {
-		on_connect_.trigger(ptr);
-	} catch(const std::exception &e) {
-		LOG(ERROR) << "Exception inside OnConnect hander: " << e.what();
-	}
+	on_connect_.triggerAsync(ptr);
 }
 
 void Universe::_notifyDisconnect(Peer *p) {
-	UNIQUE_LOCK(handler_mutex_,lk);
-	const auto ptr = findPeer(peers_, p);
+	const auto ptr = _findPeer(p);
+	if (!ptr) return;
 
-	try {
-		on_disconnect_.trigger(ptr);
-	} catch(const std::exception &e) {
-		LOG(ERROR) << "Exception inside OnDisconnect hander: " << e.what();
-	}
+	on_disconnect_.triggerAsync(ptr);
 }
 
 void Universe::_notifyError(Peer *p, const ftl::net::Error &e) {
