@@ -90,9 +90,8 @@ ftl::Handle Self::onDisconnect(const std::function<bool(const std::shared_ptr<ft
     });
 }
 
-ftl::Handle Self::onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, const ftl::protocol::Error &)> &cb) {
-    return universe_->onError([cb](const ftl::net::PeerPtr &p, const ftl::net::Error &err) {
-        ftl::protocol::Error perr = {};
-        return cb(std::make_shared<ftl::protocol::Node>(p), perr);
+ftl::Handle Self::onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, ftl::protocol::Error, const std::string &)> &cb) {
+    return universe_->onError([cb](const ftl::net::PeerPtr &p, ftl::protocol::Error e, const std::string &estr) {
+        return cb(std::make_shared<ftl::protocol::Node>(p), e, estr);
     });
 }

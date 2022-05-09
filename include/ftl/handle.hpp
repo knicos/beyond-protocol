@@ -114,7 +114,7 @@ struct Handler : BaseHandler {
 		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
 			bool keep = true;
 			try {
-				keep = i->second(std::forward<ARGS>(args)...);
+				keep = i->second(args...);
 			} catch(...) {
 				hadFault = true;
 			}
@@ -136,7 +136,7 @@ struct Handler : BaseHandler {
 			for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
 				bool keep = true;
 				try {
-					keep = i->second(std::forward<ARGS>(args)...);
+					keep = i->second(args...);
 				} catch (...) {
 					hadFault = true;
 				}
@@ -159,7 +159,7 @@ struct Handler : BaseHandler {
 		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ++i) {
 			ftl::pool.push([this, f = i->second, args...](int id) {
 				try {
-					f(std::forward<ARGS>(args)...);
+					f(args...);
 				} catch (const ftl::exception &e) {
 					--jobs_;
 					throw e;

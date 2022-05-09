@@ -9,6 +9,7 @@
 #include <ftl/uuid.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/handle.hpp>
+#include <ftl/protocol/error.hpp>
 
 #include <memory>
 #include <string>
@@ -22,10 +23,6 @@ namespace protocol {
 
 class Node;
 class Stream;
-
-struct Error {
-	int errno;
-};
 
 class Self {	
 	public:
@@ -75,7 +72,7 @@ class Self {
 
 	ftl::Handle onConnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)>&);
 	ftl::Handle onDisconnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)>&);
-	ftl::Handle onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, const ftl::protocol::Error &)>&);
+	ftl::Handle onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, ftl::protocol::Error, const std::string & )>&);
 
 	protected:
 	std::shared_ptr<ftl::net::Universe> universe_;

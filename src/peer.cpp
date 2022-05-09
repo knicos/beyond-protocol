@@ -86,13 +86,12 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, UUID pid) {
 	 * 	(3). Listening side receives handshake and sets status to kConnected.
 	 */
 	if (magic != ftl::net::kMagic) {
+		net_->_notifyError(this, ftl::protocol::Error::kBadHandshake, "invalid magic during handshake");
 		_close(reconnect_on_protocol_error_);
-		LOG(ERROR) << "invalid magic during handshake";
-		
 	} else {
 		if (version != ftl::net::kVersion) LOG(WARNING) << "net protocol using different versions!";
 
-		LOG(INFO) << "(" << (outgoing_ ? "connecting" : "listening")
+		LOG(1) << "(" << (outgoing_ ? "connecting" : "listening")
 				  << " peer) handshake received from remote for " << pid.to_string();
 
 		status_ = NodeStatus::kConnected;
@@ -117,7 +116,7 @@ void Peer::_bind_rpc() {
 
 	bind("__disconnect__", [this]() {
 		close(reconnect_on_remote_disconnect_);
-		LOG(INFO) << "peer elected to disconnect: " << id().to_string();
+		LOG(1) << "peer elected to disconnect: " << id().to_string();
 	});
 
 	bind("__ping__", [this]() {
@@ -177,14 +176,14 @@ bool Peer::reconnect() {
 
 	URI uri(uri_);
 
-	LOG(INFO) << "Reconnecting to " << uri_.to_string() << " ...";
+	LOG(1) << "Reconnecting to " << uri_.to_string() << " ...";
 
 	try {
 		_connect();
 		return true;
 		
 	} catch(const std::exception& ex) {
-		LOG(ERROR) << "reconnect failed: " << ex.what();
+		net_->_notifyError(this, ftl::protocol::Error::kReconnectionFailed, ex.what()); 
 	}
 
 	return false;
@@ -239,8 +238,7 @@ bool Peer::socketError() {
 	// more socket errors...
 	
 	_close(reconnect_on_socket_error_);
-	
-	LOG(ERROR) << "Connection error: " << uri_.to_string() ; // << " - error " << err;
+	net_->_notifyError(this, ftl::protocol::Error::kSocketError, uri_.to_string()); 
 	return true;
 }
 
@@ -267,7 +265,7 @@ void Peer::data() {
 	recv_buf_.reserve_buffer(kMaxMessage);
 
 	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
-		LOG(WARNING) << "Net buffer at capacity";
+		net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Buffer is at capacity"); 
 		return;
 	}
 
@@ -285,19 +283,17 @@ void Peer::data() {
 		rc = sock_->recv(recv_buf_.buffer(), recv_buf_.buffer_capacity());
 		
 		if (rc >= cap - 1) {
-			LOG(WARNING) << "More than buffers worth of data received"; 
+			net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Too much data received"); 
 		}
 		if (cap < (kMaxMessage / 10)) {
-			LOG(WARNING) << "NO BUFFER";
+			net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Buffer is at capacity"); 
 		}
 
-	} catch (ftl::exception& ex) {
-		LOG(ERROR) << "connection error: " << ex.what() << ", disconnected";
+	} catch (std::exception& ex) {
+		net_->_notifyError(this, ftl::protocol::Error::kSocketError, ex.what());	
 		close(reconnect_on_protocol_error_);
 		return;
 
-	} catch (...) {
-		LOG(FATAL) << "unknown exception from SocketConnection::recv()";
 	}
 
 	if (rc == 0) { // retry later
@@ -331,7 +327,7 @@ void Peer::data() {
 			try {
 				_data();
 			} catch (const std::exception &e) {
-				LOG(ERROR) << "Error processing packet: " << e.what();	
+				net_->_notifyError(this, ftl::protocol::Error::kUnknown, e.what());	
 			}
 			--job_count_;
 		});
@@ -373,7 +369,7 @@ bool Peer::_data() {
 			return false;
 		}
 	} catch (const std::exception& ex) {
-		LOG(ERROR) << "decoding error: " << ex.what() << ", disconnected";
+		net_->_notifyError(this, ftl::protocol::Error::kPacketFailure, ex.what());
 		_close(reconnect_on_protocol_error_);
 		return false;
 	}
@@ -394,13 +390,13 @@ bool Peer::_data() {
 				obj.convert(hs);
 				
 				if (get<1>(hs) != "__handshake__") {
-					LOG(WARNING) << "Missing handshake - got '" << get<1>(hs) << "'";
+					DLOG(WARNING) << "Missing handshake - got '" << get<1>(hs) << "'";
 
 					// Allow a small delay in case another thread is doing the handshake
 					//lk.unlock();
 					std::this_thread::sleep_for(std::chrono::milliseconds(10));
 					if (status_ == NodeStatus::kConnecting) {
-						LOG(ERROR) << "failed to get handshake";
+						net_->_notifyError(this, ftl::protocol::Error::kMissingHandshake, "failed to get handshake");
 						close(reconnect_on_protocol_error_);
 						//lk.lock();
 						return false;
@@ -413,13 +409,13 @@ bool Peer::_data() {
 					//return true;
 				}
 			} catch(...) {
-				LOG(WARNING) << "Bad first message format... waiting";
+				DLOG(WARNING) << "Bad first message format... waiting";
 				// Allow a small delay in case another thread is doing the handshake
 
 				//lk.unlock();
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				if (status_ == NodeStatus::kConnecting) {
-					LOG(ERROR) << "failed to get handshake";
+					net_->_notifyError(this, ftl::protocol::Error::kMissingHandshake, "failed to get handshake");
 					close(reconnect_on_protocol_error_);
 					return false;
 				}
@@ -435,12 +431,16 @@ bool Peer::_data() {
 		try {
 			_data();
 		} catch (const std::exception &e) {
-			LOG(ERROR) << "Error processing packet: " << e.what();	
+			net_->_notifyError(this, ftl::protocol::Error::kUnknown, e.what());	
 		}
 		--job_count_;
 	});
 	
-	disp_->dispatch(*this, obj);
+	try {
+		disp_->dispatch(*this, obj);
+	} catch (const std::exception &e) {
+		net_->_notifyError(this, ftl::protocol::Error::kDispatchFailed, e.what());
+	}
 
 	// Lock again before freeing msg_handle (destruction order).
 	// msgpack::object_handle destructor modifies recv_buffer_
@@ -462,10 +462,10 @@ void Peer::_dispatchResponse(uint32_t id, const std::string &name, msgpack::obje
 		try {
 			(*cb)(res);
 		} catch(std::exception &e) {
-			LOG(ERROR) << "Exception in RPC response: " << e.what();
+			net_->_notifyError(this, ftl::protocol::Error::kRPCResponse, e.what());	
 		}
 	} else {
-		LOG(WARNING) << "Missing RPC callback for result - discarding: " << name;
+		net_->_notifyError(this, ftl::protocol::Error::kRPCResponse, "Missing RPC callback for result - discarding: " + name);	
 	}
 }
 
@@ -536,7 +536,7 @@ int Peer::_send() {
 		if (c <= 0) {
 			// writev() should probably throw exception which is reported here
 			// at the moment, error message is (should be) printed by writev()
-			LOG(ERROR) << "writev() failed";
+			net_->_notifyError(this, ftl::protocol::Error::kSocketError, "writev() failed");
 			return c;
 		}
 	
@@ -544,14 +544,14 @@ int Peer::_send() {
 			sz += send_buf_.vector()[i].iov_len;
 		} 
 		if (c != sz) {
-			LOG(ERROR) << "writev(): incomplete send";
+			net_->_notifyError(this, ftl::protocol::Error::kSocketError, "writev(): incomplete send");
 			_close(reconnect_on_socket_error_);
 		}
 
 		send_buf_.clear();
 
 	} catch (std::exception& ex) {
-		LOG(ERROR) << "exception while sending data, closing connection";
+		net_->_notifyError(this, ftl::protocol::Error::kSocketError, ex.what());
 		_close(reconnect_on_protocol_error_);
 	}
 	
@@ -568,7 +568,6 @@ Peer::~Peer() {
 
 	// Prevent deletion if there are any jobs remaining
 	while (job_count_ > 0 && ftl::pool.size() > 0) {
-		LOG(INFO) << "waiting for peer jobs...";
 		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }

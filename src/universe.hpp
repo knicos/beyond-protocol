@@ -9,6 +9,7 @@
 #include <msgpack.hpp>
 
 #include <ftl/protocol.hpp>
+#include <ftl/protocol/error.hpp>
 #include "peer.hpp"
 #include "dispatcher.hpp"
 #include <ftl/uuid.hpp>
@@ -163,7 +164,7 @@ public:
 
 	ftl::Handle onConnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
 	ftl::Handle onDisconnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
-	ftl::Handle onError(const std::function<bool(const ftl::net::PeerPtr&, const ftl::net::Error &)>&);
+	ftl::Handle onError(const std::function<bool(const ftl::net::PeerPtr&, ftl::protocol::Error, const std::string &)>&);
 
 	size_t getSendBufferSize(ftl::URI::scheme_t s);
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
@@ -179,7 +180,7 @@ private:
 	void _cleanupPeers();
 	void _notifyConnect(ftl::net::Peer *);
 	void _notifyDisconnect(ftl::net::Peer *);
-	void _notifyError(ftl::net::Peer *, const ftl::net::Error &);
+	void _notifyError(ftl::net::Peer *, ftl::protocol::Error, const std::string &);
 	void _periodic();
 	ftl::net::PeerPtr _findPeer(const ftl::net::Peer *p);
 	void _removePeer(PeerPtr &p);
@@ -214,7 +215,7 @@ private:
 
 	ftl::Handler<const ftl::net::PeerPtr&> on_connect_;
 	ftl::Handler<const ftl::net::PeerPtr&> on_disconnect_;
-	ftl::Handler<const ftl::net::PeerPtr&, const ftl::net::Error &> on_error_;
+	ftl::Handler<const ftl::net::PeerPtr&, ftl::protocol::Error, const std::string &> on_error_;
 
 	static std::shared_ptr<Universe> instance_;
 
@@ -236,7 +237,7 @@ void Universe::bind(const std::string &name, F func) {
 template <typename... ARGS>
 void Universe::broadcast(const std::string &name, ARGS... args) {
 	SHARED_LOCK(net_mutex_,lk);
-	for (auto &p : peers_) {
+	for (const auto &p : peers_) {
 		if (!p || !p->waitConnection()) continue;
 		p->send(name, args...);
 	}
@@ -265,7 +266,7 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
 
 	{
 		SHARED_LOCK(net_mutex_,lk);
-		for (auto &p : peers_) {
+		for (const auto &p : peers_) {
 			if (!p || !p->waitConnection()) continue;
 			p->asyncCall<std::optional<R>>(name, handler, args...);
 		}
@@ -302,7 +303,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 
 	{
 		SHARED_LOCK(net_mutex_,lk);
-		for (auto &p : peers_) {
+		for (const auto &p : peers_) {
 			if (!p || !p->waitConnection()) continue;
 			++sdata->sentcount;
 			p->asyncCall<std::vector<R>>(name, handler, args...);

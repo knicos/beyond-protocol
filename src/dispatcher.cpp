@@ -49,8 +49,7 @@ void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
 	case 4:
 		dispatch_call(s, msg); break;
 	default:
-		LOG(ERROR) << "Unrecognised msgpack : " << msg.via.array.size;
-		return;
+		throw FTL_Error("Unrecognised msgpack : " << msg.via.array.size);
 	}
 }
 
@@ -60,8 +59,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 	try {
 		msg.convert(the_call);
 	} catch(...) {
-		LOG(ERROR) << "Bad message format";
-		return;
+		throw FTL_Error("Bad message format");
 	}
 
 	// TODO: proper validation of protocol (and responding to it)
@@ -72,7 +70,6 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 	// assert(type == 0);
 	
 	if (type == 1) {
-		//DLOG(INFO) << "RPC return for " << id;
 		s._dispatchResponse(id, name, args);
 	} else if (type == 0) {
 		DLOG(2) << "RPC " << name << "() <- " << s.getURI();
@@ -85,15 +82,13 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 				auto result = (*func)(s, args); //->get();
 				s._sendResponse(id, name, result->get());
 			} catch (const std::exception &e) {
-				//throw;
-				LOG(ERROR) << "Exception when attempting to call RPC " << name << " (" << e.what() << ")";
+				throw FTL_Error("Exception when attempting to call RPC " << name << " (" << e.what() << ")");
 			}
 		} else {
-			LOG(WARNING) << "No binding found for " << name;
+			throw FTL_Error("No binding found for " << name);
 		}
 	} else {
-		// TODO(nick) Some error
-		LOG(ERROR) << "Unrecognised message type";
+		throw FTL_Error("Unrecognised message type: " << type);
 	}
 }
 
@@ -131,7 +126,7 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 		try {
 			auto result = (*binding)(s, args);
 		} catch (const int &e) {
-			LOG(ERROR) << "Exception in bound function";
+			//throw "Exception in bound function";
 			throw &e;
 		} catch (const std::bad_cast &e) {
 			std::string args_str = "";
@@ -139,13 +134,13 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 				args_str += object_type_to_string(args.via.array.ptr[i].type);
 				if ((i + 1) != args.via.array.size) args_str += ", ";
 			}
-			LOG(ERROR) << "Bad cast, got: " << args_str;
+			throw FTL_Error("Bad cast, got: " << args_str);
 
 		} catch (const std::exception &e) {
-			LOG(ERROR) << "Exception for '" << name << "' - " << e.what();
+			throw FTL_Error("Exception for '" << name << "' - " << e.what());
 		}
 	} else {
-		LOG(ERROR) << "Missing handler for incoming message (" << name << ")";
+		throw FTL_Error("Missing handler for incoming message (" << name << ")");
 	}
 }
 

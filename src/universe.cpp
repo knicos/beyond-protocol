@@ -160,7 +160,7 @@ void Universe::start() {
 
 void Universe::shutdown() {
 	if (!active_) return;
-	LOG(INFO) << "Cleanup Network ...";
+	DLOG(1) << "Cleanup Network ...";
 
 	{
 		SHARED_LOCK(net_mutex_, lk);
@@ -179,7 +179,6 @@ void Universe::shutdown() {
 
 	// FIXME: This shouldn't be needed
 	while (peer_instances_ > 0 && ftl::pool.size() > 0) {
-		LOG(INFO) << "waiting for peers to destroy...";
 		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }
@@ -191,14 +190,15 @@ bool Universe::listen(const ftl::URI &addr) {
 
 		{
 			UNIQUE_LOCK(net_mutex_,lk);
-			LOG(INFO) << "listening on " << l->uri().to_string();
+			DLOG(1) << "listening on " << l->uri().to_string();
 			listeners_.push_back(std::move(l));
 		}
 		socket_cv_.notify_one();
 		return true;
 
 	} catch (const std::exception &ex) {
-		LOG(ERROR) << "Can't listen " << addr.to_string() << ", " << ex.what();
+		DLOG(INFO) << "Can't listen " << addr.to_string() << ", " << ex.what();
+		_notifyError(nullptr, ftl::protocol::Error::kListen, ex.what());
 		return false;
 	}
 }
@@ -260,7 +260,7 @@ PeerPtr Universe::connect(const ftl::URI &u) {
 		_insertPeer(p);
 	}
 	else {
-		LOG(ERROR) << "Peer in invalid state";
+		DLOG(ERROR) << "Peer in invalid state";
 	}
 	
 	_installBindings(p);
@@ -359,7 +359,7 @@ void Universe::_removePeer(PeerPtr &p) {
 		p->status() == NodeStatus::kReconnecting ||
 		p->status() == NodeStatus::kDisconnected)) {
 
-		LOG(INFO) << "Removing disconnected peer: " << p->id().to_string();
+		DLOG(1) << "Removing disconnected peer: " << p->id().to_string();
 		on_disconnect_.triggerAsync(p);
 	
 		auto ix = peer_ids_.find(p->id());
@@ -429,8 +429,7 @@ void Universe::_periodic() {
 			if (u.getHost() == "localhost" || u.getHost() == "127.0.0.1") {
 				for (const auto &l : listeners_) {
 					if (l->port() == u.getPort()) {
-						// TODO: use UUID?
-						LOG(ERROR) << "Cannot connect to self";
+						_notifyError(nullptr, ftl::protocol::Error::kSelfConnect, "Cannot connect to self");
 						garbage_.push_back((*i).peer);
 						i = reconnects_.erase(i);
 						removed = true;
@@ -453,7 +452,6 @@ void Universe::_periodic() {
 		 else {
 			garbage_.push_back((*i).peer);
 			i = reconnects_.erase(i);
-			LOG(WARNING) << "Reconnection to peer failed";
 		}
 	}
 }
@@ -505,13 +503,13 @@ void Universe::_run() {
 			int errNum = WSAGetLastError();
 			switch (errNum) {
 			case WSAENOTSOCK	: continue;  // Socket was closed
-			default				: LOG(WARNING) << "Unhandled poll error: " << errNum;
+			default				: DLOG(WARNING) << "Unhandled poll error: " << errNum;
 			}
 			#else
 			switch (errno) {
 			case 9	: continue;  // Bad file descriptor = socket closed
 			case 4	: continue;  // Interrupted system call ... no problem
-			default	: LOG(WARNING) << "Unhandled poll error: " << strerror(errno) << "(" << errno << ")";
+			default	: DLOG(WARNING) << "Unhandled poll error: " << strerror(errno) << "(" << errno << ")";
 			}
 			#endif
 			continue;
@@ -529,7 +527,7 @@ void Universe::_run() {
 				try {
 					csock = l->accept();
 				} catch (const std::exception &ex) {
-					LOG(ERROR) << "Connection failed: " << ex.what();
+					_notifyError(nullptr, ftl::protocol::Error::kConnectionFailed, ex.what());
 				}
 
 				lk.unlock();
@@ -600,7 +598,7 @@ ftl::Handle Universe::onDisconnect(const std::function<bool(const PeerPtr&)> &cb
 	return on_disconnect_.on(cb);
 }
 
-ftl::Handle Universe::onError(const std::function<bool(const PeerPtr&, const ftl::net::Error &)> &cb) {
+ftl::Handle Universe::onError(const std::function<bool(const PeerPtr&, ftl::protocol::Error, const std::string &)> &cb) {
 	return on_error_.on(cb);
 }
 
@@ -633,6 +631,12 @@ void Universe::_notifyDisconnect(Peer *p) {
 	on_disconnect_.triggerAsync(ptr);
 }
 
-void Universe::_notifyError(Peer *p, const ftl::net::Error &e) {
-	// TODO(Nick)
+void Universe::_notifyError(Peer *p, ftl::protocol::Error e, const std::string &errstr) {
+	DLOG(ERROR) << "Net Error (" << int(e) << "): " << errstr;
+	const auto ptr = (p) ? _findPeer(p) : nullptr;
+
+	// Note: Net errors can have no peer
+	if (!ptr) return;
+
+	on_error_.triggerAsync(ptr, e, errstr);
 }
