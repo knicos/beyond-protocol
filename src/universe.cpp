@@ -299,8 +299,13 @@ socket_t Universe::_setDescriptors() {
 			auto sock = l->fd();
 			if (sock != INVALID_SOCKET) {
 				pollfd fdentry;
+				#ifdef WIN32
+				fdentry.events = POLLIN;
+				#else
 				fdentry.events = POLLIN | POLLERR;
+				#endif
 				fdentry.fd = sock;
+				fdentry.revents = 0;
 				impl_->pollfds.push_back(fdentry);
 				impl_->idMap[sock] = impl_->pollfds.size() - 1;
 
@@ -318,8 +323,13 @@ socket_t Universe::_setDescriptors() {
 			n = std::max<socket_t>(n, sock);
 			if (sock != INVALID_SOCKET) {
 				pollfd fdentry;
+				#ifdef WIN32
+				fdentry.events = POLLIN;
+				#else
 				fdentry.events = POLLIN | POLLERR;
+				#endif
 				fdentry.fd = sock;
+				fdentry.revents = 0;
 				impl_->pollfds.push_back(fdentry);
 				impl_->idMap[sock] = impl_->pollfds.size() - 1;
 
