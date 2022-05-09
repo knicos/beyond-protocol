@@ -1,6 +1,7 @@
 #include "../src/socket.hpp"
 
 #include <ftl/exception.hpp>
+#include <ftl/lib/loguru.hpp>
 
 #include <atomic>
 #include <winsock2.h>
