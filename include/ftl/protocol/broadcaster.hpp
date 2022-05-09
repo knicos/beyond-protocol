@@ -16,8 +16,8 @@ class Broadcast : public Stream {
 	explicit Broadcast();
 	virtual ~Broadcast();
 
-	void add(Stream *);
-	void remove(Stream *);
+	void add(const std::shared_ptr<Stream> &);
+	void remove(const std::shared_ptr<Stream> &);
 	void clear();
 
 	bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) override;
@@ -28,10 +28,10 @@ class Broadcast : public Stream {
 
 	void reset() override;
 
-	const std::list<Stream*> &streams() const { return streams_; }
+	const std::list<std::shared_ptr<Stream>> &streams() const { return streams_; }
 
 	private:
-	std::list<Stream*> streams_;
+	std::list<std::shared_ptr<Stream>> streams_;
 	std::list<ftl::Handle> handles_;
 	//StreamCallback cb_;
 	SHARED_MUTEX mutex_;

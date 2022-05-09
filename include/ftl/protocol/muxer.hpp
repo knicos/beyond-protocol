@@ -3,6 +3,7 @@
 #include <ftl/protocol/streams.hpp>
 
 #include <map>
+#include <list>
 
 namespace ftl {
 namespace protocol {
@@ -20,8 +21,8 @@ class Muxer : public Stream {
 	explicit Muxer();
 	virtual ~Muxer();
 
-	void add(Stream *, size_t fsid=0, const std::function<int()> &cb=nullptr);
-	void remove(Stream *);
+	void add(const std::shared_ptr<Stream> &, size_t fsid=0, const std::function<int()> &cb=nullptr);
+	void remove(const std::shared_ptr<Stream> &);
 
 	//bool onPacket(const StreamCallback &) override;
 
@@ -33,11 +34,11 @@ class Muxer : public Stream {
 
 	void reset() override;
 
-	ftl::protocol::Stream *originStream(size_t fsid, int fid);
+	std::shared_ptr<Stream> originStream(size_t fsid, int fid);
 
 	private:
 	struct StreamEntry {
-		Stream *stream;
+		std::shared_ptr<Stream> stream;
 		std::unordered_map<int, std::vector<int>> maps;
 		uint32_t original_fsid = 0;
 		ftl::Handle handle;

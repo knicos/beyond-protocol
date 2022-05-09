@@ -67,7 +67,7 @@ struct StreamPacketV4 {
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number [or v4 frameset id]
 	uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
-	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
+	ftl::protocol::Channel channel;		// Actual channel of this current set of packets
 
 	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
 	inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
@@ -92,7 +92,7 @@ struct StreamPacket {
 	int64_t timestamp;
 	uint8_t streamID;  		// Source number [or v4 frameset id]
 	uint8_t frame_number;	// v4+ First frame number (packet may include multiple frames)
-	ftl::codecs::Channel channel;		// Actual channel of this current set of packets
+	ftl::protocol::Channel channel;		// Actual channel of this current set of packets
 	uint8_t flags=0;
 
 	inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }

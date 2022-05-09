@@ -49,3 +49,14 @@ target_link_libraries(net_performance beyond-protocol
 	GnuTLS::GnuTLS Threads::Threads ${UUID_LIBRARIES} ${URIPARSER_LIBRARIES} ${OS_LIBS})
 
 add_test(NetPerformance net_performance)
+
+### Stream Unit ################################################################
+add_executable(stream_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./stream_unit.cpp
+)
+target_include_directories(stream_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(stream_unit
+	beyond-protocol ${URIPARSER_LIBRARIES} ${OS_LIBS})
+
+add_test(StreamUnitTest stream_unit)
