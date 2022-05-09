@@ -489,11 +489,18 @@ void Universe::_run() {
 
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres < 0) {
+			#ifdef WIN32
+			int errNum = WSAGetLastError();
+			switch (errNum) {
+			default	: LOG(WARNING) << "Unhandled poll error: " << errNum;
+			}
+			#else
 			switch (errno) {
 			case 9	: continue;  // Bad file descriptor = socket closed
 			case 4	: continue;  // Interrupted system call ... no problem
-			default	: LOG(WARNING) << "Unhandled select error: " << strerror(errno) << "(" << errno << ")";
+			default	: LOG(WARNING) << "Unhandled poll error: " << strerror(errno) << "(" << errno << ")";
 			}
+			#endif
 			continue;
 		} else if (selres == 0) {
 			// Timeout, nothing to do...
