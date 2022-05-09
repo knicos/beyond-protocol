@@ -31,6 +31,7 @@ using std::string;
 using std::vector;
 using std::thread;
 using ftl::net::Peer;
+using ftl::net::PeerPtr;
 using ftl::net::Universe;
 using nlohmann::json;
 using ftl::UUID;
@@ -219,7 +220,7 @@ bool Universe::isConnected(const std::string &s) {
 	return isConnected(uri);
 }
 
-void Universe::_insertPeer(const std::shared_ptr<Peer> &ptr) {
+void Universe::_insertPeer(const PeerPtr &ptr) {
 	UNIQUE_LOCK(net_mutex_,lk);
 	for (size_t i=0; i<peers_.size(); ++i) {
 		if (!peers_[i]) {
@@ -237,7 +238,7 @@ void Universe::_insertPeer(const std::shared_ptr<Peer> &ptr) {
 	throw FTL_Error("Too many connections");
 }
 
-std::shared_ptr<Peer> Universe::connect(const ftl::URI &u) {
+PeerPtr Universe::connect(const ftl::URI &u) {
 
 	// Check if already connected or if self (when could this happen?)
 	{
@@ -266,7 +267,7 @@ std::shared_ptr<Peer> Universe::connect(const ftl::URI &u) {
 	return p;
 }
 
-std::shared_ptr<Peer> Universe::connect(const std::string& addr) {
+PeerPtr Universe::connect(const std::string& addr) {
 	return connect(ftl::URI(addr));
 }
 
@@ -343,7 +344,7 @@ socket_t Universe::_setDescriptors() {
 	return n;
 }
 
-void Universe::_installBindings(const std::shared_ptr<Peer> &p) {
+void Universe::_installBindings(const PeerPtr &p) {
 	
 }
 
@@ -351,7 +352,7 @@ void Universe::_installBindings() {
 
 }
 
-void Universe::_removePeer(std::shared_ptr<Peer> &p) {
+void Universe::_removePeer(PeerPtr &p) {
 	UNIQUE_LOCK(net_mutex_, ulk);
 			
 	if (p && (!p->isValid() ||
@@ -399,14 +400,14 @@ void Universe::_cleanupPeers() {
 	}
 }
 
-std::shared_ptr<Peer> Universe::getPeer(const UUID &id) const {
+PeerPtr Universe::getPeer(const UUID &id) const {
 	SHARED_LOCK(net_mutex_,lk);
 	auto ix = peer_ids_.find(id);
 	if (ix == peer_ids_.end()) return nullptr;
 	else return peers_[ix->second];
 }
 
-std::shared_ptr<Peer> Universe::getWebService() const {
+PeerPtr Universe::getWebService() const {
 	SHARED_LOCK(net_mutex_,lk);
 	auto it = std::find_if(peers_.begin(), peers_.end(), [](const auto &p) {
 		return p && p->getType() == NodeType::kWebService;
@@ -591,19 +592,19 @@ void Universe::_run() {
 	garbage_.clear();
 }
 
-ftl::Handle Universe::onConnect(const std::function<bool(const std::shared_ptr<Peer>&)> &cb) {
+ftl::Handle Universe::onConnect(const std::function<bool(const PeerPtr&)> &cb) {
 	return on_connect_.on(cb);
 }
 
-ftl::Handle Universe::onDisconnect(const std::function<bool(const std::shared_ptr<Peer>&)> &cb) {
+ftl::Handle Universe::onDisconnect(const std::function<bool(const PeerPtr&)> &cb) {
 	return on_disconnect_.on(cb);
 }
 
-ftl::Handle Universe::onError(const std::function<bool(const std::shared_ptr<Peer>&, const ftl::net::Error &)> &cb) {
+ftl::Handle Universe::onError(const std::function<bool(const PeerPtr&, const ftl::net::Error &)> &cb) {
 	return on_error_.on(cb);
 }
 
-std::shared_ptr<Peer> Universe::_findPeer(const Peer *p) {
+PeerPtr Universe::_findPeer(const Peer *p) {
 	SHARED_LOCK(net_mutex_,lk);
 	for (const auto &pp : peers_) {
 		if (pp.get() == p) return pp;

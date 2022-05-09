@@ -25,8 +25,6 @@ static bool try_for(int count, const std::function<bool()> &f) {
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("Listen and Connect", "[net]") {
-    ftl::protocol::reset();
-
 	auto self = ftl::createDummySelf();
 	
 	self->listen(ftl::URI("tcp://localhost:0")); 
@@ -124,11 +122,11 @@ TEST_CASE("Listen and Connect", "[net]") {
 		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
 		REQUIRE(p_connecting->isConnected());
 	}
+
+	ftl::protocol::reset();
 }
 
 TEST_CASE("Self::onConnect()", "[net]") {
-	ftl::protocol::reset();
-
 	auto self = ftl::createDummySelf();
 	
 	self->listen(ftl::URI("tcp://localhost:0")); 
@@ -161,6 +159,8 @@ TEST_CASE("Self::onConnect()", "[net]") {
 
 		REQUIRE( done );
 	}
+
+	ftl::protocol::reset();
 }
 
 /*TEST_CASE("Universe::onDisconnect()", "[net]") {

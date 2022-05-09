@@ -346,5 +346,7 @@ int Peer::asyncCall(
 	return rpcid;
 }
 
+using PeerPtr = std::shared_ptr<ftl::net::Peer>;
+
 };
 };

@@ -34,7 +34,7 @@ struct Error {
 struct ReconnectInfo {
 	int tries;
 	float delay;
-	std::shared_ptr<Peer> peer;
+	PeerPtr peer;
 };
 
 struct NetImplDetail;
@@ -86,8 +86,8 @@ public:
 	 *
 	 * @param addr URI giving protocol, interface and port
 	 */
-	std::shared_ptr<Peer> connect(const std::string &addr);
-	std::shared_ptr<Peer> connect(const ftl::URI &addr);
+	PeerPtr connect(const std::string &addr);
+	PeerPtr connect(const ftl::URI &addr);
 
 	bool isConnected(const ftl::URI &uri);
 	bool isConnected(const std::string &s);
@@ -101,9 +101,9 @@ public:
 	int waitConnections();
 	
 	/** get peer pointer by peer UUID, returns nullptr if not found */
-	std::shared_ptr<Peer> getPeer(const ftl::UUID &pid) const;
+	PeerPtr getPeer(const ftl::UUID &pid) const;
 	/** get webservice peer pointer, returns nullptr if not connected to webservice */
-	std::shared_ptr<Peer> getWebService() const;
+	PeerPtr getWebService() const;
 
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
@@ -161,9 +161,9 @@ public:
 
 	// --- Event Handlers ------------------------------------------------------
 
-	ftl::Handle onConnect(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&)>&);
-	ftl::Handle onDisconnect(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&)>&);
-	ftl::Handle onError(const std::function<bool(const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &)>&);
+	ftl::Handle onConnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
+	ftl::Handle onDisconnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
+	ftl::Handle onError(const std::function<bool(const ftl::net::PeerPtr&, const ftl::net::Error &)>&);
 
 	size_t getSendBufferSize(ftl::URI::scheme_t s);
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
@@ -174,16 +174,16 @@ private:
 	void _run();
 	SOCKET _setDescriptors(); // TODO: move to implementation
 	void _installBindings();
-	void _installBindings(const std::shared_ptr<ftl::net::Peer>&);
+	void _installBindings(const ftl::net::PeerPtr&);
 	//bool _subscribe(const std::string &res);
 	void _cleanupPeers();
 	void _notifyConnect(ftl::net::Peer *);
 	void _notifyDisconnect(ftl::net::Peer *);
 	void _notifyError(ftl::net::Peer *, const ftl::net::Error &);
 	void _periodic();
-	std::shared_ptr<ftl::net::Peer> _findPeer(const ftl::net::Peer *p);
-	void _removePeer(std::shared_ptr<Peer> &p);
-	void _insertPeer(const std::shared_ptr<ftl::net::Peer> &ptr);
+	ftl::net::PeerPtr _findPeer(const ftl::net::Peer *p);
+	void _removePeer(PeerPtr &p);
+	void _insertPeer(const ftl::net::PeerPtr &ptr);
 	
 	static void __start(Universe *u);
 	
@@ -195,14 +195,14 @@ private:
 	std::unique_ptr<NetImplDetail> impl_;
 	
 	std::vector<std::unique_ptr<ftl::net::internal::SocketServer>> listeners_;
-	std::vector<std::shared_ptr<ftl::net::Peer>> peers_;
+	std::vector<ftl::net::PeerPtr> peers_;
 	std::unordered_map<std::string, size_t> peer_by_uri_;
 	std::map<ftl::UUID, size_t> peer_ids_;
 
 	ftl::net::Dispatcher disp_;
 	std::list<ReconnectInfo> reconnects_;
 	size_t phase_;
-	std::list<std::shared_ptr<ftl::net::Peer>> garbage_;
+	std::list<ftl::net::PeerPtr> garbage_;
 	ftl::Handle garbage_timer_;
 
 	// size_t send_size_;
@@ -212,9 +212,9 @@ private:
 	std::atomic_int connection_count_ = 0;	// Active connections
 	std::atomic_int peer_instances_ = 0;	// Actual peers dependent on Universe
 
-	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_connect_;
-	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&> on_disconnect_;
-	ftl::Handler<const std::shared_ptr<ftl::net::Peer>&, const ftl::net::Error &> on_error_;
+	ftl::Handler<const ftl::net::PeerPtr&> on_connect_;
+	ftl::Handler<const ftl::net::PeerPtr&> on_disconnect_;
+	ftl::Handler<const ftl::net::PeerPtr&, const ftl::net::Error &> on_error_;
 
 	static std::shared_ptr<Universe> instance_;
 
@@ -316,7 +316,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
 
 template <typename R, typename... ARGS>
 R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
-	std::shared_ptr<Peer> p = getPeer(pid);
+	PeerPtr p = getPeer(pid);
 	if (p == nullptr || !p->isConnected()) {
 		if (p == nullptr) throw FTL_Error("Attempting to call an unknown peer : " << pid.to_string());
 		else throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
@@ -326,7 +326,7 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 
 template <typename R, typename... ARGS>
 int Universe::asyncCall(const ftl::UUID &pid, const std::string &name, std::function<void(const R&)> cb, ARGS... args) {
-	std::shared_ptr<Peer> p = getPeer(pid);
+	PeerPtr p = getPeer(pid);
 	if (p == nullptr || !p->isConnected()) {
 		if (p == nullptr) throw FTL_Error("Attempting to call an unknown peer : " << pid.to_string());
 		else throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
@@ -336,7 +336,7 @@ int Universe::asyncCall(const ftl::UUID &pid, const std::string &name, std::func
 
 template <typename... ARGS>
 bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
-	std::shared_ptr<Peer> p = getPeer(pid);
+	PeerPtr p = getPeer(pid);
 	if (p == nullptr) {
 		LOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		return false;
@@ -347,7 +347,7 @@ bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args)
 
 template <typename... ARGS>
 int Universe::try_send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
-	std::shared_ptr<Peer> p = getPeer(pid);
+	PeerPtr p = getPeer(pid);
 	if (p == nullptr) {
 		//DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
 		return false;

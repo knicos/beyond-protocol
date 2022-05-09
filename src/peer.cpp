@@ -30,6 +30,7 @@ using ftl::net::internal::SocketConnection;
 using std::tuple;
 using std::get;
 using ftl::net::Peer;
+using ftl::net::PeerPtr;
 using ftl::URI;
 using ftl::net::Dispatcher;
 using std::chrono::seconds;
@@ -397,13 +398,13 @@ bool Peer::_data() {
 
 					// Allow a small delay in case another thread is doing the handshake
 					//lk.unlock();
-					//std::this_thread::sleep_for(std::chrono::milliseconds(10));
-					//if (status_ == NodeStatus::kConnecting) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(10));
+					if (status_ == NodeStatus::kConnecting) {
 						LOG(ERROR) << "failed to get handshake";
 						close(reconnect_on_protocol_error_);
 						//lk.lock();
 						return false;
-					//}
+					}
 				} else {
 					// Must handle immediately with no other thread able
 					// to read next message before completion.
@@ -514,7 +515,7 @@ bool Peer::waitConnection(int s) {
 	std::unique_lock<std::mutex> lk(m);
 	std::condition_variable cv;
 
-	auto h = net_->onConnect([this, &cv](const std::shared_ptr<Peer> &p) {
+	auto h = net_->onConnect([this, &cv](const PeerPtr &p) {
 		if (p.get() == this) {
 			cv.notify_one();
 		}

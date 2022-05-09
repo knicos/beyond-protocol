@@ -2,9 +2,9 @@
 #include "peer.hpp"
 
 using ftl::protocol::Node;
-using ftl::net::Peer;
+using ftl::net::PeerPtr;
 
-Node::Node(const std::shared_ptr<Peer> &impl): peer_(impl) {}
+Node::Node(const PeerPtr &impl): peer_(impl) {}
 
 Node::~Node() {}
 

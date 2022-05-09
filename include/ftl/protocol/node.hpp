@@ -13,6 +13,7 @@
 namespace ftl {
 namespace net {
 class Peer;
+using PeerPtr = std::shared_ptr<Peer>;
 }
 
 namespace protocol {
@@ -37,7 +38,7 @@ enum struct NodeStatus {
 class Node {	
 	public:
 	/** Peer for outgoing connection: resolve address and connect */
-	explicit Node(const std::shared_ptr<ftl::net::Peer> &impl);
+	explicit Node(const ftl::net::PeerPtr &impl);
 	virtual ~Node();
 	
 	/**
@@ -107,7 +108,7 @@ class Node {
 	unsigned int localID();
 
 	protected:
-	std::shared_ptr<ftl::net::Peer> peer_;
+	ftl::net::PeerPtr peer_;
 };
 
 }

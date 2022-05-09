@@ -79,19 +79,19 @@ std::shared_ptr<ftl::protocol::Node> Self::getWebService() const {
 }
 
 ftl::Handle Self::onConnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)> &cb) {
-    return universe_->onConnect([cb](const std::shared_ptr<ftl::net::Peer> &p) {
+    return universe_->onConnect([cb](const ftl::net::PeerPtr &p) {
         return cb(std::make_shared<ftl::protocol::Node>(p));
     });
 }
 
 ftl::Handle Self::onDisconnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)> &cb) {
-    return universe_->onDisconnect([cb](const std::shared_ptr<ftl::net::Peer> &p) {
+    return universe_->onDisconnect([cb](const ftl::net::PeerPtr &p) {
         return cb(std::make_shared<ftl::protocol::Node>(p));
     });
 }
 
 ftl::Handle Self::onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, const ftl::protocol::Error &)> &cb) {
-    return universe_->onError([cb](const std::shared_ptr<ftl::net::Peer> &p, const ftl::net::Error &err) {
+    return universe_->onError([cb](const ftl::net::PeerPtr &p, const ftl::net::Error &err) {
         ftl::protocol::Error perr = {};
         return cb(std::make_shared<ftl::protocol::Node>(p), perr);
     });

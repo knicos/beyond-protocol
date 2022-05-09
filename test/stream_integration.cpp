@@ -11,8 +11,6 @@
 TEST_CASE("TCP Stream", "[net]") {
 	std::mutex mtx;
 
-    ftl::protocol::reset();
-
 	auto self = ftl::createDummySelf();
 	self->listen(ftl::URI("tcp://localhost:0")); 
 
@@ -62,4 +60,7 @@ TEST_CASE("TCP Stream", "[net]") {
 		REQUIRE( rpkt.codec == ftl::protocol::Codec::kJPG );
 		REQUIRE( rpkt.frame_count == 1 );
 	}
+
+	p.reset();
+	ftl::protocol::reset();
 }
