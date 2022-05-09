@@ -319,9 +319,8 @@ void Peer::data() {
 
 	recv_buf_.buffer_consumed(rc);
 	
-	// FIXME: This might get skipped incorrectly.
-	// However, it should be extremely unlikely given that recv is done already
 	//UNIQUE_LOCK(recv_mtx_, lk);
+	recv_checked_.clear();
 	if (!already_processing_.test_and_set()) {
 		//lk.unlock();
 
@@ -363,9 +362,13 @@ bool Peer::_data() {
 	msgpack::object_handle msg_handle;
 
 	try {
+		recv_checked_.test_and_set();
 		bool has_next = _has_next() && recv_buf_.next(msg_handle);
 		if (!has_next) {
 			already_processing_.clear();
+			if (!recv_checked_.test_and_set() && !already_processing_.test_and_set()) {
+				return _data();
+			}
 			return false;
 		}
 	} catch (const std::exception& ex) {

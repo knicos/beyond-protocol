@@ -245,6 +245,7 @@ private: // Functions
 	}
 
 	std::atomic_flag already_processing_ = ATOMIC_FLAG_INIT;
+	std::atomic_flag recv_checked_ = ATOMIC_FLAG_INIT;
 
 	msgpack::unpacker recv_buf_;
 	//MUTEX recv_mtx_;

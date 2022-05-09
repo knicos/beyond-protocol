@@ -292,6 +292,7 @@ socket_t Universe::_setDescriptors() {
 	SHARED_LOCK(net_mutex_, lk);
 
 	impl_->pollfds.clear();
+	impl_->idMap.clear();
 
 	//Set file descriptor for the listening sockets.
 	for (auto &l : listeners_) {
@@ -502,7 +503,8 @@ void Universe::_run() {
 			#ifdef WIN32
 			int errNum = WSAGetLastError();
 			switch (errNum) {
-			default	: LOG(WARNING) << "Unhandled poll error: " << errNum;
+			case WSAENOTSOCK	: continue;  // Socket was closed
+			default				: LOG(WARNING) << "Unhandled poll error: " << errNum;
 			}
 			#else
 			switch (errno) {
@@ -551,7 +553,11 @@ void Universe::_run() {
 				SOCKET sock = s->_socket();
 				if (sock == INVALID_SOCKET) continue;
 
-				if (impl_->pollfds[impl_->idMap[sock]].revents & POLLERR) {
+				if (impl_->idMap.count(sock) == 0) continue;
+
+				const auto &fdstruct = impl_->pollfds[impl_->idMap[sock]];
+
+				if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
@@ -560,7 +566,7 @@ void Universe::_run() {
 					}
 				}
 				//If message received from this client then deal with it
-				if (impl_->pollfds[impl_->idMap[sock]].revents & POLLIN) {
+				if (fdstruct.revents & POLLIN) {
 					//lk.unlock();
 					s->data();
 					//lk.lock();
