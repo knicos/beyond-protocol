@@ -185,8 +185,6 @@ class Peer {
 	 */
 	template <typename F>
 	void bind(const std::string &name, F func);
-	
-	bool isWaiting() const { return is_waiting_; }
 
 	void rawClose();
 
@@ -246,10 +244,10 @@ private: // Functions
 		}
 	}
 
-	std::atomic_bool is_waiting_;
+	std::atomic_flag already_processing_ = ATOMIC_FLAG_INIT;
 
 	msgpack::unpacker recv_buf_;
-	RECURSIVE_MUTEX recv_mtx_;
+	//MUTEX recv_mtx_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;

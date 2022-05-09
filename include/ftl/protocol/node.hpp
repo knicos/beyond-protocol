@@ -101,8 +101,6 @@ class Node {
 	 * Get the peer id as a string.
 	 */
 	std::string to_string() const;
-			
-	bool isWaiting() const;
 
 	void noReconnect();
 

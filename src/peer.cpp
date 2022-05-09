@@ -126,7 +126,7 @@ void Peer::_bind_rpc() {
 }
 
 Peer::Peer(std::unique_ptr<internal::SocketConnection> s, Universe* u, Dispatcher* d) :
-		is_waiting_(true), outgoing_(false), local_id_(0),
+		outgoing_(false), local_id_(0),
 		uri_("0"), status_(NodeStatus::kConnecting), can_reconnect_(false),
 		net_(u), sock_(std::move(s)) {
 	
@@ -150,7 +150,7 @@ Peer::Peer(const ftl::URI& uri, Universe *u, Dispatcher *d) :
 	/* Outgoing connection constructor */
 
 	// Must do to prevent receiving message before handlers are installed
-	UNIQUE_LOCK(recv_mtx_,lk);
+	//UNIQUE_LOCK(recv_mtx_,lk);
 
 	disp_ = std::make_unique<Dispatcher>(d);
 
@@ -167,7 +167,6 @@ void Peer::_connect() {
 	_set_socket_options();
 	sock_->connect(uri_); // throws on error
 	status_ = NodeStatus::kConnecting;
-	is_waiting_ = true;
 }
 
 /** Called from ftl::Universe::_periodic() */
@@ -198,7 +197,7 @@ void Peer::_updateURI() {
 
 void Peer::rawClose() {	
 	UNIQUE_LOCK(send_mtx_, lk_send);
-	UNIQUE_LOCK(recv_mtx_, lk_recv);
+	//UNIQUE_LOCK(recv_mtx_, lk_recv);
 	sock_->close();
 	status_ = NodeStatus::kDisconnected;
 }
@@ -208,7 +207,7 @@ void Peer::close(bool retry) {
 	if (sock_->is_valid()) { send("__disconnect__"); }
 
 	UNIQUE_LOCK(send_mtx_, lk_send);
-	UNIQUE_LOCK(recv_mtx_, lk_recv);
+	//UNIQUE_LOCK(recv_mtx_, lk_recv);
 
 	_close(retry);
 }
@@ -320,8 +319,10 @@ void Peer::data() {
 
 	recv_buf_.buffer_consumed(rc);
 	
-	if (is_waiting_) {
-		is_waiting_ = false;
+	// FIXME: This might get skipped incorrectly.
+	// However, it should be extremely unlikely given that recv is done already
+	//UNIQUE_LOCK(recv_mtx_, lk);
+	if (!already_processing_.test_and_set()) {
 		//lk.unlock();
 
 		++job_count_;
@@ -364,7 +365,7 @@ bool Peer::_data() {
 	try {
 		bool has_next = _has_next() && recv_buf_.next(msg_handle);
 		if (!has_next) {
-			is_waiting_ = true;
+			already_processing_.clear();
 			return false;
 		}
 	} catch (const std::exception& ex) {
@@ -557,7 +558,7 @@ Peer::~Peer() {
 	--net_->peer_instances_;
 	{
 		UNIQUE_LOCK(send_mtx_,lk1);
-		UNIQUE_LOCK(recv_mtx_,lk2);
+		//UNIQUE_LOCK(recv_mtx_,lk2);
 		_close(false);
 	}
 

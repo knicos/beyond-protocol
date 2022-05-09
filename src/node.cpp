@@ -51,10 +51,6 @@ const ftl::UUID &Node::id() const {
 std::string Node::to_string() const {
     return peer_->to_string();
 }
-        
-bool Node::isWaiting() const {
-    return peer_->isWaiting();
-}
 
 void Node::noReconnect() {
     peer_->noReconnect();
