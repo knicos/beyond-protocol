@@ -25,7 +25,8 @@ extern ftl::UUID id;
 std::shared_ptr<ftl::protocol::Self> getSelf();
 std::shared_ptr<ftl::protocol::Self> createDummySelf();
 std::shared_ptr<ftl::protocol::Service> setServiceProvider(const std::string &uri);
-std::shared_ptr<ftl::protocol::Node> createNode(const std::string &uri);
+std::shared_ptr<ftl::protocol::Node> connectNode(const std::string &uri);
 std::shared_ptr<ftl::protocol::Stream> createStream(const std::string &uri);
+std::shared_ptr<ftl::protocol::Stream> getStream(const std::string &uri);
 
 }

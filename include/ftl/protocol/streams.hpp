@@ -115,6 +115,8 @@ class Stream {
 	 */
 	inline size_t size() const { return state_.size(); }
 
+	virtual bool enable(uint8_t fs, uint8_t f) { return true; }
+
 	protected:
 	ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::Packet&> cb_;
 

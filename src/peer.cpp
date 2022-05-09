@@ -92,7 +92,7 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, UUID pid) {
 		if (version != ftl::net::kVersion) LOG(WARNING) << "net protocol using different versions!";
 
 		LOG(INFO) << "(" << (outgoing_ ? "connecting" : "listening")
-				  << " peer) handshake received from remote";
+				  << " peer) handshake received from remote for " << pid.to_string();
 
 		status_ = NodeStatus::kConnected;
 		version_ = version;

@@ -617,6 +617,11 @@ void Universe::_notifyConnect(Peer *p) {
 	// The peer could have been removed from valid peers already.
 	if (!ptr) return;
 
+	{
+		UNIQUE_LOCK(net_mutex_,lk);
+		peer_ids_[ptr->id()] = ptr->local_id_;
+	}
+
 	on_connect_.triggerAsync(ptr);
 }
 

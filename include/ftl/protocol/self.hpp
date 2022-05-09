@@ -11,6 +11,7 @@
 #include <ftl/handle.hpp>
 
 #include <memory>
+#include <string>
 
 namespace ftl {
 namespace net {
@@ -18,6 +19,9 @@ class Universe;
 }
 
 namespace protocol {
+
+class Node;
+class Stream;
 
 struct Error {
 	int errno;
@@ -28,6 +32,12 @@ class Self {
 	/** Peer for outgoing connection: resolve address and connect */
 	explicit Self(const std::shared_ptr<ftl::net::Universe> &impl);
 	virtual ~Self();
+
+	std::shared_ptr<ftl::protocol::Node> connectNode(const std::string &uri);
+
+	std::shared_ptr<ftl::protocol::Stream> createStream(const std::string &uri);
+
+	std::shared_ptr<ftl::protocol::Stream> getStream(const std::string &uri);
 	
 	void start();
 	

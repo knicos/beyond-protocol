@@ -47,7 +47,7 @@ namespace threads {
  * scope. */
 class _write_lock {
 public:
-	_write_lock(std::shared_mutex& mtx) : mtx_(&mtx) {
+	explicit _write_lock(std::shared_mutex& mtx) : mtx_(&mtx) {
 		mtx_->unlock_shared();
 		mtx_->lock();
 	}

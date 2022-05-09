@@ -171,10 +171,12 @@ add_library(beyond-protocol STATIC
 	src/protocol/websocket.cpp
 	src/base64.cpp
 	src/protocol.cpp
-	src/streams.cpp
+	src/streams/streams.cpp
 	src/channelSet.cpp
-	src/muxer.cpp
-	src/broadcaster.cpp
+	src/streams/muxer.cpp
+	src/streams/broadcaster.cpp
+	src/streams/netstream.cpp
+	src/streams/filestream.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

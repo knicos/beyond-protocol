@@ -34,7 +34,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 	SECTION("valid tcp connection using ipv4") {
 		auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
 		LOG(INFO) << uri;
-		auto p = ftl::createNode(uri);
+		auto p = ftl::connectNode(uri);
 		REQUIRE( p );
 		
 		REQUIRE( p->waitConnection(5) );
@@ -45,7 +45,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 	SECTION("valid tcp connection using hostname") {
 		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
-		auto p = ftl::createNode(uri);
+		auto p = ftl::connectNode(uri);
 		REQUIRE( p );
 		
 		REQUIRE( p->waitConnection(5) );
@@ -57,7 +57,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 	SECTION("invalid protocol") {
 		bool throws = false;
 		try {
-			auto p = ftl::createNode("http://localhost:1234");
+			auto p = ftl::connectNode("http://localhost:1234");
 		}
 		catch (const ftl::exception& ex) {
 			ex.ignore();
@@ -73,7 +73,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
-		auto p_connecting = ftl::createNode(uri);
+		auto p_connecting = ftl::connectNode(uri);
 		REQUIRE(p_connecting);
 		
 		bool disconnected_once = false;
@@ -102,7 +102,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
-		auto p_connecting = ftl::createNode(uri);
+		auto p_connecting = ftl::connectNode(uri);
 		REQUIRE(p_connecting);
 		
 		bool disconnected_once = false;
@@ -143,7 +143,7 @@ TEST_CASE("Self::onConnect()", "[net]") {
 			return true;
 		});
 
-		REQUIRE( ftl::createNode(uri)->waitConnection(5) );
+		REQUIRE( ftl::connectNode(uri)->waitConnection(5) );
 
 		bool result = try_for(20, [&done]{ return done; });
 		REQUIRE( result );
@@ -157,7 +157,7 @@ TEST_CASE("Self::onConnect()", "[net]") {
 			return true;
 		});
 
-		REQUIRE( ftl::createNode(uri)->waitConnection(5) );
+		REQUIRE( ftl::connectNode(uri)->waitConnection(5) );
 
 		REQUIRE( done );
 	}

@@ -1,11 +1,42 @@
 #include "universe.hpp"
 #include <ftl/protocol/self.hpp>
+#include "./streams/netstream.hpp"
 
 using ftl::protocol::Self;
 
 Self::Self(const std::shared_ptr<ftl::net::Universe> &impl): universe_(impl) {}
 
 Self::~Self() {}
+
+std::shared_ptr<ftl::protocol::Node> Self::connectNode(const std::string &uri) {
+    return std::make_shared<ftl::protocol::Node>(universe_->connect(uri));
+}
+
+std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri) {
+    ftl::URI u(uri);
+
+    if (!u.isValid()) throw FTL_Error("Invalid Stream URI");
+
+    switch (u.getScheme()) {
+    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true); 
+    case ftl::URI::SCHEME_FILE  :
+    case ftl::URI::SCHEME_NONE  :
+    default                     : throw FTL_Error("Invalid Stream URI");
+    }
+}
+
+std::shared_ptr<ftl::protocol::Stream> Self::getStream(const std::string &uri) {
+    ftl::URI u(uri);
+
+    if (!u.isValid()) throw FTL_Error("Invalid Stream URI");
+
+    switch (u.getScheme()) {
+    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), false); 
+    case ftl::URI::SCHEME_FILE  :
+    case ftl::URI::SCHEME_NONE  :
+    default                     : throw FTL_Error("Invalid Stream URI");
+    }
+}
 	
 void Self::start() {
     universe_->start();

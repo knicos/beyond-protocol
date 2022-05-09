@@ -19,18 +19,24 @@ std::shared_ptr<ftl::protocol::Self> ftl::getSelf() {
 }
 
 std::shared_ptr<ftl::protocol::Self> ftl::createDummySelf() {
-    return std::make_shared<ftl::protocol::Self>(std::make_shared<ftl::net::Universe>());
+    ftl::UUID uuid;
+    auto u = std::make_shared<ftl::net::Universe>();
+    u->setLocalID(uuid);
+    return std::make_shared<ftl::protocol::Self>(u);
 }
 
 /*std::shared_ptr<ftl::protocol::Service> ftl::setServiceProvider(const std::string &uri) {
 
 }*/
 
-std::shared_ptr<ftl::protocol::Node> ftl::createNode(const std::string &uri) {
-    if (!universe) universe = std::make_shared<ftl::net::Universe>();
-    return std::make_shared<ftl::protocol::Node>(universe->connect(uri));
+std::shared_ptr<ftl::protocol::Node> ftl::connectNode(const std::string &uri) {
+    return getSelf()->connectNode(uri);
 }
 
-/*std::shared_ptr<ftl::protocol::Stream> ftl::createStream(const std::string &uri) {
+std::shared_ptr<ftl::protocol::Stream> ftl::createStream(const std::string &uri) {
+    return getSelf()->createStream(uri);
+}
 
-}*/
+std::shared_ptr<ftl::protocol::Stream> ftl::getStream(const std::string &uri) {
+    return getSelf()->getStream(uri);
+}

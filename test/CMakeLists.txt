@@ -60,3 +60,14 @@ target_link_libraries(stream_unit
 	beyond-protocol ${URIPARSER_LIBRARIES} ${OS_LIBS})
 
 add_test(StreamUnitTest stream_unit)
+
+### Stream Integration #########################################################
+add_executable(stream_integration
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./stream_integration.cpp
+)
+target_include_directories(stream_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(stream_integration
+	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+add_test(StreamIntegrationTest stream_integration)
