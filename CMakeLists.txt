@@ -142,7 +142,7 @@ configure_file(${CMAKE_SOURCE_DIR}/src/config.cpp.in
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${VS_STARTUP_PROJECT})
-	set_property(TARGET voltu-node PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${VS_DEBUG_WORKING_DIRECTORY})
+	#set_property(TARGET voltu-node PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${VS_DEBUG_WORKING_DIRECTORY})
 endif()
 
 #include(ftl_CPack)
