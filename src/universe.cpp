@@ -18,7 +18,7 @@
 #include "protocol/tcp.hpp"
 
 #ifdef WIN32
-#include <winsock.h>
+#include <winsock2.h>
 #include <Ws2tcpip.h>
 #endif
 
@@ -478,7 +478,11 @@ void Universe::_run() {
 			continue;
 		}
 
+		#ifdef WIN32
+		selres = WSAPoll(impl_->pollfds.data(), impl_->pollfds.size(), 100);
+		#else
 		selres = poll(impl_->pollfds.data(), impl_->pollfds.size(), 100);
+		#endif
 
 		// NOTE Nick: Is it possible that not all the recvs have been called before I
 		// again reach a select call!? What are the consequences of this? A double recv attempt?
