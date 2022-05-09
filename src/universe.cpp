@@ -468,7 +468,7 @@ void Universe::_run() {
 	auto start = std::chrono::high_resolution_clock::now();
 
 	while (active_) {
-		SOCKET n = _setDescriptors();
+		_setDescriptors();
 		int selres = 1;
 
 		_cleanupPeers();
@@ -482,7 +482,7 @@ void Universe::_run() {
 		}
 
 		// It is an error to use "select" with no sockets ... so just sleep
-		if (n == 0) {
+		if (impl_->pollfds.size() == 0) {
 			std::shared_lock lk(net_mutex_);
 			socket_cv_.wait_for(lk, std::chrono::milliseconds(100), [this](){ return listeners_.size() > 0 || connection_count_ > 0; });
 			continue;
