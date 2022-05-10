@@ -176,7 +176,7 @@ bool Peer::reconnect() {
 
 	URI uri(uri_);
 
-	LOG(1) << "Reconnecting to " << uri_.to_string() << " ...";
+	LOG(INFO) << "Reconnecting to " << uri_.to_string() << " ...";
 
 	try {
 		_connect();
