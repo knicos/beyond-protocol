@@ -450,11 +450,11 @@ void Universe::_periodic() {
 		_insertPeer(peer);
 		peer->status_ = NodeStatus::kConnecting;
 		i = reconnects_.erase(i);
-		ftl::pool.push([peer](int id) {
+		//ftl::pool.push([peer](int id) {
 			if (!peer->reconnect()) {
 				LOG(INFO) << "Reconnect failed";
 			}
-		});
+		//});
 
 		/*if ((*i).peer->reconnect()) {
 			_insertPeer((*i).peer);
