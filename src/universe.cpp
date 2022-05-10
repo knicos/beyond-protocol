@@ -278,7 +278,9 @@ void Universe::unbind(const std::string &name) {
 
 int Universe::waitConnections() {
 	SHARED_LOCK(net_mutex_, lk);
-	return std::count_if(peers_.begin(), peers_.end(), [](const auto &p) {
+	auto peers = peers_;
+	lk.unlock();
+	return std::count_if(peers.begin(), peers.end(), [](const auto &p) {
 		return p && p->waitConnection();
 	});
 }
@@ -636,7 +638,7 @@ void Universe::_notifyError(Peer *p, ftl::protocol::Error e, const std::string &
 	const auto ptr = (p) ? _findPeer(p) : nullptr;
 
 	// Note: Net errors can have no peer
-	if (!ptr) return;
+	//if (!ptr) return;
 
 	on_error_.triggerAsync(ptr, e, errstr);
 }
