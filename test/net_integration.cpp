@@ -88,8 +88,11 @@ TEST_CASE("Listen and Connect", "[net]") {
 			return true;
 		});
 
-		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
-		REQUIRE(p_connecting->waitConnection(5));
+		bool res = cv.wait_for(lk, std::chrono::seconds(5), [p_connecting]() { return p_connecting->isConnected(); });
+		REQUIRE( res );
+
+		//REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
+		//REQUIRE(p_connecting->waitConnection(5));
 	}
 
 	SECTION("automatic reconnect from originating connection") {
@@ -118,8 +121,8 @@ TEST_CASE("Listen and Connect", "[net]") {
 			return true;
 		});
 
-		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
-		REQUIRE(p_connecting->isConnected());
+		bool res = cv.wait_for(lk, std::chrono::seconds(5), [p_connecting]() { return p_connecting->isConnected(); });
+		REQUIRE( res );
 	}
 
 	ftl::protocol::reset();
