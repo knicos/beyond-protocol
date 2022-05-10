@@ -204,7 +204,7 @@ void Peer::rawClose() {
 
 void Peer::close(bool retry) {
 	// Attempt to inform about disconnect
-	if (sock_->is_valid()) { send("__disconnect__"); }
+	if (sock_->is_valid() && status_ == NodeStatus::kConnected) { send("__disconnect__"); }
 
 	UNIQUE_LOCK(send_mtx_, lk_send);
 	//UNIQUE_LOCK(recv_mtx_, lk_recv);
