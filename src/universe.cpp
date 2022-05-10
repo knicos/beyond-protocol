@@ -374,6 +374,8 @@ void Universe::_removePeer(PeerPtr &p) {
 			}
 		}
 
+		LOG(INFO) << "Remove peer: " << int(p->status());
+
 		if (p->status() == NodeStatus::kReconnecting) {
 			reconnects_.push_back({reconnect_attempts_, 1.0f, p});
 		} else {
