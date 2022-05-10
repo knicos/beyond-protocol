@@ -538,6 +538,7 @@ bool Peer::waitConnection(int s) {
 	});
 
 	cv.wait_for(lk, seconds(s), [this]() { return status_ == NodeStatus::kConnected;});
+	LOG(ERROR) << "CONN STAT = " << int(status_);
 	return status_ == NodeStatus::kConnected;
 }
 

@@ -76,7 +76,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		
 		bool disconnected_once = false;
 
-		auto h = ftl::getSelf()->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
+		auto h = self->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
 			if (!disconnected_once) {
 				// remote closes on first connection
 				disconnected_once = true;
