@@ -81,18 +81,13 @@ TEST_CASE("Listen and Connect", "[net]") {
 				// remote closes on first connection
 				disconnected_once = true;
 				p_listening->close(true);
-			} else {
-				// notify on second
 				cv.notify_one();
 			}
 			return true;
 		});
 
-		bool res = cv.wait_for(lk, std::chrono::seconds(5), [p_connecting]() { return p_connecting->isConnected(); });
-		REQUIRE( res );
-
-		//REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
-		//REQUIRE(p_connecting->waitConnection(5));
+		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
+		REQUIRE(p_connecting->waitConnection(5));
 	}
 
 	SECTION("automatic reconnect from originating connection") {
@@ -112,17 +107,14 @@ TEST_CASE("Listen and Connect", "[net]") {
 				// disconnect on first connection
 				disconnected_once = true;
 				p_connecting->close(true);
-				LOG(INFO) << "disconnected";
-			}
-			else {
-				// notify on second
 				cv.notify_one();
 			}
+			
 			return true;
 		});
 
-		bool res = cv.wait_for(lk, std::chrono::seconds(5), [p_connecting]() { return p_connecting->isConnected(); });
-		REQUIRE( res );
+		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
+		REQUIRE(p_connecting->waitConnection(5));
 	}
 
 	ftl::protocol::reset();
