@@ -48,7 +48,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		
 		REQUIRE( p->waitConnection(5) );
 		
-		REQUIRE( self->numberOfNodes() == 1 );
+		REQUIRE( self->waitConnections() == 1 );
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 
@@ -81,7 +81,6 @@ TEST_CASE("Listen and Connect", "[net]") {
 				// remote closes on first connection
 				disconnected_once = true;
 				p_listening->close(true);
-				LOG(INFO) << "disconnected";
 			} else {
 				// notify on second
 				cv.notify_one();
@@ -90,7 +89,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		});
 
 		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
-		REQUIRE(p_connecting->isConnected());
+		REQUIRE(p_connecting->waitConnection(5));
 	}
 
 	SECTION("automatic reconnect from originating connection") {
