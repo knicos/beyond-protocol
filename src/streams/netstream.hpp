@@ -48,9 +48,16 @@ class Net : public Stream {
 	bool end() override;
 	bool active() override;
 
-	bool enable(uint8_t fs, uint8_t f) override;
+	bool enable(FrameID id) override;
+	bool enable(FrameID id, ftl::protocol::Channel c) override;
 
 	void reset() override;
+	void refresh() override;
+
+	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
+	int getProperty(ftl::protocol::StreamProperty opt) override;
+	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
+	StreamType type() const override;
 
 	inline const ftl::UUID &getPeer() const {
 		if (host_) { throw FTL_Error("Net::getPeer() not possible, hosting stream"); }
@@ -105,6 +112,7 @@ private:
 
 	std::list<detail::StreamClient> clients_;
 
+	bool _enable(FrameID id);
 	bool _processRequest(ftl::net::Peer &p, ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
 	void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
 	void _checkTXRate(size_t tx_size, int64_t tx_latency, int64_t ts);

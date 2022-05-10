@@ -19,6 +19,7 @@ using ftl::protocol::StreamPacketMSGPACK;
 using ftl::protocol::Packet;
 using ftl::protocol::Channel;
 using ftl::protocol::Codec;
+using ftl::protocol::FrameID;
 using ftl::protocol::kAllFrames;
 using ftl::protocol::kAllFramesets;
 using std::string;
@@ -113,7 +114,7 @@ bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
 	// Lock to prevent clients being added / removed
 	{
 		SHARED_LOCK(mutex_,lk);
-		available(spkt.frameSetID()) += spkt.channel;
+		//available(spkt.frameSetID()) += spkt.channel;
 
 		// Map the frameset ID from a local one to a remote one
 		StreamPacketMSGPACK spkt_net = *((StreamPacketMSGPACK*)&spkt);
@@ -225,6 +226,10 @@ bool Net::begin() {
 		// Map remote frameset ID to a local one.
 		spkt.streamID = _remoteToLocalFS(spkt.streamID);
 
+		FrameID localFrame(spkt.streamID, spkt.frame_number);
+
+		seen(localFrame, spkt.channel);
+
 		// Manage recuring requests
 		if (!host_ && last_frame_ != spkt.timestamp) {
 			UNIQUE_LOCK(mutex_, lk);
@@ -246,7 +251,7 @@ bool Net::begin() {
 					}
 				}*/
 
-				if (size() > spkt.frameSetID()) {
+				/*if (size() > spkt.frameSetID()) {
 					auto sel = selected(spkt.frameSetID());
 
 					// A change in channel selections, so send those requests now
@@ -258,18 +263,18 @@ bool Net::begin() {
 							_sendRequest(c, spkt.frameSetID(), kAllFrames, kFramesToRequest, 255);
 						}
 					}
-				}
+				}*/
 
 				// Are we close to reaching the end of our frames request?
 				if (tally_ <= 5) {
 					// Yes, so send new requests
-					for (size_t i = 0; i < size(); ++i) {
-						const auto &sel = selected(i);
+					//for (size_t i = 0; i < size(); ++i) {
+						const auto &sel = enabledChannels(localFrame);
 						
 						for (auto c : sel) {
-							_sendRequest(c, i, kAllFrames, kFramesToRequest, 255);
+							_sendRequest(c, localFrame.frameset(), kAllFrames, kFramesToRequest, 255);
 						}
-					}
+					//}
 					tally_ = kFramesToRequest;
 				} else {
 					--tally_;
@@ -287,10 +292,10 @@ bool Net::begin() {
 			_processRequest(p, spkt, pkt);
 		} else {
 			// FIXME: Allow availability to change...
-			available(spkt.frameSetID()) += spkt.channel;
+			//available(spkt.frameSetID()) += spkt.channel;
 		}
 
-		cb_.trigger(spkt, pkt);
+		trigger(spkt, pkt);
 		if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
 	});
 
@@ -334,21 +339,28 @@ bool Net::begin() {
 	return true;
 }
 
-void Net::reset() {
+void Net::refresh() {
+	Stream::refresh();
+
 	UNIQUE_LOCK(mutex_, lk);
 
-	for (size_t i = 0; i < size(); ++i) {
-		auto sel = selected(i);
+	for (const auto &i : enabled()) {
+		auto sel = enabledChannels(i);
 		
 		for (auto c : sel) {
-			_sendRequest(c, i, kAllFrames, kFramesToRequest, 255, true);
+			_sendRequest(c, i.frameset(), kAllFrames, kFramesToRequest, 255, true);
 		}
 	}
 	tally_ = kFramesToRequest;
 }
 
-bool Net::enable(uint8_t fs, uint8_t f) {
-	if (host_) { return false; }
+void Net::reset() {
+	Stream::reset();
+}
+
+bool Net::_enable(FrameID id) {
+	if (host_) { return false; }	
+	if (enabled(id)) return true;
 
 	// not hosting, try to find peer now
 	// First find non-proxy version, then check for proxy version if no match
@@ -368,9 +380,24 @@ bool Net::enable(uint8_t fs, uint8_t f) {
 	}
 	
 	// TODO: check return value
-	net_->send(*peer_, "enable_stream", uri_, fs, 0);
-	_sendRequest(Channel::kColour, fs, kAllFrames, kFramesToRequest, 255, true);
+	net_->send(*peer_, "enable_stream", uri_, id.frameset(), id.source());
+	return true;
+}
 
+bool Net::enable(FrameID id) {
+	if (host_) { return false; }
+	if (!_enable(id)) return false;
+	if (!Stream::enable(id)) return false;
+	_sendRequest(Channel::kColour, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
+
+	return true;
+}
+
+bool Net::enable(FrameID id, Channel c) {
+	if (host_) { return false; }
+	if (!_enable(id)) return false;
+	if (!Stream::enable(id, c)) return false;
+	_sendRequest(c, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
 	return true;
 }
 
@@ -507,4 +534,20 @@ bool Net::end() {
 
 bool Net::active() {
 	return active_;
+}
+
+void Net::setProperty(ftl::protocol::StreamProperty opt, int value) {
+
+}
+
+int Net::getProperty(ftl::protocol::StreamProperty opt) {
+	return 0;
+}
+
+bool Net::supportsProperty(ftl::protocol::StreamProperty opt) {
+	return false;
+}
+
+ftl::protocol::StreamType Net::type() const {
+	return ftl::protocol::StreamType::kLive;
 }

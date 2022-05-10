@@ -11,6 +11,7 @@
 #include <ftl/protocol/channels.hpp>
 #include <ftl/protocol/channelSet.hpp>
 #include <ftl/protocol/packet.hpp>
+#include <ftl/protocol/frameid.hpp>
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -20,8 +21,7 @@ namespace protocol {
 
 /* Represents a request for data through a stream */
 struct Request {
-	uint32_t frameset;
-	uint32_t frame;
+	FrameID id;
 	ftl::protocol::Channel channel;
 	int bitrate;
 	int count;
@@ -32,12 +32,15 @@ using RequestCallback = std::function<bool(const ftl::protocol::Request&)>;
 
 using StreamCallback = std::function<bool(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &)>;
 
-enum struct StreamOption {
+enum struct StreamProperty {
     kInvalid = 0,
     kLooping,
     kSpeed,
     kBitrate,
-    kAdaptiveBitrate
+	kMaxBitrate,
+    kAdaptiveBitrate,
+	kObservers,
+	kURI
 };
 
 enum struct StreamType {
@@ -58,17 +61,21 @@ class Stream {
 	public:
 	virtual ~Stream() {};
 
+	virtual std::string name() const;
+
 	/**
 	 * Obtain all packets for next frame. The provided callback function is
 	 * called once for every packet. This function might continue to call the
 	 * callback even after the read function returns, for example with a
 	 * NetStream.
 	 */
-	ftl::Handle onPacket(const StreamCallback &cb) { return cb_.on(cb); };
+	ftl::Handle onPacket(const StreamCallback &cb) { return cb_.on(cb); }
+
+	ftl::Handle onRequest(const std::function<bool(const Request &)> &cb) { return request_cb_.on(cb); }
 
 	virtual bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &)=0;
 
-    // TODO: Add methods for: pause, paused, statistics, stream type, options
+    // TODO: Add methods for: pause, paused, statistics
 
 	/**
 	 * Start the stream. Calls to the onPacket callback will only occur after
@@ -86,54 +93,115 @@ class Stream {
 	virtual bool active()=0;
 
 	/**
-	 * Perform a forced reset of the stream. This means something different
-	 * depending on stream type, for example with a network stream it involves
-	 * resending all stream requests as if a reconnection had occured.
+	 * @brief Clear all state. This will remove all information about available
+	 * and enabled frames or channels. You will then need to enable frames and
+	 * channels again. If active the stream will remain active.
+	 * 
 	 */
 	virtual void reset();
 
 	/**
-	 * Query available video channels for a frameset.
+	 * @brief Re-request all channels and state. This will also cause video encoding
+	 * to generate new I-frames as if a new connection is made. All persistent data
+	 * channels would also become available. For file streams this would reset the
+	 * stream to the beginning of the file.
+	 * 
 	 */
-	const ftl::protocol::ChannelSet &available(int fs) const;
+	virtual void refresh();
 
 	/**
-	 * Query selected channels for a frameset. Channels not selected may not
-	 * be transmitted, received or decoded.
+	 * @brief Check if a frame is available.
+	 * 
+	 * @param id Frameset and frame number
+	 * @return true if data is available for the frame
+	 * @return false if no data has been seen
 	 */
-	ftl::protocol::ChannelSet selected(int fs) const;
+	bool available(FrameID id) const;
 
-	ftl::protocol::ChannelSet selectedNoExcept(int fs) const;
+	bool available(FrameID id, ftl::protocol::Channel channel) const;
+
+	bool available(FrameID id, const ftl::protocol::ChannelSet channels) const;
+
+	ftl::Handle onAvailable(const std::function<bool(FrameID, ftl::protocol::Channel)> &cb) { return avail_cb_.on(cb); }
 
 	/**
-	 * Change the video channel selection for a frameset.
+	 * @brief Get all channels seen for a frame. If the frame does not exist then
+	 * an empty set is returned.
+	 * 
+	 * @param id Frameset and frame number
+	 * @return Set of all seen channels, or empty. 
 	 */
-	void select(int fs, const ftl::protocol::ChannelSet &, bool make=false);
+	ftl::protocol::ChannelSet channels(FrameID id) const;
+
+	ftl::protocol::ChannelSet enabledChannels(FrameID id) const;
+
+	/**
+	 * @brief Get all available frames in the stream.
+	 * 
+	 * @return Set of frame IDs
+	 */
+	std::unordered_set<FrameID> frames() const;
+
+	/**
+	 * @brief Get all enabled frames in the stream.
+	 * 
+	 * @return Set of frame IDs
+	 */
+	std::unordered_set<FrameID> enabled() const;
+
+	/**
+	 * @brief Check if a frame is enabled.
+	 * 
+	 * @param id Frameset and frame number
+	 * @return true if data for this frame is enabled.
+	 * @return false if data not enabled or frame does not exist.
+	 */
+	bool enabled(FrameID id) const;
+
+	bool enabled(FrameID id, ftl::protocol::Channel channel) const;
 
 	/**
 	 * Number of framesets in stream.
 	 */
 	inline size_t size() const { return state_.size(); }
 
-	virtual bool enable(uint8_t fs, uint8_t f) { return true; }
+	virtual bool enable(FrameID id);
+
+	virtual bool enable(FrameID id, ftl::protocol::Channel channel);
+
+	virtual bool enable(FrameID id, const ftl::protocol::ChannelSet &channels);
+
+	// TODO: Disable
+
+	virtual void setProperty(ftl::protocol::StreamProperty opt, int value)=0;
+
+	virtual int getProperty(ftl::protocol::StreamProperty opt)=0;
+
+	virtual bool supportsProperty(ftl::protocol::StreamProperty opt)=0;
+
+	virtual StreamType type() const { return StreamType::kUnknown; }
 
 	protected:
-	ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::Packet&> cb_;
+	void trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
 
-	/**
-	 * Allow modification of available channels. Calling this with an invalid
-	 * fs number will create that frameset and increase the size.
-	 */
-	ftl::protocol::ChannelSet &available(int fs);
+	void seen(FrameID id, ftl::protocol::Channel channel);
+
+	void request(const Request &req);
+
+	mutable SHARED_MUTEX mtx_;
 
 	private:
 	struct FSState {
+		bool enabled = false;
 		ftl::protocol::ChannelSet selected;
 		ftl::protocol::ChannelSet available;
+		// TODO: Add a name and metadata
 	};
 
-	std::vector<FSState> state_;
-	mutable SHARED_MUTEX mtx_;
+	ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::Packet&> cb_;
+	ftl::Handler<const Request &> request_cb_;
+	ftl::Handler<FrameID, ftl::protocol::Channel> avail_cb_;
+	std::unordered_map<int, FSState> state_;
 };
 
 }

@@ -3,6 +3,8 @@
 using ftl::protocol::Broadcast;
 using ftl::protocol::StreamPacket;
 using ftl::protocol::Packet;
+using ftl::protocol::Channel;
+using ftl::protocol::FrameID;
 
 Broadcast::Broadcast() {
 
@@ -13,39 +15,51 @@ Broadcast::~Broadcast() {
 }
 
 void Broadcast::add(const std::shared_ptr<Stream> &s) {
-	UNIQUE_LOCK(mutex_,lk);
+	UNIQUE_LOCK(mtx_,lk);
 
-	streams_.push_back(s);
-	handles_.push_back(std::move(s->onPacket([this,s](const StreamPacket &spkt, const Packet &pkt) {
-		//LOG(INFO) << "BCAST Request: " << (int)spkt.streamID << " " << (int)spkt.channel << " " << spkt.timestamp;
-		SHARED_LOCK(mutex_, lk);
-		if (spkt.frameSetID() < 255) available(spkt.frameSetID()) += spkt.channel;
-		cb_.trigger(spkt, pkt);
-		if (spkt.streamID < 255) s->select(spkt.streamID, selected(spkt.streamID));
+	auto &entry = streams_.emplace_back();
+	entry.stream = s;
+
+	entry.handle = std::move(s->onPacket([this,s](const StreamPacket &spkt, const Packet &pkt) {
+		trigger(spkt, pkt);
 		return true;
-	})));
+	}));
+
+	entry.avail_handle = std::move(s->onAvailable([this,s](FrameID id, Channel channel) {
+		seen(id, channel);
+		return true;
+	}));
+
+	entry.req_handle = std::move(s->onRequest([this,s](const ftl::protocol::Request &req) {
+		request(req);
+		return true;
+	}));
 }
 
 void Broadcast::remove(const std::shared_ptr<Stream> &s) {
-	UNIQUE_LOCK(mutex_,lk);
-	// TODO: Find and remove handle also
-	streams_.remove(s);
+	UNIQUE_LOCK(mtx_,lk);
+	for (auto it = streams_.begin(); it != streams_.end(); ++it) {
+		if (it->stream == s) {
+			it->handle.cancel();
+			it->req_handle.cancel();
+			it->avail_handle.cancel();
+			streams_.erase(it);
+			break;
+		}
+	}
 }
 
 void Broadcast::clear() {
-	UNIQUE_LOCK(mutex_,lk);
-	handles_.clear();
+	UNIQUE_LOCK(mtx_,lk);
 	streams_.clear();
 }
 
 bool Broadcast::post(const StreamPacket &spkt, const Packet &pkt) {
-	SHARED_LOCK(mutex_, lk);
-	if (spkt.frameSetID() < 255) available(spkt.frameSetID()) += spkt.channel;
+	//SHARED_LOCK(mtx_, lk);
 
 	bool status = true;
-	for (auto s : streams_) {
-		//s->select(spkt.frameSetID(), selected(spkt.frameSetID()));
-		status = status && s->post(spkt, pkt);
+	for (auto &s : streams_) {
+		status = s.stream->post(spkt, pkt) && status;
 	}
 	return status;
 }
@@ -53,7 +67,7 @@ bool Broadcast::post(const StreamPacket &spkt, const Packet &pkt) {
 bool Broadcast::begin() {
 	bool r = true;
 	for (auto &s : streams_) {
-		r = r && s->begin();
+		r = r && s.stream->begin();
 	}
 	return r;
 }
@@ -61,7 +75,7 @@ bool Broadcast::begin() {
 bool Broadcast::end() {
 	bool r = true;
 	for (auto &s : streams_) {
-		r = r && s->end();
+		r = r && s.stream->end();
 	}
 	return r;
 }
@@ -70,13 +84,30 @@ bool Broadcast::active() {
 	if (streams_.size() == 0) return false;
 	bool r = true;
 	for (auto &s : streams_) {
-		r = r && s->active();
+		r = r && s.stream->active();
 	}
 	return r;
 }
 
 void Broadcast::reset() {
+	SHARED_LOCK(mtx_, lk);
 	for (auto &s : streams_) {
-		s->reset();
+		s.stream->reset();
 	}
+}
+
+void Broadcast::setProperty(ftl::protocol::StreamProperty opt, int value) {
+
+}
+
+int Broadcast::getProperty(ftl::protocol::StreamProperty opt) {
+	return 0;
+}
+
+bool Broadcast::supportsProperty(ftl::protocol::StreamProperty opt) {
+	return false;
+}
+
+ftl::protocol::StreamType Broadcast::type() const {
+	return ftl::protocol::StreamType::kUnknown;
 }

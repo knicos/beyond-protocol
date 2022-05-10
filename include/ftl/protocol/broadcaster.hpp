@@ -28,13 +28,26 @@ class Broadcast : public Stream {
 
 	void reset() override;
 
-	const std::list<std::shared_ptr<Stream>> &streams() const { return streams_; }
+	std::list<std::shared_ptr<Stream>> streams() const;
+
+	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
+
+	int getProperty(ftl::protocol::StreamProperty opt) override;
+
+	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
+
+	StreamType type() const override;
 
 	private:
-	std::list<std::shared_ptr<Stream>> streams_;
-	std::list<ftl::Handle> handles_;
-	//StreamCallback cb_;
-	SHARED_MUTEX mutex_;
+
+	struct StreamEntry {
+		std::shared_ptr<Stream> stream;
+		ftl::Handle handle;
+		ftl::Handle req_handle;
+		ftl::Handle avail_handle;
+	};
+
+	std::list<StreamEntry> streams_;
 };
 
 }

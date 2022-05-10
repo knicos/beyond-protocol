@@ -6,6 +6,8 @@
 #include <ftl/exception.hpp>
 #include <ftl/protocol/node.hpp>
 
+using ftl::protocol::FrameID;
+
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("TCP Stream", "[net]") {
@@ -40,7 +42,7 @@ TEST_CASE("TCP Stream", "[net]") {
 		s1->begin();
 		s2->begin();
 
-		s2->enable(0, 0);
+		s2->enable(FrameID(0, 0));
 
 		// TODO: Find better option
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));

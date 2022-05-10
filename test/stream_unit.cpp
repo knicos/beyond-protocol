@@ -11,6 +11,7 @@ using ftl::protocol::Stream;
 using ftl::protocol::StreamPacket;
 using ftl::protocol::Packet;
 using ftl::protocol::Channel;
+using ftl::protocol::FrameID;
 
 class TestStream : public ftl::protocol::Stream {
 	public:
@@ -18,14 +19,20 @@ class TestStream : public ftl::protocol::Stream {
 	~TestStream() {};
 
 	bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
-		available(spkt.streamID) += spkt.channel;
-		cb_.trigger(spkt, pkt);
+		seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
+		trigger(spkt, pkt);
 		return true;
 	}
 
 	bool begin() override { return true; }
 	bool end() override { return true; }
 	bool active() override { return true; }
+
+	void setProperty(ftl::protocol::StreamProperty opt, int value) override {}
+
+	int getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
+
+	bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 
 	private:
 	//std::function<void(const StreamPacket &, const Packet &)> cb_;
@@ -70,12 +77,14 @@ TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
 		});
 
 		REQUIRE( s1->post({4,100,0,0,Channel::kColour},{}) );
+		REQUIRE( tspkt.streamID == 0 );
 		REQUIRE( tspkt.timestamp == 100 );
 		REQUIRE( tspkt.frame_number == 0 );
 
 		REQUIRE( s2->post({4,101,0,0,Channel::kColour},{}) );
+		REQUIRE( tspkt.streamID == 1 );
 		REQUIRE( tspkt.timestamp == 101 );
-		REQUIRE( tspkt.frame_number == 1 );
+		REQUIRE( tspkt.frame_number == 0 );
 
 		StreamPacket tspkt2 = {4,0,0,1,Channel::kColour};
 		StreamPacket tspkt3 = {4,0,0,1,Channel::kColour};
@@ -88,8 +97,9 @@ TEST_CASE("ftl::stream::Muxer()::write", "[stream]") {
 			return true;
 		});
 
-		REQUIRE( mux->post({4,200,0,1,Channel::kColour},{}) );
+		REQUIRE( mux->post({4,200,1,0,Channel::kColour},{}) );
 		REQUIRE( tspkt3.timestamp == 200 );
+		REQUIRE( tspkt3.streamID == 0 );
 		REQUIRE( tspkt3.frame_number == 0 );
 	}
 }
@@ -149,8 +159,8 @@ TEST_CASE("ftl::stream::Muxer()::read", "[stream]") {
 		std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
 		REQUIRE(s2);
 
-		mux->add(s1);
-		mux->add(s2);
+		mux->add(s1, 0);
+		mux->add(s2, 0);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
 		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
@@ -181,8 +191,8 @@ TEST_CASE("ftl::stream::Muxer()::read", "[stream]") {
 		std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
 		REQUIRE(s2);
 
-		mux->add(s1);
-		mux->add(s2);
+		mux->add(s1, 0);
+		mux->add(s2, 0);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
 		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {

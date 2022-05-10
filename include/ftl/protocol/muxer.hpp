@@ -21,7 +21,7 @@ class Muxer : public Stream {
 	explicit Muxer();
 	virtual ~Muxer();
 
-	void add(const std::shared_ptr<Stream> &, size_t fsid=0, const std::function<int()> &cb=nullptr);
+	void add(const std::shared_ptr<Stream> &, int fsid=-1);
 	void remove(const std::shared_ptr<Stream> &);
 
 	//bool onPacket(const StreamCallback &) override;
@@ -34,27 +34,55 @@ class Muxer : public Stream {
 
 	void reset() override;
 
-	std::shared_ptr<Stream> originStream(size_t fsid, int fid);
+	bool enable(FrameID id) override;
+
+	bool enable(FrameID id, ftl::protocol::Channel channel) override;
+
+	bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
+
+	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
+
+	int getProperty(ftl::protocol::StreamProperty opt) override;
+
+	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
+
+	StreamType type() const override;
+
+	std::shared_ptr<Stream> originStream(FrameID) const;
 
 	private:
 	struct StreamEntry {
 		std::shared_ptr<Stream> stream;
-		std::unordered_map<int, std::vector<int>> maps;
-		uint32_t original_fsid = 0;
 		ftl::Handle handle;
-		std::vector<int> ids;
+		ftl::Handle req_handle;
+		ftl::Handle avail_handle;
+		int id = 0;
+		int fixed_fs = -1;
 	};
 
-	std::list<StreamEntry> streams_;
-	std::vector<std::pair<StreamEntry*,int>> revmap_[kMaxStreams];
-	//std::list<ftl::Handle> handles_;
-	int nid_[kMaxStreams];
-	//StreamCallback cb_;
-	SHARED_MUTEX mutex_;
+	std::unordered_map<int, int> fsmap_;
+	std::unordered_map<int, int> sourcecount_;
+	std::unordered_map<int64_t, FrameID> imap_;
+	std::unordered_map<FrameID, std::pair<FrameID, Muxer::StreamEntry*>> omap_;
 
-	void _notify(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
-	int _lookup(size_t fsid, StreamEntry *se, int ssid, int count);
-	void _forward(const std::string &name);
+	std::list<StreamEntry> streams_;
+	//std::vector<std::pair<StreamEntry*,int>> revmap_[kMaxStreams];
+	//std::list<ftl::Handle> handles_;
+	//int nid_[kMaxStreams];
+	//StreamCallback cb_;
+	mutable SHARED_MUTEX mutex_;
+	std::atomic_int stream_ids_ = 0;
+	std::atomic_int framesets_ = 0;
+
+	/* On packet receive, map to local ID */
+	FrameID _mapFromInput(StreamEntry *, FrameID id);
+
+	/* On posting, map to output ID */
+	std::pair<FrameID, StreamEntry*> _mapToOutput(FrameID id) const;
+
+	//void _notify(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
+	//int _lookup(size_t fsid, StreamEntry *se, int ssid, int count);
+	//void _forward(const std::string &name);
 };
 
 }
