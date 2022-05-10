@@ -444,7 +444,16 @@ void Universe::_periodic() {
 			if (removed) continue;
 		}
 
-		if ((*i).peer->reconnect()) {
+		auto peer = i->peer;
+		_insertPeer(peer);
+		i = reconnects_.erase(i);
+		ftl::pool.push([peer](int id) {
+			if (!peer->reconnect()) {
+				LOG(INFO) << "Reconnect failed";
+			}
+		});
+
+		/*if ((*i).peer->reconnect()) {
 			_insertPeer((*i).peer);
 			i = reconnects_.erase(i);
 		}
@@ -455,7 +464,7 @@ void Universe::_periodic() {
 		 else {
 			garbage_.push_back((*i).peer);
 			i = reconnects_.erase(i);
-		}
+		}*/
 	}
 }
 
