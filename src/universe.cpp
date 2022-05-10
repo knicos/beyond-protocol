@@ -418,6 +418,7 @@ PeerPtr Universe::getWebService() const {
 }
 
 void Universe::_periodic() {
+	LOG(INFO) << "PERIODIC " << reconnects_.size();
 	auto i = reconnects_.begin();
 	while (i != reconnects_.end()) {
 

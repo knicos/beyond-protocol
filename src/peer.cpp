@@ -262,7 +262,10 @@ void Peer::data() {
 
 	int rc = 0;
 
-	recv_buf_.reserve_buffer(kMaxMessage);
+	{
+		UNIQUE_LOCK(recv_mtx_,lk);
+		recv_buf_.reserve_buffer(kMaxMessage);
+	}
 
 	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
 		net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Buffer is at capacity"); 
@@ -360,7 +363,11 @@ bool Peer::_data() {
 
 	try {
 		recv_checked_.test_and_set();
+
+		UNIQUE_LOCK(recv_mtx_,lk);
 		bool has_next = _has_next() && recv_buf_.next(msg_handle);
+		lk.unlock();
+
 		if (!has_next) {
 			already_processing_.clear();
 			if (!recv_checked_.test_and_set() && !already_processing_.test_and_set()) {

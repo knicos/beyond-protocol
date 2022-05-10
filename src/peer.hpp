@@ -248,7 +248,7 @@ private: // Functions
 	std::atomic_flag recv_checked_ = ATOMIC_FLAG_INIT;
 
 	msgpack::unpacker recv_buf_;
-	//MUTEX recv_mtx_;
+	MUTEX recv_mtx_;
 	
 	// Send buffers
 	msgpack::vrefbuffer send_buf_;
