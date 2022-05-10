@@ -99,21 +99,11 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 		auto p_connecting = ftl::connectNode(uri);
 		REQUIRE(p_connecting);
-		
-		bool disconnected_once = false;
 
-		auto h = ftl::getSelf()->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
-			if (!disconnected_once) {
-				// disconnect on first connection
-				disconnected_once = true;
-				p_connecting->close(true);
-				cv.notify_one();
-			}
-			
-			return true;
-		});
+		REQUIRE(p_connecting->waitConnection(5));
+		p_connecting->close(true);
 
-		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
+		REQUIRE(p_connecting->status() != ftl::protocol::NodeStatus::kConnected);
 		REQUIRE(p_connecting->waitConnection(5));
 	}
 
