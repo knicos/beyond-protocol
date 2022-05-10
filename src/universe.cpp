@@ -634,7 +634,7 @@ void Universe::_notifyDisconnect(Peer *p) {
 }
 
 void Universe::_notifyError(Peer *p, ftl::protocol::Error e, const std::string &errstr) {
-	DLOG(ERROR) << "Net Error (" << int(e) << "): " << errstr;
+	LOG(ERROR) << "Net Error (" << int(e) << "): " << errstr;
 	const auto ptr = (p) ? _findPeer(p) : nullptr;
 
 	// Note: Net errors can have no peer
