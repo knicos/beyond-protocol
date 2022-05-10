@@ -215,19 +215,18 @@ void Peer::close(bool retry) {
 
 void Peer::_close(bool retry) {
 	if (status_ != NodeStatus::kConnected && status_ != NodeStatus::kConnecting) return;
-	status_ = NodeStatus::kDisconnected;
 	
-	if (sock_->is_valid()) {
-		net_->_notifyDisconnect(this);
-		sock_->close();
-	}
-
 	// Attempt auto reconnect?
 	if (retry && can_reconnect_) {
 		status_ = NodeStatus::kReconnecting;
 	
 	} else {
 		status_ = NodeStatus::kDisconnected;
+	}
+
+	if (sock_->is_valid()) {
+		net_->_notifyDisconnect(this);
+		sock_->close();
 	}
 }
 
@@ -238,8 +237,8 @@ bool Peer::socketError() {
 	// Must close before log since log may try to send over net causing
 	// more socket errors...
 	
-	_close(reconnect_on_socket_error_);
-	net_->_notifyError(this, ftl::protocol::Error::kSocketError, uri_.to_string()); 
+	net_->_notifyError(this, ftl::protocol::Error::kSocketError, uri_.to_string());
+	_close(reconnect_on_socket_error_); 
 	return true;
 }
 
