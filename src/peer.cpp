@@ -405,8 +405,23 @@ bool Peer::_data() {
 					// Must handle immediately with no other thread able
 					// to read next message before completion.
 					// The handshake handler must not block.
-					//disp_->dispatch(*this, obj);
-					//return true;
+
+					try {
+						disp_->dispatch(*this, obj);
+					} catch (const std::exception &e) {
+						net_->_notifyError(this, ftl::protocol::Error::kDispatchFailed, e.what());
+					}
+
+					++job_count_;
+					ftl::pool.push([this](int id) {
+						try {
+							_data();
+						} catch (const std::exception &e) {
+							net_->_notifyError(this, ftl::protocol::Error::kUnknown, e.what());	
+						}
+						--job_count_;
+					});
+					return true;
 				}
 			} catch(...) {
 				DLOG(WARNING) << "Bad first message format... waiting";
