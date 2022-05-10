@@ -524,7 +524,7 @@ void Peer::_waitCall(int id, std::condition_variable &cv, bool &hasreturned, con
 
 bool Peer::waitConnection(int s) {
 	if (status_ == NodeStatus::kConnected) return true;
-	else if (status_ != NodeStatus::kConnecting) return false;
+	else if (status_ == NodeStatus::kDisconnected) return false;
 	
 	std::mutex m;
 	std::unique_lock<std::mutex> lk(m);
@@ -538,6 +538,7 @@ bool Peer::waitConnection(int s) {
 	});
 
 	cv.wait_for(lk, seconds(s), [this]() { return status_ == NodeStatus::kConnected;});
+	if (status_ != NodeStatus::kConnected) LOG(ERROR) << "NOT CONNECTED: " << int(status_);
 	return status_ == NodeStatus::kConnected;
 }
 
