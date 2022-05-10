@@ -183,9 +183,10 @@ bool Peer::reconnect() {
 		return true;
 		
 	} catch(const std::exception& ex) {
-		net_->_notifyError(this, ftl::protocol::Error::kReconnectionFailed, ex.what()); 
+		net_->_notifyError(this, ftl::protocol::Error::kReconnectionFailed, ex.what());
 	}
 
+	close(true); 
 	return false;
 }
 
