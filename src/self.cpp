@@ -66,8 +66,8 @@ size_t Self::numberOfNodes() const {
     return universe_->numberOfPeers();
 }
 
-int Self::waitConnections() {
-    return universe_->waitConnections();
+int Self::waitConnections(int seconds) {
+    return universe_->waitConnections(seconds);
 }
 
 std::shared_ptr<ftl::protocol::Node> Self::getNode(const ftl::UUID &pid) const {

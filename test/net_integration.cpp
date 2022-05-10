@@ -48,7 +48,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		
 		REQUIRE( p->waitConnection(5) );
 		
-		REQUIRE( self->waitConnections() == 1 );
+		REQUIRE( self->waitConnections(5) == 1 );
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 

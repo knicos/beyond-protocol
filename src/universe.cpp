@@ -276,12 +276,12 @@ void Universe::unbind(const std::string &name) {
 	disp_.unbind(name);
 }
 
-int Universe::waitConnections() {
+int Universe::waitConnections(int seconds) {
 	SHARED_LOCK(net_mutex_, lk);
 	auto peers = peers_;
 	lk.unlock();
-	return std::count_if(peers.begin(), peers.end(), [](const auto &p) {
-		return p && p->waitConnection();
+	return std::count_if(peers.begin(), peers.end(), [seconds](const auto &p) {
+		return p && p->waitConnection(seconds);
 	});
 }
 

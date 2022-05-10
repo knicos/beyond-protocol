@@ -63,7 +63,7 @@ class Self {
 	 * Will block until all currently registered connnections have completed.
 	 * You should not use this, but rather use onConnect.
 	 */
-	int waitConnections();
+	int waitConnections(int seconds = 1);
 	
 	/** get peer pointer by peer UUID, returns nullptr if not found */
 	std::shared_ptr<ftl::protocol::Node> getNode(const ftl::UUID &pid) const;

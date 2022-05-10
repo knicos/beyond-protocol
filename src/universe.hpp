@@ -99,7 +99,7 @@ public:
 	 * Will block until all currently registered connnections have completed.
 	 * You should not use this, but rather use onConnect.
 	 */
-	int waitConnections();
+	int waitConnections(int seconds = 1);
 	
 	/** get peer pointer by peer UUID, returns nullptr if not found */
 	PeerPtr getPeer(const ftl::UUID &pid) const;
