@@ -306,7 +306,7 @@ socket_t Universe::_setDescriptors() {
 				#ifdef WIN32
 				fdentry.events = POLLIN;
 				#else
-				fdentry.events = POLLIN | POLLERR;
+				fdentry.events = POLLIN; // | POLLERR;
 				#endif
 				fdentry.fd = sock;
 				fdentry.revents = 0;
@@ -330,7 +330,7 @@ socket_t Universe::_setDescriptors() {
 				#ifdef WIN32
 				fdentry.events = POLLIN;
 				#else
-				fdentry.events = POLLIN | POLLERR;
+				fdentry.events = POLLIN; // | POLLERR;
 				#endif
 				fdentry.fd = sock;
 				fdentry.revents = 0;
@@ -569,14 +569,14 @@ void Universe::_run() {
 
 				const auto &fdstruct = impl_->pollfds[impl_->idMap[sock]];
 
-				if (fdstruct.revents & POLLERR) {
+				/*if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
 						//lk.lock();
 						continue;  // No point in reading data...
 					}
-				}
+				}*/
 				//If message received from this client then deal with it
 				if (fdstruct.revents & POLLIN) {
 					//lk.unlock();
