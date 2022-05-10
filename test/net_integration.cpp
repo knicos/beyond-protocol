@@ -64,7 +64,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		REQUIRE(throws);
 	}
 	
-	SECTION("automatic reconnect, after clean disconnect") {
+	/*SECTION("automatic reconnect, after clean disconnect") {
 		std::mutex mtx;
 		std::condition_variable cv;
 		std::unique_lock<std::mutex> lk(mtx);
@@ -88,7 +88,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
 		REQUIRE(p_connecting->waitConnection(5));
-	}
+	}*/
 
 	SECTION("automatic reconnect from originating connection") {
 		std::mutex mtx;

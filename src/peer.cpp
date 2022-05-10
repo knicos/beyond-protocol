@@ -172,7 +172,7 @@ void Peer::_connect() {
 /** Called from ftl::Universe::_periodic() */
 bool Peer::reconnect() {
 
-	if (status_ != NodeStatus::kReconnecting || !can_reconnect_) return false;
+	if (status_ != NodeStatus::kConnecting || !can_reconnect_) return false;
 
 	URI uri(uri_);
 

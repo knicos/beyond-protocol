@@ -446,6 +446,7 @@ void Universe::_periodic() {
 
 		auto peer = i->peer;
 		_insertPeer(peer);
+		peer->status_ = NodeStatus::kConnecting;
 		i = reconnects_.erase(i);
 		ftl::pool.push([peer](int id) {
 			if (!peer->reconnect()) {
