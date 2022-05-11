@@ -71,6 +71,10 @@ public:
 	size_t get_recv_buffer_size();
 	size_t get_send_buffer_size();
 
+	int getSocketError();
+
+	int is_fatal(int code=0);
+
 	virtual std::string host();
 	virtual int port();
 };

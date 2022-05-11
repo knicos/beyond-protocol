@@ -17,6 +17,10 @@ flawfinder-sast:
   stage: static
   needs: []
   dependencies: []
+  rules:
+    - if: $CI_MERGE_REQUEST_ID
+    - if: $CI_BRANCH_NAME && $CI_BRANCH_NAME != "main"
+      when: never
 
 include:
 - template: Security/SAST.gitlab-ci.yml
