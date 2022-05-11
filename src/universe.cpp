@@ -374,8 +374,6 @@ void Universe::_removePeer(PeerPtr &p) {
 			}
 		}
 
-		LOG(INFO) << "Remove peer: " << int(p->status());
-
 		if (p->status() == NodeStatus::kReconnecting) {
 			reconnects_.push_back({reconnect_attempts_, 1.0f, p});
 		} else {
@@ -427,7 +425,6 @@ std::list<PeerPtr> Universe::getPeers() const {
 }
 
 void Universe::_periodic() {
-	LOG(INFO) << "PERIODIC " << reconnects_.size();
 	auto i = reconnects_.begin();
 	while (i != reconnects_.end()) {
 
@@ -458,9 +455,7 @@ void Universe::_periodic() {
 		peer->status_ = NodeStatus::kConnecting;
 		i = reconnects_.erase(i);
 		//ftl::pool.push([peer](int id) {
-			if (!peer->reconnect()) {
-				LOG(INFO) << "Reconnect failed";
-			}
+			peer->reconnect();
 		//});
 
 		/*if ((*i).peer->reconnect()) {

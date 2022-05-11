@@ -174,7 +174,7 @@ bool Peer::reconnect() {
 
 	URI uri(uri_);
 
-	LOG(INFO) << "Reconnecting to " << uri_.to_string() << " ...";
+	LOG(1) << "Reconnecting to " << uri_.to_string() << " ...";
 
 	try {
 		_connect();
@@ -254,31 +254,17 @@ NodeType Peer::getType() const {
 }
 
 void Peer::data() {
-	//UNIQUE_LOCK(recv_mtx_,lk);
-
 	if (!sock_->is_valid()) { return; }
 
 	int rc = 0;
 
-	{
+	// Only need to lock and reserve buffer if there isn't enough
+	if (recv_buf_.buffer_capacity() < kMaxMessage) {
 		UNIQUE_LOCK(recv_mtx_,lk);
 		recv_buf_.reserve_buffer(kMaxMessage);
 	}
 
-	if (recv_buf_.buffer_capacity() < (kMaxMessage / 10)) {
-		net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Buffer is at capacity"); 
-		return;
-	}
-
 	int cap = static_cast<int>(recv_buf_.buffer_capacity());
-	// Buffer acquired, recv can be called outside the lock.
-
-	// TODO: Check if this is actually correct. If two threads call recv()
-	//       outside the lock and the second thread to call recv() re-acquires 
-	//       the lock first, buffer_consumed() will be called first with second
-	//       thread's number of bytes (rc).
-	//auto ctr = dbg_recv_begin_ctr_++;
-	//lk.unlock();
 
 	try {
 		rc = sock_->recv(recv_buf_.buffer(), recv_buf_.buffer_capacity());
@@ -308,16 +294,9 @@ void Peer::data() {
 		return;
 	}
 
-	// Re-acquire lock before processing buffer further
-	//lk.lock();
-
-	// buffer_consumed() will not be updated with correct value, race condition
-	// described above has occurred
-	//CHECK(ctr == dbg_recv_end_ctr_++) << "race in Peer::data()";
-
+	// May possibly need locking
 	recv_buf_.buffer_consumed(rc);
-	
-	//UNIQUE_LOCK(recv_mtx_, lk);
+
 	recv_checked_.clear();
 	if (!already_processing_.test_and_set()) {
 		//lk.unlock();
@@ -543,7 +522,6 @@ bool Peer::waitConnection(int s) {
 	});
 
 	cv.wait_for(lk, seconds(s), [this]() { return status_ == NodeStatus::kConnected;});
-	LOG(ERROR) << "CONN STAT = " << int(status_);
 	return status_ == NodeStatus::kConnected;
 }
 

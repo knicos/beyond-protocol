@@ -195,7 +195,7 @@ class Peer {
 	int connectionCount() const { return connection_count_; }
 	
 	public:
-	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
+	static const int kMaxMessage = 2*1024*1024;  // 10Mb currently
 	
 protected:
 	void data();			// Process one message from socket
