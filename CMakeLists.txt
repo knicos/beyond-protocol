@@ -107,7 +107,7 @@ if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 else()
 	add_definitions(-DUNIX)
 	# -fdiagnostics-color
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -std=c++17 -fPIC -march=haswell -mfpmath=sse -Wall -Werror=unused-result -Werror=return-type")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always -std=c++17 -fPIC -march=haswell -mavx2 -mfpmath=sse -Wall -Werror=unused-result -Werror=return-type")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O3")
