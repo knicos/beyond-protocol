@@ -130,7 +130,7 @@ linux:pack:
   artifacts:
     when: always
     paths:
-      - *.deb
+      - ./*.deb
     expire_in: 1 week
 
 ### Windows
@@ -208,7 +208,7 @@ windows:pack:
   artifacts:
     when: always
     paths:
-      - *.zip
+      - ./*.zip
     expire_in: 1 week
 
 # Release
