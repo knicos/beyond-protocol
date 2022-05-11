@@ -100,7 +100,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 			node->close();
 		}
 
-		bool r = try_for(500, [p_connecting]{ return p_connecting->connectionCount() == 2; });
+		bool r = try_for(500, [p_connecting]{ return p_connecting->connectionCount() >= 2; });
 		REQUIRE( r );
 	}
 
