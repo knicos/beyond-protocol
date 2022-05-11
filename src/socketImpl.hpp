@@ -29,7 +29,7 @@ public:
 	bool is_valid();
 	bool is_open();
 	bool is_closed();
-	bool is_fatal();
+	bool is_fatal(int code=0);
 
 	ssize_t recv(char *buffer, size_t len, int flags);
 	ssize_t send(const char* buffer, size_t len, int flags);
@@ -69,7 +69,7 @@ public:
 	
 	bool is_blocking();
 
-	std::string get_error_string();
+	std::string get_error_string(int code=0);
 
 	// only valid for TCP sockets
 	bool set_nodelay(bool val);

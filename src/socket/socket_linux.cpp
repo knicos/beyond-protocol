@@ -185,12 +185,13 @@ bool Socket::is_blocking() {
 	return fcntl(fd_, F_GETFL, NULL) & O_NONBLOCK;
 }
 
-bool Socket::is_fatal() {
-	return !(errno == EINTR || errno == EWOULDBLOCK || errno == EINPROGRESS);
+bool Socket::is_fatal(int code) {
+	int e = (code != 0) ? code : errno;
+	return !(e == EINTR || e == EWOULDBLOCK || e == EINPROGRESS);
 }
 
-std::string Socket::get_error_string() {
-	return strerror(errno);
+std::string Socket::get_error_string(int code) {
+	return strerror((code != 0) ? code : errno);
 }
 
 // TCP socket

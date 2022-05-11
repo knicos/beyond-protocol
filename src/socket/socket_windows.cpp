@@ -78,8 +78,9 @@ ssize_t Socket::writev(const struct iovec* iov, int iovcnt) {
 	}
 
 	DWORD bytessent;
-	WSASend(fd_, wsabuf.data(), static_cast<DWORD>(wsabuf.size()), (LPDWORD)&bytessent, 0, NULL, NULL);
-	return bytessent;
+	auto err = WSASend(fd_, wsabuf.data(), static_cast<DWORD>(wsabuf.size()), (LPDWORD)&bytessent, 0, NULL, NULL);
+	if (err < 0) { err_ = WSAGetLastError(); }
+	return (err < 0) ? err : bytessent;
 
 }
 
@@ -183,10 +184,10 @@ void Socket::set_blocking(bool val) {
 	LOG(ERROR) << "TODO: set blocking/non-blocking";
 }
 
-std::string Socket::get_error_string() {
+std::string Socket::get_error_string(int code) {
 	wchar_t* s = NULL;
 	FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, err_, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
+		NULL, (code != 0) ? code : err_, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
 	if (!s) {
 		return "Unknown";
 	}
@@ -196,8 +197,9 @@ std::string Socket::get_error_string() {
 	return msg;
 }
 
-bool Socket::is_fatal() {
-	return !(err_ == WSAEINTR || err_ == WSAEMSGSIZE || err_ == WSAEINPROGRESS || err_ == WSAEWOULDBLOCK);
+bool Socket::is_fatal(int code) {
+	if (code != 0) err_ = code;
+	return !(err_ == 0 || err_ == WSAEINTR || err_ == WSAEMSGSIZE || err_ == WSAEINPROGRESS || err_ == WSAEWOULDBLOCK);
 }
 
 bool Socket::is_blocking() {

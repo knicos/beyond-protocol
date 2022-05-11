@@ -117,7 +117,7 @@ void Peer::_bind_rpc() {
 
 	bind("__disconnect__", [this]() {
 		close(reconnect_on_remote_disconnect_);
-		LOG(1) << "peer elected to disconnect: " << id().to_string();
+		DLOG(1) << "peer elected to disconnect: " << id().to_string();
 	});
 
 	bind("__ping__", [this]() {
@@ -203,7 +203,7 @@ void Peer::rawClose() {
 
 void Peer::close(bool retry) {
 	// Attempt to inform about disconnect
-	if (!retry && sock_->is_valid() && status_ == NodeStatus::kConnected) { send("__disconnect__"); }
+	if (sock_->is_valid() && status_ == NodeStatus::kConnected) { send("__disconnect__"); }
 
 	UNIQUE_LOCK(send_mtx_, lk_send);
 	//UNIQUE_LOCK(recv_mtx_, lk_recv);
@@ -229,13 +229,16 @@ void Peer::_close(bool retry) {
 }
 
 bool Peer::socketError() {
-	// TODO	implement in to SocketConnection and report if any
-	// 		protocol errors as well
-	
-	// Must close before log since log may try to send over net causing
-	// more socket errors...
-	
-	net_->_notifyError(this, ftl::protocol::Error::kSocketError, uri_.to_string());
+	int errcode = sock_->getSocketError();
+
+	if (!sock_->is_fatal(errcode)) return false;
+
+	if (errcode == ECONNRESET) {
+		_close(reconnect_on_socket_error_);
+		return true;
+	}
+
+	net_->_notifyError(this, ftl::protocol::Error::kSocketError, std::string("Socket error: ") + std::to_string(errcode));
 	_close(reconnect_on_socket_error_); 
 	return true;
 }
@@ -279,7 +282,7 @@ void Peer::data() {
 
 	} catch (std::exception& ex) {
 		net_->_notifyError(this, ftl::protocol::Error::kSocketError, ex.what());	
-		close(reconnect_on_protocol_error_);
+		close(reconnect_on_socket_error_);
 		return;
 
 	}
@@ -449,7 +452,6 @@ bool Peer::_data() {
 }
 
 void Peer::_dispatchResponse(uint32_t id, const std::string &name, msgpack::object &res) {
-	// TODO: Handle error reporting...
 	UNIQUE_LOCK(cb_mtx_,lk);
 	if (callbacks_.count(id) > 0) {
 		
@@ -552,7 +554,7 @@ int Peer::_send() {
 
 	} catch (std::exception& ex) {
 		net_->_notifyError(this, ftl::protocol::Error::kSocketError, ex.what());
-		_close(reconnect_on_protocol_error_);
+		_close(reconnect_on_socket_error_);
 	}
 	
 	return c;

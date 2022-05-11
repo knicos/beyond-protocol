@@ -28,6 +28,10 @@ bool SocketConnection::is_valid() {
 	return sock_.is_open();
 }
 
+int SocketConnection::is_fatal(int code) {
+	return sock_.is_fatal(code);
+}
+
 void SocketConnection::connect(const SocketAddress &address, int timeout) {
 	addr_ = address;
 	int rv = 0;
@@ -41,13 +45,11 @@ ssize_t SocketConnection::recv(char *buffer, size_t len) {
 	auto recvd = sock_.recv(buffer, len, 0);
 	if (recvd == 0) {
 		LOG(3) << "recv(): read size 0";
-		sock_.close();
 		return -1; // -1 means close, 0 means retry
 	}
 	if (recvd < 0) {
-		LOG(ERROR) << "recv(): " << sock_.get_error_string();
 		if (!sock_.is_fatal()) return 0;  // Retry
-		close();
+		throw FTL_Error(sock_.get_error_string());
 	}
 	return recvd;
 }
@@ -181,6 +183,15 @@ size_t SocketConnection::get_recv_buffer_size() {
 
 size_t SocketConnection::get_send_buffer_size() {
 	return sock_.get_send_buffer_size();
+}
+
+int SocketConnection::getSocketError() {
+	int val = 0;
+	socklen_t optlen = sizeof(val);
+	if (sock_.getsockopt(SOL_SOCKET, SO_ERROR, &val, &optlen) == 0) {
+		return val;
+	}
+	return errno;  // TODO: Windows.
 }
 
 // SocketServer ////////////////////////////////////////////////////////////////

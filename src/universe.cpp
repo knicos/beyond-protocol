@@ -574,7 +574,7 @@ void Universe::_run() {
 				if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
-						s->close();
+						//s->close();
 						//lk.lock();
 						continue;  // No point in reading data...
 					}
