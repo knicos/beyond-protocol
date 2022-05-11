@@ -124,7 +124,7 @@ linux:pack:
   dependencies: ["linux:build"]
   needs: ["linux:test", "linux:valgrind", "linux:build"]
   script:
-    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake file
+    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake file curl
     - cd build
     - cpack
     - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "../libftl-protocol-${CI_COMMIT_TAG}-Linux.deb" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol${CI_COMMIT_TAG}-Linux.deb"'
@@ -235,3 +235,9 @@ release_job:
     description: 'Automatic CI Release'
     tag_name: '$CI_COMMIT_TAG'                                       # elsewhere in the pipeline.
     ref: '$CI_COMMIT_TAG'
+  assets:
+      links:
+        - name: 'DEB Package x86-64'
+          url: '${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol${CI_COMMIT_TAG}-Linux.deb'
+        - name: 'Win64 Binary (ZIP)'
+          url: '${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol-${CI_COMMIT_TAG}-win64.zip'
