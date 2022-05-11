@@ -30,6 +30,7 @@ code_quality:
   only:
     - main
     - merge_requests
+    - tags
   tags:
     - docker
   script:
@@ -45,6 +46,7 @@ linux:build:
   only:
     - main
     - merge_requests
+    - tags
   
   stage: build
   tags:
@@ -73,6 +75,7 @@ linux:test:
   only:
     - main
     - merge_requests
+    - tags
 
   stage: test
   tags:
@@ -93,6 +96,7 @@ linux:valgrind:
   only:
     - main
     - merge_requests
+    - tags
 
   stage: test
   tags:
@@ -111,7 +115,7 @@ linux:valgrind:
 
 linux:pack:
   only:
-    - main
+    - tags
 
   stage: pack
   tags:
@@ -135,6 +139,7 @@ windows:build:
   only:
     - main
     - merge_requests
+    - tags
 
   stage: build
   tags:
@@ -162,6 +167,7 @@ windows:test:
   only:
     - main
     - merge_requests
+    - tags
   
   stage: test
 
@@ -181,7 +187,7 @@ windows:test:
 
 windows:pack:
   only:
-    - main
+    - tags
   
   stage: pack
 
