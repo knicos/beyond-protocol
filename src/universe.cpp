@@ -511,9 +511,6 @@ void Universe::_run() {
 		selres = poll(impl_->pollfds.data(), impl_->pollfds.size(), 100);
 		#endif
 
-		// NOTE Nick: Is it possible that not all the recvs have been called before I
-		// again reach a select call!? What are the consequences of this? A double recv attempt?
-
 		//Some kind of error occured, it is usually possible to recover from this.
 		if (selres < 0) {
 			#ifdef WIN32
@@ -573,14 +570,15 @@ void Universe::_run() {
 
 				const auto &fdstruct = impl_->pollfds[impl_->idMap[sock]];
 
-				/*if (fdstruct.revents & POLLERR) {
+				// This is needed on Windows to detect socket close.
+				if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
 						//lk.lock();
 						continue;  // No point in reading data...
 					}
-				}*/
+				}
 				//If message received from this client then deal with it
 				if (fdstruct.revents & POLLIN) {
 					lk.unlock();
