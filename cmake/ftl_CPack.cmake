@@ -1,6 +1,6 @@
 # use build date as patch version
-string(TIMESTAMP BUILD_TIME "%Y%m%d")
-set(CPACK_PACKAGE_VERSION_PATCH "${BUILD_TIME}")
+#string(TIMESTAMP BUILD_TIME "%Y%m%d")
+#set(CPACK_PACKAGE_VERSION_PATCH "${BUILD_TIME}")
 set(CPACK_PACKAGE_NAME "libftl-protocol")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_SOURCE_DIR}")
 set(CPACK_DEBIAN_PACKAGE_NAME "FTL Protocol Library")
