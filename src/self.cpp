@@ -78,6 +78,15 @@ std::shared_ptr<ftl::protocol::Node> Self::getWebService() const {
     return std::make_shared<ftl::protocol::Node>(universe_->getWebService());
 }
 
+std::list<std::shared_ptr<ftl::protocol::Node>> Self::getNodes() const {
+    std::list<std::shared_ptr<ftl::protocol::Node>> result;
+    auto peers = universe_->getPeers();
+    std::transform(peers.begin(), peers.end(), std::back_inserter(result), [](const ftl::net::PeerPtr &ptr) {
+        return std::make_shared<ftl::protocol::Node>(ptr);
+    });
+    return result;
+}
+
 ftl::Handle Self::onConnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)> &cb) {
     return universe_->onConnect([cb](const ftl::net::PeerPtr &p) {
         return cb(std::make_shared<ftl::protocol::Node>(p));

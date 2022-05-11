@@ -63,32 +63,6 @@ TEST_CASE("Listen and Connect", "[net]") {
 		}
 		REQUIRE(throws);
 	}
-	
-	/*SECTION("automatic reconnect, after clean disconnect") {
-		std::mutex mtx;
-		std::condition_variable cv;
-		std::unique_lock<std::mutex> lk(mtx);
-
-		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
-
-		auto p_connecting = ftl::connectNode(uri);
-		REQUIRE(p_connecting);
-		
-		bool disconnected_once = false;
-
-		auto h = self->onConnect([&](const std::shared_ptr<ftl::protocol::Node> &p_listening) {
-			if (!disconnected_once) {
-				// remote closes on first connection
-				disconnected_once = true;
-				p_listening->close(true);
-				cv.notify_one();
-			}
-			return true;
-		});
-
-		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
-		REQUIRE(p_connecting->waitConnection(5));
-	}*/
 
 	SECTION("automatic reconnect from originating connection") {
 		std::mutex mtx;
@@ -105,6 +79,29 @@ TEST_CASE("Listen and Connect", "[net]") {
 
 		REQUIRE(p_connecting->status() != ftl::protocol::NodeStatus::kConnected);
 		REQUIRE(p_connecting->waitConnection(5));
+	}
+
+	SECTION("automatic reconnect from remote termination") {
+		std::mutex mtx;
+		std::condition_variable cv;
+		std::unique_lock<std::mutex> lk(mtx);
+
+		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
+
+		auto p_connecting = ftl::connectNode(uri);
+		REQUIRE(p_connecting);
+
+		REQUIRE(p_connecting->waitConnection(5));
+		REQUIRE(p_connecting->connectionCount() == 1);
+		
+		auto nodes = self->getNodes();
+		REQUIRE( nodes.size() == 1 );
+		for (auto &node : nodes) {
+			node->close();
+		}
+
+		bool r = try_for(500, [p_connecting]{ return p_connecting->connectionCount() == 2; });
+		REQUIRE( r );
 	}
 
 	ftl::protocol::reset();
@@ -125,7 +122,7 @@ TEST_CASE("Self::onConnect()", "[net]") {
 			return true;
 		});
 
-		REQUIRE( ftl::connectNode(uri)->waitConnection(5) );
+		REQUIRE( ftl::connectNode(uri) );
 
 		bool result = try_for(20, [&done]{ return done; });
 		REQUIRE( result );

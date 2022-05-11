@@ -104,6 +104,7 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, UUID pid) {
 			_send_handshake();
 		}
 
+		++connection_count_;
 		net_->_notifyConnect(this);
 	}
 }
@@ -160,9 +161,6 @@ Peer::Peer(const ftl::URI& uri, Universe *u, Dispatcher *d) :
 }
 
 void Peer::_connect() {
-	dbg_recv_begin_ctr_ = 0;
-	dbg_recv_end_ctr_ = 0;
-
 	sock_ = ftl::net::internal::createConnection(uri_); // throws on bad uri
 	_set_socket_options();
 	sock_->connect(uri_); // throws on error
@@ -205,7 +203,7 @@ void Peer::rawClose() {
 
 void Peer::close(bool retry) {
 	// Attempt to inform about disconnect
-	if (sock_->is_valid() && status_ == NodeStatus::kConnected) { send("__disconnect__"); }
+	if (!retry && sock_->is_valid() && status_ == NodeStatus::kConnected) { send("__disconnect__"); }
 
 	UNIQUE_LOCK(send_mtx_, lk_send);
 	//UNIQUE_LOCK(recv_mtx_, lk_recv);

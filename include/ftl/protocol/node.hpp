@@ -107,6 +107,8 @@ class Node {
 
 	unsigned int localID();
 
+	int connectionCount() const;
+
 	protected:
 	ftl::net::PeerPtr peer_;
 };

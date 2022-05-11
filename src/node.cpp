@@ -59,3 +59,7 @@ void Node::noReconnect() {
 unsigned int Node::localID() {
     return peer_->localID();
 }
+
+int Node::connectionCount() const {
+    return peer_->connectionCount();
+}

@@ -69,6 +69,7 @@ class Self {
 	std::shared_ptr<ftl::protocol::Node> getNode(const ftl::UUID &pid) const;
 	/** get webservice peer pointer, returns nullptr if not connected to webservice */
 	std::shared_ptr<ftl::protocol::Node>  getWebService() const;
+	std::list<std::shared_ptr<ftl::protocol::Node>> getNodes() const;
 
 	ftl::Handle onConnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)>&);
 	ftl::Handle onDisconnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)>&);

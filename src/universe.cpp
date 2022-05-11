@@ -419,6 +419,13 @@ PeerPtr Universe::getWebService() const {
 	return (it != peers_.end()) ? *it : nullptr;
 }
 
+std::list<PeerPtr> Universe::getPeers() const {
+	SHARED_LOCK(net_mutex_,lk);
+	std::list<PeerPtr> result;
+	std::copy_if(peers_.begin(), peers_.end(), std::back_inserter(result), [](const PeerPtr &ptr){ return !!ptr; });
+	return result;
+}
+
 void Universe::_periodic() {
 	LOG(INFO) << "PERIODIC " << reconnects_.size();
 	auto i = reconnects_.begin();
@@ -571,14 +578,14 @@ void Universe::_run() {
 
 				const auto &fdstruct = impl_->pollfds[impl_->idMap[sock]];
 
-				/*if (fdstruct.revents & POLLERR) {
+				if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
 						//lk.lock();
 						continue;  // No point in reading data...
 					}
-				}*/
+				}
 				//If message received from this client then deal with it
 				if (fdstruct.revents & POLLIN) {
 					//lk.unlock();

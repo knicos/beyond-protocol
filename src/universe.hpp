@@ -106,6 +106,8 @@ public:
 	/** get webservice peer pointer, returns nullptr if not connected to webservice */
 	PeerPtr getWebService() const;
 
+	std::list<PeerPtr> getPeers() const;
+
 	/**
 	 * Bind a function to an RPC or service call name. This will implicitely
 	 * be called by any peer making the request.

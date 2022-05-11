@@ -191,6 +191,8 @@ class Peer {
 	inline void noReconnect() { can_reconnect_ = false; }
 
 	inline unsigned int localID() const { return local_id_; }
+
+	int connectionCount() const { return connection_count_; }
 	
 	public:
 	static const int kMaxMessage = 10*1024*1024;  // 10Mb currently
@@ -258,21 +260,20 @@ private: // Functions
 	
 	const bool outgoing_;
 	unsigned int local_id_;
-	ftl::URI uri_;					// Original connection URI, or assumed URI
-	ftl::UUID peerid_;				// Received in handshake or allocated
-	ftl::protocol::NodeStatus status_;					// Connected, errored, reconnecting..
-	uint32_t version_;				// Received protocol version in handshake
-	bool can_reconnect_;			// Client connections can retry
-	ftl::net::Universe *net_;		// Origin net universe
+	ftl::URI uri_;									// Original connection URI, or assumed URI
+	ftl::UUID peerid_;								// Received in handshake or allocated
+	ftl::protocol::NodeStatus status_;				// Connected, errored, reconnecting..
+	uint32_t version_;								// Received protocol version in handshake
+	bool can_reconnect_;							// Client connections can retry
+	ftl::net::Universe *net_;						// Origin net universe
 
 	std::unique_ptr<internal::SocketConnection> sock_;
 	std::unique_ptr<ftl::net::Dispatcher> disp_;	// For RPC call dispatch
 	std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
 
-	// debug variables, see comments for data() in peer.cpp for details
-	std::atomic_uint64_t dbg_recv_begin_ctr_ = 0;
-	std::atomic_uint64_t dbg_recv_end_ctr_ = 0;
-	std::atomic_int job_count_ = 0;
+	std::atomic_int job_count_ = 0;					// Ensure threads are done before destructing
+	std::atomic_int connection_count_ = 0;			// Number of successful connections total
+	std::atomic_int retry_count_ = 0;				// Current number of reconnection attempts
 
 	// reconnect when clean disconnect received from remote
 	bool reconnect_on_remote_disconnect_ = true;
