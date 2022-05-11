@@ -361,9 +361,6 @@ void Universe::_removePeer(PeerPtr &p) {
 		p->status() == NodeStatus::kReconnecting ||
 		p->status() == NodeStatus::kDisconnected)) {
 
-		DLOG(1) << "Removing disconnected peer: " << p->id().to_string();
-		on_disconnect_.triggerAsync(p);
-	
 		auto ix = peer_ids_.find(p->id());
 		if (ix != peer_ids_.end()) peer_ids_.erase(ix);
 
@@ -381,6 +378,10 @@ void Universe::_removePeer(PeerPtr &p) {
 		}
 
 		--connection_count_;
+
+		DLOG(1) << "Removing disconnected peer: " << p->id().to_string();
+		on_disconnect_.triggerAsync(p);
+
 		p.reset();
 	}
 }
@@ -396,9 +397,8 @@ void Universe::_cleanupPeers() {
 			lk.unlock();
 			_removePeer(p);
 			lk.lock();
-		} else {
-			i++;
 		}
+		++i;
 	}
 }
 
@@ -573,19 +573,19 @@ void Universe::_run() {
 
 				const auto &fdstruct = impl_->pollfds[impl_->idMap[sock]];
 
-				if (fdstruct.revents & POLLERR) {
+				/*if (fdstruct.revents & POLLERR) {
 					if (s->socketError()) {
 						//lk.unlock();
 						s->close();
 						//lk.lock();
 						continue;  // No point in reading data...
 					}
-				}
+				}*/
 				//If message received from this client then deal with it
 				if (fdstruct.revents & POLLIN) {
-					//lk.unlock();
+					lk.unlock();
 					s->data();
-					//lk.lock();
+					lk.lock();
 				}
 			}
 		}

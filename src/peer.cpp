@@ -271,6 +271,7 @@ void Peer::data() {
 		
 		if (rc >= cap - 1) {
 			net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Too much data received"); 
+			// TODO: Increase the buffer size next time
 		}
 		if (cap < (kMaxMessage / 10)) {
 			net_->_notifyError(this, ftl::protocol::Error::kBufferSize, "Buffer is at capacity"); 
