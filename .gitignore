@@ -1,3 +1,6 @@
 build
+*.deb
+*.zip
 **/config.cpp
 **/config.h
+_CPack_Packages

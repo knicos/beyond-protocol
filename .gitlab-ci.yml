@@ -11,6 +11,7 @@ stages:
   - build
   - test
   - pack
+  - release
 
 flawfinder-sast:
   stage: static
@@ -129,7 +130,7 @@ linux:pack:
   artifacts:
     when: always
     paths:
-      - build/*.deb
+      - *.deb
     expire_in: 1 week
 
 ### Windows
@@ -207,5 +208,25 @@ windows:pack:
   artifacts:
     when: always
     paths:
-      - build/*.zip
+      - *.zip
     expire_in: 1 week
+
+# Release
+
+release_job:
+  stage: release
+  rules:
+    - if: $CI_COMMIT_TAG                  # Run this job when a tag is created manually
+  script:
+    - echo "running release_job"
+  needs:
+    - job: windows:pack
+      artifacts: true
+    - job: linux:pack
+      artifacts: true
+  
+  release:
+    name: 'Release $CI_COMMIT_TAG'
+    description: 'Automatic CI Release'
+    tag_name: '$CI_COMMIT_TAG'                                       # elsewhere in the pipeline.
+    ref: '$CI_COMMIT_TAG'

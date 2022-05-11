@@ -3,7 +3,7 @@ include (CheckIncludeFile)
 include (CheckIncludeFileCXX)
 include (CheckFunctionExists)
 
-if (NOT FTL_VERSION OR FTL_VERSION STREQUAL "$Env:CI_COMMIT_TAG")
+if (NOT FTL_VERSION)
 	set(FTL_VERSION 0.0.1)
 endif()
 
