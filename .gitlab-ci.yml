@@ -30,7 +30,6 @@ code_quality:
   only:
     - main
     - merge_requests
-    - tags
   tags:
     - docker
   script:
@@ -121,7 +120,7 @@ linux:pack:
   tags:
     - docker
   
-  needs: ["linux:build"]
+  dependencies: ["linux:build"]
   script:
     - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake file
     - cd build
@@ -160,7 +159,7 @@ windows:build:
       - if (Test-Path build) { Remove-Item build/ -Recurse }
       - mkdir build
       - cd build
-      - cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DFTL_VERSION=%CI_COMMIT_TAG% -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
+      - cmake -DCMAKE_GENERATOR_PLATFORM=x64 -DFTL_VERSION=$Env:CI_COMMIT_TAG -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
       - '& MSBuild.exe beyond-protocol.sln -property:Configuration=Release -nr:false -maxCpuCount'
 
 windows:test:
@@ -193,7 +192,7 @@ windows:pack:
 
   tags:
     - windows
-  needs: ["windows:build"]
+  dependencies: ["windows:build"]
 
   cache: # use artifacts instead if multiple runners available
     key: $CI_COMMIT_SHORT_SHA
