@@ -122,7 +122,7 @@ linux:pack:
     - docker
   
   dependencies: ["linux:build"]
-  needs: ["linux:test", "linux:valgrind"]
+  needs: ["linux:test", "linux:valgrind", "linux:build"]
   script:
     - DEBIAN_FRONTEND=noninteractive apt update && apt install -y libmsgpackc2 liburiparser1 cmake file
     - cd build
@@ -196,7 +196,7 @@ windows:pack:
   tags:
     - windows
   dependencies: ["windows:build"]
-  needs: ["windows:test"]
+  needs: ["windows:test", "windows:build"]
 
   cache: # use artifacts instead if multiple runners available
     key: $CI_COMMIT_SHORT_SHA
