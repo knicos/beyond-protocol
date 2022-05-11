@@ -3,7 +3,11 @@ include (CheckIncludeFile)
 include (CheckIncludeFileCXX)
 include (CheckFunctionExists)
 
-project (beyond-protocol VERSION 0.0.1)
+if (NOT FTL_VERSION)
+	set(FTL_VERSION 0.0.1)
+endif()
+
+project (beyond-protocol VERSION "${FTL_VERSION}")
 
 include(GNUInstallDirs)
 include(CTest)
@@ -145,7 +149,7 @@ if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	#set_property(TARGET voltu-node PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${VS_DEBUG_WORKING_DIRECTORY})
 endif()
 
-#include(ftl_CPack)
+include(ftl_CPack)
 
 ### ========
 
