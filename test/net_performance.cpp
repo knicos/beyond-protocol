@@ -23,14 +23,14 @@ static std::vector<DTYPE> data_test;
 static std::atomic_uint64_t recv_cnt_ = 0;
 static auto t_last_recv_ = std::chrono::steady_clock::now();
 
-static void recv_data(std::vector<DTYPE> data) {
+static void recv_data(const std::vector<DTYPE> &data) {
 	recv_cnt_.fetch_add(data.size() * sizeof(DTYPE));
 	t_last_recv_ = std::chrono::steady_clock::now();
 }
 
 static float peer_send(ftl::net::Peer* p, const std::vector<DTYPE>& data, int cnt) {
 	auto t_start = std::chrono::steady_clock::now();
-	auto t_stop = std::chrono::steady_clock::now();
+	decltype(t_start) t_stop;
 
 	size_t bytes_sent = 0;
 	size_t bytes = data.size() * sizeof(DTYPE);

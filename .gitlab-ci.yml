@@ -189,7 +189,12 @@ windows:test:
   script:
     - $env:PATH+=";C:/Shared/Deploy"
     - cd build
-    - ctest -V --output-on-failure --timeout 60
+    - ctest -V --output-on-failure --timeout 60 --output-junit report.xml
+
+  artifacts:
+    when: always
+    reports:
+      junit: build/report.xml
 
 windows:pack:
   only:

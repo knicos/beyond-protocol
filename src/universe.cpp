@@ -178,8 +178,10 @@ void Universe::shutdown() {
 	thread_.join();
 
 	// FIXME: This shouldn't be needed
-	while (peer_instances_ > 0 && ftl::pool.size() > 0) {
+	if (peer_instances_ > 0 && ftl::pool.size() > 0) {
+		DLOG(WARNING) << "Waiting on peer destruction... " << peer_instances_;
 		std::this_thread::sleep_for(std::chrono::milliseconds(2));
+		if (peer_instances_ > 0) LOG(FATAL) << "Peers not destroyed";
 	}
 }
 
@@ -256,14 +258,10 @@ PeerPtr Universe::connect(const ftl::URI &u) {
 	
 	auto p = std::make_shared<Peer>(u, this, &disp_);
 	
-	if (p->status() != NodeStatus::kInvalid) {
-		_insertPeer(p);
-	}
-	else {
-		DLOG(ERROR) << "Peer in invalid state";
-	}
-	
+	_insertPeer(p);
 	_installBindings(p);
+	p->start();
+
 	return p;
 }
 
@@ -285,13 +283,7 @@ int Universe::waitConnections(int seconds) {
 	});
 }
 
-socket_t Universe::_setDescriptors() {
-	//Reset all file descriptors
-	//FD_ZERO(&impl_->sfdread_);
-	//FD_ZERO(&impl_->sfderror_);
-
-	socket_t n = 0;
-
+void Universe::_setDescriptors() {
 	SHARED_LOCK(net_mutex_, lk);
 
 	impl_->pollfds.clear();
@@ -312,11 +304,7 @@ socket_t Universe::_setDescriptors() {
 				fdentry.revents = 0;
 				impl_->pollfds.push_back(fdentry);
 				impl_->idMap[sock] = impl_->pollfds.size() - 1;
-
-				//FD_SET(sock, &impl_->sfdread_);
-				//FD_SET(sock, &impl_->sfderror_);
 			}
-			n = std::max<socket_t>(n, l->fd());
 		}
 	}
 
@@ -324,7 +312,6 @@ socket_t Universe::_setDescriptors() {
 	for (const auto &s : peers_) {
 		if (s && s->isValid()) {
 			auto sock = s->_socket();
-			n = std::max<socket_t>(n, sock);
 			if (sock != INVALID_SOCKET) {
 				pollfd fdentry;
 				#ifdef WIN32
@@ -336,14 +323,9 @@ socket_t Universe::_setDescriptors() {
 				fdentry.revents = 0;
 				impl_->pollfds.push_back(fdentry);
 				impl_->idMap[sock] = impl_->pollfds.size() - 1;
-
-				//FD_SET(sock, &impl_->sfdread_);
-				//FD_SET(s->_socket(), &impl_->sfderror_);
 			}
 		}
 	}
-
-	return n;
 }
 
 void Universe::_installBindings(const PeerPtr &p) {
@@ -549,6 +531,7 @@ void Universe::_run() {
 				if (csock) {
 					auto p = std::make_shared<Peer>(std::move(csock), this, &disp_);
 					_insertPeer(p);
+					p->start();
 				}
 
 				lk.lock();
