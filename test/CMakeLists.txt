@@ -82,3 +82,14 @@ target_link_libraries(stream_integration
 	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
 
 add_test(StreamIntegrationTest stream_integration)
+
+### Webservice E2E #############################################################
+add_executable(webservice_e2e
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./webservice_e2e.cpp
+)
+target_include_directories(webservice_e2e PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(webservice_e2e
+	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+add_test(WebserviceE2ETest webservice_e2e)

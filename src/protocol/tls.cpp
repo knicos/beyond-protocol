@@ -6,8 +6,10 @@
 #include <iomanip>
 
 #include <ftl/exception.hpp>
+#include <ftl/lib/loguru.hpp>
 
 using ftl::net::internal::Connection_TLS;
+using uchar = unsigned char;
 
 /** get basic certificate info: Distinguished Name (DN), issuer DN,
  *  certificate fingerprint */
