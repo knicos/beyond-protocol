@@ -142,3 +142,7 @@ void Stream::seen(FrameID id, ftl::protocol::Channel channel) {
 void Stream::request(const ftl::protocol::Request &req) {
 	request_cb_.trigger(req);
 }
+
+void Stream::error(ftl::protocol::Error err, const std::string &str) {
+	error_cb_.trigger(err, str);
+}

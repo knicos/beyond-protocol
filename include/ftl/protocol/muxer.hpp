@@ -56,6 +56,7 @@ class Muxer : public Stream {
 		ftl::Handle handle;
 		ftl::Handle req_handle;
 		ftl::Handle avail_handle;
+		ftl::Handle err_handle;
 		int id = 0;
 		int fixed_fs = -1;
 	};
@@ -64,12 +65,7 @@ class Muxer : public Stream {
 	std::unordered_map<int, int> sourcecount_;
 	std::unordered_map<int64_t, FrameID> imap_;
 	std::unordered_map<FrameID, std::pair<FrameID, Muxer::StreamEntry*>> omap_;
-
 	std::list<StreamEntry> streams_;
-	//std::vector<std::pair<StreamEntry*,int>> revmap_[kMaxStreams];
-	//std::list<ftl::Handle> handles_;
-	//int nid_[kMaxStreams];
-	//StreamCallback cb_;
 	mutable SHARED_MUTEX mutex_;
 	std::atomic_int stream_ids_ = 0;
 	std::atomic_int framesets_ = 0;
@@ -79,10 +75,6 @@ class Muxer : public Stream {
 
 	/* On posting, map to output ID */
 	std::pair<FrameID, StreamEntry*> _mapToOutput(FrameID id) const;
-
-	//void _notify(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
-	//int _lookup(size_t fsid, StreamEntry *se, int ssid, int count);
-	//void _forward(const std::string &name);
 };
 
 }

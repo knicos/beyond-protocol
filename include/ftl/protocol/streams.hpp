@@ -12,13 +12,13 @@
 #include <ftl/protocol/channelSet.hpp>
 #include <ftl/protocol/packet.hpp>
 #include <ftl/protocol/frameid.hpp>
+#include <ftl/protocol/error.hpp>
 #include <string>
 #include <vector>
 #include <unordered_set>
 
 namespace ftl {
 namespace protocol {
-
 /* Represents a request for data through a stream */
 struct Request {
 	FrameID id;
@@ -181,12 +181,16 @@ class Stream {
 
 	virtual StreamType type() const { return StreamType::kUnknown; }
 
+	ftl::Handle onError(const std::function<bool(ftl::protocol::Error, const std::string &)> &cb) { return error_cb_.on(cb); }
+
 	protected:
 	void trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
 
 	void seen(FrameID id, ftl::protocol::Channel channel);
 
 	void request(const Request &req);
+
+	void error(ftl::protocol::Error, const std::string &str);
 
 	mutable SHARED_MUTEX mtx_;
 
@@ -201,8 +205,11 @@ class Stream {
 	ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::Packet&> cb_;
 	ftl::Handler<const Request &> request_cb_;
 	ftl::Handler<FrameID, ftl::protocol::Channel> avail_cb_;
+	ftl::Handler<ftl::protocol::Error, const std::string&> error_cb_;
 	std::unordered_map<int, FSState> state_;
 };
+
+using StreamPtr = std::shared_ptr<Stream>;
 
 }
 }

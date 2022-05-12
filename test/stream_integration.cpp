@@ -21,6 +21,21 @@ TEST_CASE("TCP Stream", "[net]") {
 	auto p = ftl::connectNode(uri);
 	p->waitConnection(5);
 
+	SECTION("fails if stream doesn't exist") {
+		auto s1 = self->getStream("ftl://mystream_bad");
+		REQUIRE( s1 );
+
+		auto seenError = ftl::protocol::Error::kNoError;
+		auto h = s1->onError([&seenError](ftl::protocol::Error err, const std::string &str) {
+			seenError = err;
+			return true;
+		});
+
+		REQUIRE( s1->begin() );
+		REQUIRE( !s1->enable(FrameID(0, 0)) );
+		REQUIRE( seenError == ftl::protocol::Error::kURIDoesNotExist );
+	}
+
 	SECTION("single enabled packet stream") {
 		std::condition_variable cv;
 		std::unique_lock<std::mutex> lk(mtx);
