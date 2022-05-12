@@ -28,6 +28,8 @@ class Broadcast : public Stream {
 
 	void reset() override;
 
+	void refresh() override;
+
 	std::list<std::shared_ptr<Stream>> streams() const;
 
 	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
@@ -35,6 +37,12 @@ class Broadcast : public Stream {
 	int getProperty(ftl::protocol::StreamProperty opt) override;
 
 	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
+
+	bool enable(FrameID id) override;
+
+	bool enable(FrameID id, ftl::protocol::Channel channel) override;
+
+	bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
 	StreamType type() const override;
 

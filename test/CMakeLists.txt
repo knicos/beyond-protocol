@@ -50,16 +50,27 @@ target_link_libraries(net_performance beyond-protocol
 
 add_test(NetPerformance net_performance)
 
-### Stream Unit ################################################################
-add_executable(stream_unit
+### Muxer Unit #################################################################
+add_executable(muxer_unit
 	$<TARGET_OBJECTS:CatchTestFTL>
-	./stream_unit.cpp
+	./muxer_unit.cpp
 )
-target_include_directories(stream_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(stream_unit
+target_include_directories(muxer_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(muxer_unit
 	beyond-protocol ${URIPARSER_LIBRARIES} ${OS_LIBS})
 
-add_test(StreamUnitTest stream_unit)
+add_test(MuxerUnitTest muxer_unit)
+
+### Broadcast Unit #############################################################
+add_executable(broadcast_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./broadcast_unit.cpp
+)
+target_include_directories(broadcast_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(broadcast_unit
+	beyond-protocol ${URIPARSER_LIBRARIES} ${OS_LIBS})
+
+add_test(BroadcastUnitTest broadcast_unit)
 
 ### Stream Integration #########################################################
 add_executable(stream_integration

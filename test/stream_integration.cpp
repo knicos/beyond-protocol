@@ -40,6 +40,12 @@ TEST_CASE("TCP Stream", "[net]") {
 			return true;
 		});
 
+		bool seenReq = false;
+		auto h2 = s1->onRequest([&seenReq](const ftl::protocol::Request &req) {
+			seenReq = true;
+			return true;
+		});
+
 		s1->begin();
 		s2->begin();
 
@@ -47,6 +53,8 @@ TEST_CASE("TCP Stream", "[net]") {
 
 		// TODO: Find better option
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+		REQUIRE( seenReq );
 
 		ftl::protocol::StreamPacket spkt;
 		spkt.streamID = 0;
