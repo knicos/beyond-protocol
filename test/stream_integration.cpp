@@ -32,6 +32,7 @@ TEST_CASE("TCP Stream", "[net]") {
 		REQUIRE( s2 );
 
 		ftl::protocol::Packet rpkt;
+		rpkt.bitrate = 20;
 
 		auto h = s2->onPacket([&cv, &rpkt](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
 			rpkt = pkt;
@@ -57,7 +58,8 @@ TEST_CASE("TCP Stream", "[net]") {
 		pkt.frame_count = 1;
 		s1->post(spkt, pkt);
 
-		REQUIRE(cv.wait_for(lk, std::chrono::seconds(5)) == std::cv_status::no_timeout);
+		bool r = cv.wait_for(lk, std::chrono::seconds(5), [&rpkt](){ return rpkt.bitrate == 10; });
+		REQUIRE( r );
 		REQUIRE( rpkt.bitrate == 10 );
 		REQUIRE( rpkt.codec == ftl::protocol::Codec::kJPG );
 		REQUIRE( rpkt.frame_count == 1 );

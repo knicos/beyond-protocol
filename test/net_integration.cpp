@@ -37,7 +37,7 @@ TEST_CASE("Listen and Connect", "[net]") {
 		
 		REQUIRE( p->waitConnection(5) );
 		
-		REQUIRE( self->numberOfNodes() == 1 );
+		REQUIRE( self->waitConnections(5) == 1 );
 		REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
 	}
 
@@ -65,10 +65,6 @@ TEST_CASE("Listen and Connect", "[net]") {
 	}
 
 	SECTION("automatic reconnect from originating connection") {
-		std::mutex mtx;
-		std::condition_variable cv;
-		std::unique_lock<std::mutex> lk(mtx);
-
 		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
 		auto p_connecting = ftl::connectNode(uri);
@@ -82,10 +78,6 @@ TEST_CASE("Listen and Connect", "[net]") {
 	}
 
 	SECTION("automatic reconnect from remote termination") {
-		std::mutex mtx;
-		std::condition_variable cv;
-		std::unique_lock<std::mutex> lk(mtx);
-
 		auto uri = "tcp://localhost:" + std::to_string(self->getListeningURIs().front().getPort());
 
 		auto p_connecting = ftl::connectNode(uri);
@@ -97,11 +89,12 @@ TEST_CASE("Listen and Connect", "[net]") {
 		auto nodes = self->getNodes();
 		REQUIRE( nodes.size() == 1 );
 		for (auto &node : nodes) {
+			node->waitConnection(5);
 			node->close();
 		}
 
 		bool r = try_for(500, [p_connecting]{ return p_connecting->connectionCount() >= 2; });
-		// REQUIRE( r );
+		REQUIRE( r );
 	}
 
 	ftl::protocol::reset();

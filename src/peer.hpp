@@ -69,6 +69,8 @@ class Peer {
 	explicit Peer(std::unique_ptr<internal::SocketConnection> s, ftl::net::Universe*, ftl::net::Dispatcher* d=nullptr);
 
 	~Peer();
+
+	void start();
 	
 	/**
 	 * Close the peer if open. Setting retry parameter to true will initiate
@@ -236,6 +238,8 @@ private: // Functions
 
 	void _connect();
 	int _send();
+
+	void _createJob();
 
 	void _waitCall(int id, std::condition_variable &cv, bool &hasreturned, const std::string &name);
 	

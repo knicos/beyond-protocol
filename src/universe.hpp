@@ -175,10 +175,9 @@ public:
 	
 private:
 	void _run();
-	SOCKET _setDescriptors(); // TODO: move to implementation
+	void _setDescriptors();
 	void _installBindings();
 	void _installBindings(const ftl::net::PeerPtr&);
-	//bool _subscribe(const std::string &res);
 	void _cleanupPeers();
 	void _notifyConnect(ftl::net::Peer *);
 	void _notifyDisconnect(ftl::net::Peer *);
