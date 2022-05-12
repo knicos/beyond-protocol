@@ -1,5 +1,6 @@
-#ifndef _FTL_NET_TLS_HPP_
-#define _FTL_NET_TLS_HPP_
+#pragma once
+
+#include <ftl/protocol/config.h>
 
 #ifdef HAVE_GNUTLS
 
@@ -44,4 +45,3 @@ private:
 }
 
 #endif // HAVE_GNUTLS
-#endif // _FTL_NET_TLS_HPP_

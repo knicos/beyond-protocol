@@ -1,6 +1,7 @@
 #include <loguru.hpp>
 
 #include <ftl/exception.hpp>
+#include <ftl/protocol/config.h>
 
 #include "connection.hpp"
 #include "tcp.hpp"
