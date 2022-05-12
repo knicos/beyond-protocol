@@ -20,6 +20,7 @@ using ftl::protocol::Packet;
 using ftl::protocol::Channel;
 using ftl::protocol::Codec;
 using ftl::protocol::FrameID;
+using ftl::protocol::Error;
 using ftl::protocol::kAllFrames;
 using ftl::protocol::kAllFramesets;
 using std::string;
@@ -174,6 +175,7 @@ bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
 				if (pkt.data.size() > 0) _checkTXRate(pkt.data.size(), 0, spkt.timestamp);
 			} catch(...) {
 				// TODO: Some disconnect error
+				return false;
 			}
 		}
 	}
@@ -204,7 +206,7 @@ bool Net::begin() {
 	base_uri_ = u.getBaseURI();
 
 	if (net_->isBound(base_uri_)) {
-		LOG(ERROR) << "Stream already exists! - " << uri_;
+		error(Error::kURIAlreadyExists, std::string("Stream already exists: ") + uri_);
 		active_ = false;
 		return false;
 	}
@@ -373,7 +375,7 @@ bool Net::_enable(FrameID id) {
 		if (ws) {
 			peer_ = ws->id();
 		} else {
-			LOG(ERROR) << "Stream Peer not found";
+			error(Error::kURIDoesNotExist, std::string("Stream not found: ") + uri_);
 			return false;
 		}
 	}
@@ -448,7 +450,7 @@ void Net::_cleanUp() {
 			if (client.peerid == time_peer_) {
 				time_peer_ = ftl::UUID(0);
 			}
-			LOG(INFO) << "Remove peer: " << client.peerid.to_string();
+			DLOG(INFO) << "Remove peer: " << client.peerid.to_string();
 			i = clients_.erase(i);
 		}
 	}

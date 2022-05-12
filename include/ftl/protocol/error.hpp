@@ -16,7 +16,9 @@ enum struct Error {
     kBadHandshake,
     kConnectionFailed,
     kSelfConnect,
-    kListen
+    kListen,
+    kURIAlreadyExists,
+    kURIDoesNotExist
 };
 
 }

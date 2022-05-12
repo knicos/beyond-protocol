@@ -38,6 +38,10 @@ class TestStream : public ftl::protocol::Stream {
     void forceSeen(FrameID id, Channel channel) {
         seen(id, channel);
     }
+
+    void fakeError(ftl::protocol::Error err, const std::string &str) {
+        error(err, str);
+    }
 };
 
 TEST_CASE("Muxer post, distinct framesets", "[stream]") {
@@ -569,4 +573,27 @@ TEST_CASE("Muxer enabledChannels", "[stream]") {
         auto set = mux->enabledChannels(id1);
         REQUIRE( set.size() == 0 );
     }
+}
+
+TEST_CASE("Muxer onError", "[stream]") {
+	std::unique_ptr<Muxer> mux = std::make_unique<Muxer>();
+	REQUIRE(mux);
+
+    std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+    REQUIRE(s1);
+    std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+    REQUIRE(s2);
+
+    mux->add(s1);
+	mux->add(s2);
+
+    ftl::protocol::Error seenErr = ftl::protocol::Error::kNoError;
+    auto h = mux->onError([&seenErr](ftl::protocol::Error err, const std::string &str) {
+        seenErr = err;
+        return true;
+    });
+
+    s1->fakeError(ftl::protocol::Error::kUnknown, "Unknown");
+
+    REQUIRE( seenErr == ftl::protocol::Error::kUnknown );
 }

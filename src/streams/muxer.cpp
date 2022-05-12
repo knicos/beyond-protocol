@@ -95,6 +95,11 @@ void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
 		request(newRequest);
 		return true;
 	}));
+
+	se.err_handle = std::move(s->onError([this](ftl::protocol::Error err, const std::string &str) {
+		error(err, str);
+		return true;
+	}));
 }
 
 void Muxer::remove(const std::shared_ptr<Stream> &s) {
