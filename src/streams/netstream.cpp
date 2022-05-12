@@ -45,7 +45,7 @@ Net::Net(const std::string &uri, ftl::net::Universe *net, bool host) :
 	//if (!has_bindings.test_and_set()) {
 		if (net_->isBound("find_stream")) net_->unbind("find_stream");
 		net_->bind("find_stream", [net = net_](const std::string &uri) -> optional<ftl::UUID> {
-			LOG(INFO) << "Request for stream: " << uri;
+			DLOG(INFO) << "Request for stream: " << uri;
 
 			ftl::URI u1(uri);
 			std::string base = u1.getBaseURI();
@@ -127,7 +127,6 @@ bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
 		pkt_strip.flags = pkt.flags;
 
 		if (host_) {
-            LOG(INFO) << "Send to " << clients_.size() << " clients";
 			auto c = clients_.begin();
 			while (c != clients_.end()) {
 				auto &client = *c;
@@ -300,7 +299,7 @@ bool Net::begin() {
 	});
 
 	if (host_) {
-		LOG(INFO) << "Hosting stream: " << uri_;
+		DLOG(INFO) << "Hosting stream: " << uri_;
 
 		// Alias the URI to the configurable if not already
 		// Allows the URI to be used to get config data.
@@ -401,6 +400,16 @@ bool Net::enable(FrameID id, Channel c) {
 	return true;
 }
 
+bool Net::enable(FrameID id, const ChannelSet &channels) {
+	if (host_) { return false; }
+	if (!_enable(id)) return false;
+	if (!Stream::enable(id, channels)) return false;
+	for (auto c : channels) {
+		_sendRequest(c, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
+	}
+	return true;
+}
+
 bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate, bool doreset) {
 	if (!active_ || host_) return false;
 
@@ -451,7 +460,7 @@ void Net::_cleanUp() {
  */
 bool Net::_processRequest(ftl::net::Peer &p, StreamPacket &spkt, const Packet &pkt) {
 	bool found = false;
-    LOG(INFO) << "processing request";
+    DLOG(INFO) << "processing request: " << int(spkt.streamID) << ", " << int(spkt.channel);
 
 	{
 		SHARED_LOCK(mutex_,lk);
@@ -490,7 +499,13 @@ bool Net::_processRequest(ftl::net::Peer &p, StreamPacket &spkt, const Packet &p
 		}
 	}
 
-    LOG(INFO) << "Request processed";
+	ftl::protocol::Request req;
+	req.bitrate = pkt.bitrate;
+	req.channel = spkt.channel;
+	req.id = FrameID(spkt.streamID, spkt.frame_number);
+	req.count = pkt.frame_count;
+	req.codec = pkt.codec;
+	request(req);
 
 	return false;
 }

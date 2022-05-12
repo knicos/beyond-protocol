@@ -96,6 +96,46 @@ void Broadcast::reset() {
 	}
 }
 
+void Broadcast::refresh() {
+
+}
+
+bool Broadcast::enable(FrameID id) {
+	bool r = false;
+	{
+		SHARED_LOCK(mtx_, lk);
+		for (auto &s : streams_) {
+			r = s.stream->enable(id) || r;
+		};
+	}
+	if (r) Stream::enable(id);
+	return r;
+}
+
+bool Broadcast::enable(FrameID id, ftl::protocol::Channel channel) {
+	bool r = false;
+	{
+		SHARED_LOCK(mtx_, lk);
+		for (auto &s : streams_) {
+			r = s.stream->enable(id, channel) || r;
+		};
+	}
+	if (r) Stream::enable(id, channel);
+	return r;
+}
+
+bool Broadcast::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
+	bool r = false;
+	{
+		SHARED_LOCK(mtx_, lk);
+		for (auto &s : streams_) {
+			r = s.stream->enable(id, channels) || r;
+		};
+	}
+	if (r) Stream::enable(id, channels);
+	return r;
+}
+
 void Broadcast::setProperty(ftl::protocol::StreamProperty opt, int value) {
 
 }

@@ -50,6 +50,7 @@ class Net : public Stream {
 
 	bool enable(FrameID id) override;
 	bool enable(FrameID id, ftl::protocol::Channel c) override;
+	bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
 	void reset() override;
 	void refresh() override;
