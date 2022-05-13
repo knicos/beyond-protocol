@@ -162,7 +162,7 @@ public:
 	void setLocalID(const ftl::UUID &u) { this_peer = u; };
 	const ftl::UUID &id() const { return this_peer; }
 
-	// --- Event Handlers ------------------------------------------------------
+	// --- Event Handlers -----------------------------------------------------
 
 	ftl::Handle onConnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
 	ftl::Handle onDisconnect(const std::function<bool(const ftl::net::PeerPtr&)>&);
@@ -172,6 +172,10 @@ public:
 	size_t getRecvBufferSize(ftl::URI::scheme_t s);
 
 	static inline std::shared_ptr<Universe> getInstance() { return instance_; }
+
+	// --- Test support -------------------------------------------------------
+
+	PeerPtr injectFakePeer(std::unique_ptr<ftl::net::internal::SocketConnection> s);
 	
 private:
 	void _run();

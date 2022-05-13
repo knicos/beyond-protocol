@@ -83,6 +83,18 @@ target_link_libraries(stream_integration
 
 add_test(StreamIntegrationTest stream_integration)
 
+### Net Stream Unit ############################################################
+add_executable(netstream_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./netstream_unit.cpp
+	./mocks/connection.cpp
+)
+target_include_directories(netstream_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(netstream_unit
+	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+add_test(NetStreamTest netstream_unit)
+
 ### Webservice E2E #############################################################
 add_executable(webservice_e2e
 	$<TARGET_OBJECTS:CatchTestFTL>
@@ -93,3 +105,17 @@ target_link_libraries(webservice_e2e
 	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
 
 add_test(WebserviceE2ETest webservice_e2e)
+
+### Peer Unit ##################################################################
+add_executable(peer_unit
+	$<TARGET_OBJECTS:CatchTest>
+	#./socket_mock.cpp
+	./peer_unit.cpp
+	./mocks/connection.cpp
+)
+target_compile_definitions(peer_unit PUBLIC MOCK_UNIVERSE)
+target_include_directories(peer_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include" "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+target_link_libraries(peer_unit
+	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+add_test(PeerUnitTest peer_unit)

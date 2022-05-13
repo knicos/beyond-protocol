@@ -18,7 +18,8 @@ enum struct Error {
     kSelfConnect,
     kListen,
     kURIAlreadyExists,
-    kURIDoesNotExist
+    kURIDoesNotExist,
+    kBadURI
 };
 
 }

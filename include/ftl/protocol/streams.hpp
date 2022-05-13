@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <any>
 
 namespace ftl {
 namespace protocol {
@@ -40,7 +41,16 @@ enum struct StreamProperty {
 	kMaxBitrate,
     kAdaptiveBitrate,
 	kObservers,
-	kURI
+	kURI,
+	kPaused,
+	kBytesSent,
+	kBytesReceived,
+	kLatency,
+	kFrameRate,
+	kName,
+	kDescription,
+	kTags,
+	kUser
 };
 
 enum struct StreamType {
@@ -173,9 +183,9 @@ class Stream {
 
 	// TODO: Disable
 
-	virtual void setProperty(ftl::protocol::StreamProperty opt, int value)=0;
+	virtual void setProperty(ftl::protocol::StreamProperty opt, std::any value)=0;
 
-	virtual int getProperty(ftl::protocol::StreamProperty opt)=0;
+	virtual std::any getProperty(ftl::protocol::StreamProperty opt)=0;
 
 	virtual bool supportsProperty(ftl::protocol::StreamProperty opt)=0;
 

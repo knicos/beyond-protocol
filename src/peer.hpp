@@ -195,15 +195,21 @@ class Peer {
 	inline unsigned int localID() const { return local_id_; }
 
 	int connectionCount() const { return connection_count_; }
+
+	/**
+	 * @brief Call recv to get data. Internal use, it is blocking so should only
+	 * be done if data is available.
+	 * 
+	 */
+	void data();
 	
 	public:
 	static const int kMaxMessage = 2*1024*1024;  // 10Mb currently
 	
-protected:
-	void data();			// Process one message from socket
+private: // Functions
 	bool socketError();		// Process one error from socket
 	void error(int e);
-	
+
 	// check if buffer has enough decoded data from lower layer and advance
 	// buffer if necessary (skip headers etc).
 	bool _has_next();
@@ -225,9 +231,6 @@ protected:
 	 * Universe (universe.cpp)
 	 */
 	int _socket() const;
-	
-	
-private: // Functions
 
 	void _send_handshake();
 	void _process_handshake(uint64_t magic, uint32_t version, UUID pid);

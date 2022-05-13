@@ -14,10 +14,10 @@ using ftl::protocol::Channel;
 using ftl::protocol::ChannelSet;
 using ftl::protocol::FrameID;
 
-class TestStream : public ftl::protocol::Stream {
+class BTestStream : public ftl::protocol::Stream {
 	public:
-	TestStream() {};
-	~TestStream() {};
+	BTestStream() {};
+	~BTestStream() {};
 
 	bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
 		seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
@@ -29,9 +29,9 @@ class TestStream : public ftl::protocol::Stream {
 	bool end() override { return true; }
 	bool active() override { return true; }
 
-	void setProperty(ftl::protocol::StreamProperty opt, int value) override {}
+	void setProperty(ftl::protocol::StreamProperty opt, std::any value) override {}
 
-	int getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
+	std::any getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
 
 	bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 
@@ -45,9 +45,9 @@ TEST_CASE("ftl::stream::Broadcast()::write", "[stream]") {
 	REQUIRE(mux);
 
 	SECTION("write with two streams") {
-		std::shared_ptr<Stream> s1 = std::make_shared<TestStream>();
+		std::shared_ptr<Stream> s1 = std::make_shared<BTestStream>();
 		REQUIRE(s1);
-		std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
+		std::shared_ptr<Stream> s2 = std::make_shared<BTestStream>();
 		REQUIRE(s2);
 
 		mux->add(s1);
@@ -76,9 +76,9 @@ TEST_CASE("Broadcast enable", "[stream]") {
 	std::unique_ptr<Broadcast> mux = std::make_unique<Broadcast>();
 	REQUIRE(mux);
 
-    std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+    std::shared_ptr<BTestStream> s1 = std::make_shared<BTestStream>();
     REQUIRE(s1);
-    std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+    std::shared_ptr<BTestStream> s2 = std::make_shared<BTestStream>();
     REQUIRE(s2);
 
     mux->add(s1);

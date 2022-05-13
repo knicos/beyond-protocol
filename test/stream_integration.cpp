@@ -7,6 +7,11 @@
 #include <ftl/protocol/node.hpp>
 
 using ftl::protocol::FrameID;
+using ftl::protocol::StreamProperty;
+
+// --- Mock --------------------------------------------------------------------
+
+
 
 // --- Tests -------------------------------------------------------------------
 
@@ -86,6 +91,8 @@ TEST_CASE("TCP Stream", "[net]") {
 		REQUIRE( rpkt.bitrate == 10 );
 		REQUIRE( rpkt.codec == ftl::protocol::Codec::kJPG );
 		REQUIRE( rpkt.frame_count == 1 );
+
+		REQUIRE( std::any_cast<size_t>(s1->getProperty(StreamProperty::kObservers)) == 1 );
 	}
 
 	p.reset();

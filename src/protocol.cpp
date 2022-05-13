@@ -1,6 +1,7 @@
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/self.hpp>
 #include "universe.hpp"
+#include "rpc.hpp"
 
 static std::shared_ptr<ftl::net::Universe> universe;
 
@@ -14,7 +15,10 @@ void ftl::protocol::reset() {
 ftl::UUID ftl::protocol::id;
 
 std::shared_ptr<ftl::protocol::Self> ftl::getSelf() {
-    if (!universe) universe = std::make_shared<ftl::net::Universe>();
+    if (!universe) {
+        universe = std::make_shared<ftl::net::Universe>();
+        ftl::rpc::install(universe.get());
+    }
     return std::make_shared<ftl::protocol::Self>(universe);
 }
 
@@ -22,6 +26,7 @@ std::shared_ptr<ftl::protocol::Self> ftl::createDummySelf() {
     ftl::UUID uuid;
     auto u = std::make_shared<ftl::net::Universe>();
     u->setLocalID(uuid);
+    ftl::rpc::install(u.get());
     return std::make_shared<ftl::protocol::Self>(u);
 }
 

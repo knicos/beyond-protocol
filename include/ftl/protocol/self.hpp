@@ -75,6 +75,9 @@ class Self {
 	ftl::Handle onDisconnect(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&)>&);
 	ftl::Handle onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, ftl::protocol::Error, const std::string & )>&);
 
+	// Used for testing
+	ftl::net::Universe *getUniverse() const { return universe_.get(); }
+
 	protected:
 	std::shared_ptr<ftl::net::Universe> universe_;
 };
