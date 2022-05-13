@@ -6,6 +6,8 @@
 
 #pragma once
 
+struct pollfd;
+
 #ifndef WIN32
 #define INVALID_SOCKET -1
 #define SOCKET int

@@ -136,11 +136,11 @@ bool Broadcast::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
 	return r;
 }
 
-void Broadcast::setProperty(ftl::protocol::StreamProperty opt, int value) {
+void Broadcast::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
 
 }
 
-int Broadcast::getProperty(ftl::protocol::StreamProperty opt) {
+std::any Broadcast::getProperty(ftl::protocol::StreamProperty opt) {
 	return 0;
 }
 

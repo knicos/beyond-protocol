@@ -17,5 +17,8 @@ struct PacketMSGPACK : ftl::protocol::Packet {
     MSGPACK_DEFINE(codec, reserved, frame_count, bitrate, flags, data);
 };
 
+static_assert(sizeof(StreamPacketMSGPACK) == sizeof(StreamPacket));
+static_assert(sizeof(PacketMSGPACK) == sizeof(Packet));
+
 }
 }

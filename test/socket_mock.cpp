@@ -1,7 +1,7 @@
 /** no-op socket for unit tests. Simulated data transfer implemented in
  * Connection_Mock */
 
-#include "../src/socket.hpp"
+#include "../src/socketImpl.hpp"
 
 #include <string>
 
@@ -13,7 +13,7 @@ bool ftl::net::internal::resolve_inet_address(const std::string &hostname, int p
 }
 
 Socket::Socket(int domain, int type, int protocol) :
-		status_(STATUS::UNCONNECTED), fd_(-1), family_(domain) {
+		status_(STATUS::UNCONNECTED), fd_(-1), family_(domain), err_(0) {
 }
 
 bool Socket::is_valid() { return true; }
@@ -90,7 +90,7 @@ bool Socket::is_blocking() {
 	return true;
 }
 
-std::string Socket::get_error_string() {
+std::string Socket::get_error_string(int code) {
 	return "not real socket";
 }
 

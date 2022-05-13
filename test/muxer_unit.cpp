@@ -29,9 +29,9 @@ class TestStream : public ftl::protocol::Stream {
 	bool end() override { return true; }
 	bool active() override { return true; }
 
-	void setProperty(ftl::protocol::StreamProperty opt, int value) override {}
+	void setProperty(ftl::protocol::StreamProperty opt, std::any value) override {}
 
-	int getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
+	std::any getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
 
 	bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 

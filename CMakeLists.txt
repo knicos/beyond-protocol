@@ -155,32 +155,41 @@ include(ftl_CPack)
 
 include_directories("include/ftl/lib")
 
-add_library(beyond-protocol STATIC
+add_library(beyond-common OBJECT
 	src/ctpl_stl.cpp
-    src/dispatcher.cpp
-    src/exception.cpp
-    src/loguru.cpp
-    src/peer.cpp
-    src/universe.cpp
-    src/uri.cpp
+	src/dispatcher.cpp
+	src/exception.cpp
+	src/loguru.cpp
+	src/uri.cpp
 	src/config.cpp
 	src/time.cpp
-	src/node.cpp
-	src/self.cpp
+	src/base64.cpp
+	src/channelSet.cpp
+)
+
+target_include_directories(beyond-common PUBLIC
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+	$<INSTALL_INTERFACE:include>)
+
+add_library(beyond-protocol STATIC
+	$<TARGET_OBJECTS:beyond-common>
+    src/peer.cpp
+    src/universe.cpp
 	src/socket/socket.cpp
 	src/protocol/connection.cpp
 	src/protocol/factory.cpp
 	src/protocol/tcp.cpp
 	src/protocol/tls.cpp
 	src/protocol/websocket.cpp
-	src/base64.cpp
-	src/protocol.cpp
 	src/streams/streams.cpp
-	src/channelSet.cpp
 	src/streams/muxer.cpp
 	src/streams/broadcaster.cpp
 	src/streams/netstream.cpp
 	src/streams/filestream.cpp
+	src/node.cpp
+	src/self.cpp
+	src/protocol.cpp
+	src/rpc.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

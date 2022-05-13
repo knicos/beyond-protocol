@@ -600,6 +600,13 @@ ftl::Handle Universe::onError(const std::function<bool(const PeerPtr&, ftl::prot
 	return on_error_.on(cb);
 }
 
+PeerPtr Universe::injectFakePeer(std::unique_ptr<ftl::net::internal::SocketConnection> s) {
+	auto p = std::make_shared<Peer>(std::move(s), this, &disp_);
+	_insertPeer(p);
+	_installBindings(p);
+	return p;
+}
+
 PeerPtr Universe::_findPeer(const Peer *p) {
 	SHARED_LOCK(net_mutex_,lk);
 	for (const auto &pp : peers_) {

@@ -10,8 +10,6 @@
 namespace ftl {
 namespace protocol {
 
-class AdaptiveBitrate;
-
 namespace detail {
 struct StreamClient {
 	ftl::UUID peerid;
@@ -40,7 +38,7 @@ struct NetStats {
 class Net : public Stream {
 	public:
 	Net(const std::string &uri, ftl::net::Universe *net, bool host=false);
-	~Net();
+	virtual ~Net();
 
 	bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) override;
 
@@ -55,8 +53,8 @@ class Net : public Stream {
 	void reset() override;
 	void refresh() override;
 
-	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
-	int getProperty(ftl::protocol::StreamProperty opt) override;
+	void setProperty(ftl::protocol::StreamProperty opt, std::any value) override;
+	std::any getProperty(ftl::protocol::StreamProperty opt) override;
 	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
 	StreamType type() const override;
 
@@ -74,31 +72,39 @@ class Net : public Stream {
 	 */
 	static NetStats getStatistics();
 
+	static void installRPC(ftl::net::Universe *net);
+
+	static constexpr int kFramesToRequest = 30;
+
+	// Unit test support
+	virtual void hasPosted(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) {}
+	void inject(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &);
+
 private:
 	SHARED_MUTEX mutex_;
-	bool active_;
+	bool active_ = false;
 	ftl::net::Universe *net_;
-	int64_t clock_adjust_;
+	int64_t clock_adjust_ = 0;
 	ftl::UUID time_peer_;
 	std::optional<ftl::UUID> peer_;
-	int64_t last_frame_;
-	int64_t last_ping_;
+	int64_t last_frame_ = 0;
+	int64_t last_ping_ = 0;
+	int64_t frame_time_ = 0;
 	std::string uri_;
 	std::string base_uri_;
 	const bool host_;
-	int tally_;
+	int tally_ = 0;
 	std::array<std::atomic<int>,32> reqtally_ = {0};
 	ftl::protocol::ChannelSet last_selected_;
-	uint8_t bitrate_=255;
+	uint8_t bitrate_ = 200;
 	std::atomic_int64_t bytes_received_ = 0;
 	int64_t last_completion_ = 0;
 	int64_t time_at_last_ = 0;
-	float required_bps_;
-	float actual_bps_;
-	bool abr_enabled_;
+	float required_bps_ = 0.0f;
+	float actual_bps_ = 0.0f;
 	bool paused_ = false;
-
-	AdaptiveBitrate *abr_;
+	int frames_to_request_ = kFramesToRequest;
+	std::string name_;
 
 	ftl::Handler<ftl::net::Peer*> connect_cb_;
 
@@ -114,13 +120,12 @@ private:
 	std::list<detail::StreamClient> clients_;
 
 	bool _enable(FrameID id);
-	bool _processRequest(ftl::net::Peer &p, ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
+	bool _processRequest(ftl::net::Peer *p, ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
 	void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
 	void _checkTXRate(size_t tx_size, int64_t tx_latency, int64_t ts);
 	bool _sendRequest(ftl::protocol::Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate, bool doreset=false);
 	void _cleanUp();
-	uint32_t _localToRemoteFS(uint32_t fsid);
-	uint32_t _remoteToLocalFS(uint32_t fsid);
+	void _processPacket(ftl::net::Peer *p, short ttimeoff, const StreamPacket &spkt_raw, const Packet &pkt);
 };
 
 }

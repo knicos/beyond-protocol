@@ -42,7 +42,7 @@ public:
 	virtual bool is_valid();
 
 	// OS socket file descriptor
-	socket_t fd();
+	virtual socket_t fd();
 
 	virtual ftl::URI uri();
 	virtual ftl::URI::scheme_t scheme() const;
@@ -66,10 +66,10 @@ public:
 	// scatter write, return number of bytes sent. always sends all data in iov.
 	virtual ssize_t writev(const struct iovec *iov, int iovcnt);
 
-	bool set_recv_buffer_size(size_t sz);
-	bool set_send_buffer_size(size_t sz);
-	size_t get_recv_buffer_size();
-	size_t get_send_buffer_size();
+	virtual bool set_recv_buffer_size(size_t sz);
+	virtual bool set_send_buffer_size(size_t sz);
+	virtual size_t get_recv_buffer_size();
+	virtual size_t get_send_buffer_size();
 
 	int getSocketError();
 

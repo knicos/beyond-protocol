@@ -83,6 +83,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 				s._sendResponse(id, name, result->get());
 			} catch (const std::exception &e) {
 				throw FTL_Error("Exception when attempting to call RPC " << name << " (" << e.what() << ")");
+				// FIXME: Send the error in the response.
 			}
 		} else {
 			throw FTL_Error("No binding found for " << name);

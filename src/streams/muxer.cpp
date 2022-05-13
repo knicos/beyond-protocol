@@ -198,13 +198,13 @@ bool Muxer::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
 	return r;
 }
 
-void Muxer::setProperty(ftl::protocol::StreamProperty opt, int value) {
+void Muxer::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
 	for (auto &s : streams_) {
 		s.stream->setProperty(opt, value);
 	}
 }
 
-int Muxer::getProperty(ftl::protocol::StreamProperty opt) {
+std::any Muxer::getProperty(ftl::protocol::StreamProperty opt) {
 	for (auto &s : streams_) {
 		if (s.stream->supportsProperty(opt)) return s.stream->getProperty(opt);
 	}

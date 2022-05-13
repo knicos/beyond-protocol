@@ -55,7 +55,7 @@ bool Peer::isConnected() const {
 }
 
 bool Peer::isValid() const {
-	return sock_ && sock_->fd() != INVALID_SOCKET && ((status_ == NodeStatus::kConnected) || (status_ == NodeStatus::kConnecting));
+	return sock_ && sock_->is_valid() && ((status_ == NodeStatus::kConnected) || (status_ == NodeStatus::kConnecting));
 }
 
 void Peer::_set_socket_options() {

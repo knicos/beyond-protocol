@@ -32,9 +32,9 @@ class Broadcast : public Stream {
 
 	std::list<std::shared_ptr<Stream>> streams() const;
 
-	void setProperty(ftl::protocol::StreamProperty opt, int value) override;
+	void setProperty(ftl::protocol::StreamProperty opt, std::any value) override;
 
-	int getProperty(ftl::protocol::StreamProperty opt) override;
+	std::any getProperty(ftl::protocol::StreamProperty opt) override;
 
 	bool supportsProperty(ftl::protocol::StreamProperty opt) override;
 
