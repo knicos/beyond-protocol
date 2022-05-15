@@ -1,3 +1,9 @@
+/**
+ * @file node.cpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/protocol/node.hpp>
 #include "peer.hpp"
 

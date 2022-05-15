@@ -1,3 +1,9 @@
+/**
+ * @file packetMsgpack.hpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include <ftl/protocol/packet.hpp>
@@ -20,5 +26,5 @@ struct PacketMSGPACK : ftl::protocol::Packet {
 static_assert(sizeof(StreamPacketMSGPACK) == sizeof(StreamPacket));
 static_assert(sizeof(PacketMSGPACK) == sizeof(Packet));
 
-}
-}
+}  // namespace protocol
+}  // namespace ftl

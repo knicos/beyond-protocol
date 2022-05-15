@@ -6,24 +6,25 @@
 
 #pragma once
 
-#include <ftl/threads.hpp>
-#include <ftl/exception.hpp>
 #include <functional>
 #include <unordered_map>
+#include <utility>
+#include <ftl/threads.hpp>
+#include <ftl/exception.hpp>
 
 namespace ftl {
 
 struct Handle;
 struct BaseHandler {
-	virtual void remove(const Handle &)=0;
+    virtual void remove(const Handle &) = 0;
 
-	virtual void removeUnsafe(const Handle &)=0;
+    virtual void removeUnsafe(const Handle &) = 0;
 
-	inline Handle make_handle(BaseHandler*, int);
+    inline Handle make_handle(BaseHandler*, int);
 
-	protected:
-	std::mutex mutex_;
-	int id_=0;
+ protected:
+    std::mutex mutex_;
+    int id_ = 0;
 };
 
 /**
@@ -31,48 +32,58 @@ struct BaseHandler {
  * removed safely whenever the `Handle` instance is destroyed.
  */
 struct [[nodiscard]] Handle {
-	friend struct BaseHandler;
+    friend struct BaseHandler;
 
-	/**
-	 * Cancel the callback and invalidate the handle.
-	 */
-	inline void cancel() { if (handler_) handler_->remove(*this); handler_ = nullptr; }
+    /**
+     * Cancel the callback and invalidate the handle.
+     */
+    inline void cancel() {
+        if (handler_) {
+            handler_->remove(*this);
+        }
+        handler_ = nullptr;
+    }
 
-	inline void innerCancel() { if (handler_) handler_->removeUnsafe(*this); handler_ = nullptr; }
+    inline void innerCancel() {
+        if (handler_) {
+            handler_->removeUnsafe(*this);
+        }
+        handler_ = nullptr;
+    }
 
-	inline int id() const { return id_; }
+    inline int id() const { return id_; }
 
-	Handle() : handler_(nullptr), id_(0) {}
+    Handle() : handler_(nullptr), id_(0) {}
 
-	Handle(const Handle &)=delete;
-	Handle &operator=(const Handle &)=delete;
+    Handle(const Handle &) = delete;
+    Handle &operator=(const Handle &) = delete;
 
-	inline Handle(Handle &&h) : handler_(nullptr) {
-		if (handler_) handler_->remove(*this);
-		handler_ = h.handler_;
-		h.handler_ = nullptr;
-		id_ = h.id_;
-	}
+    inline Handle(Handle &&h) : handler_(nullptr) {
+        if (handler_) handler_->remove(*this);
+        handler_ = h.handler_;
+        h.handler_ = nullptr;
+        id_ = h.id_;
+    }
 
-	inline Handle &operator=(Handle &&h) {
-		if (handler_) handler_->remove(*this);
-		handler_ = h.handler_;
-		h.handler_ = nullptr;
-		id_ = h.id_;
-		return *this;
-	}
+    inline Handle &operator=(Handle &&h) {
+        if (handler_) handler_->remove(*this);
+        handler_ = h.handler_;
+        h.handler_ = nullptr;
+        id_ = h.id_;
+        return *this;
+    }
 
-	inline ~Handle() {
-		if (handler_) {
-			handler_->remove(*this);
-		}
-	}
+    inline ~Handle() {
+        if (handler_) {
+            handler_->remove(*this);
+        }
+    }
 
-	private:
-	BaseHandler *handler_;
-	int id_;
+    private:
+    BaseHandler *handler_;
+    int id_;
 
-	Handle(BaseHandler *h, int id) : handler_(h), id_(id) {}
+    Handle(BaseHandler *h, int id) : handler_(h), id_(id) {}
 };
 
 /**
@@ -85,116 +96,118 @@ struct [[nodiscard]] Handle {
  */
 template <typename ...ARGS>
 struct Handler : BaseHandler {
-	Handler() {}
-	~Handler() {
-		// Ensure all thread pool jobs are done
-		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
-	}
+    Handler() {}
+    ~Handler() {
+        // Ensure all thread pool jobs are done
+        while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 
-	/**
-	 * Add a new callback function. It returns a `Handle` object that must
-	 * remain in scope, the destructor of the `Handle` will remove the callback.
-	 */
-	Handle on(const std::function<bool(ARGS...)> &f) {
-		std::unique_lock<std::mutex> lk(mutex_);
-		int id = id_++;
-		callbacks_[id] = f;
-		return make_handle(this, id);
-	}
+    /**
+     * Add a new callback function. It returns a `Handle` object that must
+     * remain in scope, the destructor of the `Handle` will remove the callback.
+     */
+    Handle on(const std::function<bool(ARGS...)> &f) {
+        std::unique_lock<std::mutex> lk(mutex_);
+        int id = id_++;
+        callbacks_[id] = f;
+        return make_handle(this, id);
+    }
 
-	/**
-	 * Safely trigger all callbacks. Note that `Handler` is locked when
-	 * triggering so callbacks cannot make modifications to it or they will
-	 * lock up. To remove a callback, return false from the callback, else
-	 * return true.
-	 */
-	void trigger(ARGS ...args) {
-		bool hadFault = false;
-		std::unique_lock<std::mutex> lk(mutex_);
-		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
-			bool keep = true;
-			try {
-				keep = i->second(args...);
-			} catch(...) {
-				hadFault = true;
-			}
-			if (!keep) i = callbacks_.erase(i);
-			else ++i;
-		}
-		if (hadFault) throw FTL_Error("Callback exception");
-	}
+    /**
+     * Safely trigger all callbacks. Note that `Handler` is locked when
+     * triggering so callbacks cannot make modifications to it or they will
+     * lock up. To remove a callback, return false from the callback, else
+     * return true.
+     */
+    void trigger(ARGS ...args) {
+        bool hadFault = false;
+        std::unique_lock<std::mutex> lk(mutex_);
+        for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
+            bool keep = true;
+            try {
+                keep = i->second(args...);
+            } catch(...) {
+                hadFault = true;
+            }
+            if (!keep) i = callbacks_.erase(i);
+            else
+                ++i;
+        }
+        if (hadFault) throw FTL_Error("Callback exception");
+    }
 
-	/**
-	 * Call all the callbacks in another thread. The callbacks are done in a
-	 * single thread, not in parallel.
-	 */
-	void triggerAsync(ARGS ...args) {
-		++jobs_;
-		ftl::pool.push([this, args...](int id) {
-			bool hadFault = false;
-			std::unique_lock<std::mutex> lk(mutex_);
-			for (auto i=callbacks_.begin(); i!=callbacks_.end(); ) {
-				bool keep = true;
-				try {
-					keep = i->second(args...);
-				} catch (...) {
-					hadFault = true;
-				}
-				if (!keep) i = callbacks_.erase(i);
-				else ++i;
-			}
-			--jobs_;
-			if (hadFault) throw FTL_Error("Callback exception");
-		});
-	}
+    /**
+     * Call all the callbacks in another thread. The callbacks are done in a
+     * single thread, not in parallel.
+     */
+    void triggerAsync(ARGS ...args) {
+        ++jobs_;
+        ftl::pool.push([this, args...](int id) {
+            bool hadFault = false;
+            std::unique_lock<std::mutex> lk(mutex_);
+            for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
+                bool keep = true;
+                try {
+                    keep = i->second(args...);
+                } catch (...) {
+                    hadFault = true;
+                }
+                if (!keep) i = callbacks_.erase(i);
+                else
+                    ++i;
+            }
+            --jobs_;
+            if (hadFault) throw FTL_Error("Callback exception");
+        });
+    }
 
-	/**
-	 * Each callback is called in its own thread job. Note: the return value
-	 * of the callback is ignored in this case and does not allow callback
-	 * removal via the return value.
-	 */
-	void triggerParallel(ARGS ...args) {
-		std::unique_lock<std::mutex> lk(mutex_);
-		jobs_ += callbacks_.size();
-		for (auto i=callbacks_.begin(); i!=callbacks_.end(); ++i) {
-			ftl::pool.push([this, f = i->second, args...](int id) {
-				try {
-					f(args...);
-				} catch (const ftl::exception &e) {
-					--jobs_;
-					throw e;
-				}
-				--jobs_;
-			});
-		}
-	}
+    /**
+     * Each callback is called in its own thread job. Note: the return value
+     * of the callback is ignored in this case and does not allow callback
+     * removal via the return value.
+     */
+    void triggerParallel(ARGS ...args) {
+        std::unique_lock<std::mutex> lk(mutex_);
+        jobs_ += callbacks_.size();
+        for (auto i = callbacks_.begin(); i != callbacks_.end(); ++i) {
+            ftl::pool.push([this, f = i->second, args...](int id) {
+                try {
+                    f(args...);
+                } catch (const ftl::exception &e) {
+                    --jobs_;
+                    throw e;
+                }
+                --jobs_;
+            });
+        }
+    }
 
-	/**
-	 * Remove a callback using its `Handle`. This is equivalent to allowing the
-	 * `Handle` to be destroyed or cancelled.
-	 */
-	void remove(const Handle &h) override {
-		{
-			std::unique_lock<std::mutex> lk(mutex_);
-			callbacks_.erase(h.id());
-		}
-		// Make sure any possible call to removed callback has finished.
-		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
-	}
+    /**
+     * Remove a callback using its `Handle`. This is equivalent to allowing the
+     * `Handle` to be destroyed or cancelled.
+     */
+    void remove(const Handle &h) override {
+        {
+            std::unique_lock<std::mutex> lk(mutex_);
+            callbacks_.erase(h.id());
+        }
+        // Make sure any possible call to removed callback has finished.
+        while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 
-	void removeUnsafe(const Handle &h) override {
-		callbacks_.erase(h.id());
-		// Make sure any possible call to removed callback has finished.
-		while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
-	}
+    void removeUnsafe(const Handle &h) override {
+        callbacks_.erase(h.id());
+        // Make sure any possible call to removed callback has finished.
+        while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 
-	void clear() {
-		callbacks_.clear();
-	}
+    void clear() {
+        callbacks_.clear();
+    }
 
-	private:
-	std::unordered_map<int, std::function<bool(ARGS...)>> callbacks_;
-	std::atomic_int jobs_=0;
+ private:
+    std::unordered_map<int, std::function<bool(ARGS...)>> callbacks_;
+    std::atomic_int jobs_ = 0;
 };
 
 /**
@@ -205,61 +218,58 @@ struct Handler : BaseHandler {
  */
 template <typename ...ARGS>
 struct SingletonHandler : BaseHandler {
-	/**
-	 * Add a new callback function. It returns a `Handle` object that must
-	 * remain in scope, the destructor of the `Handle` will remove the callback.
-	 */
-	[[nodiscard]] Handle on(const std::function<bool(ARGS...)> &f) {
-		std::unique_lock<std::mutex> lk(mutex_);
-		if (callback_) throw FTL_Error("Callback already bound");
-		callback_ = f;
-		return make_handle(this, id_++);
-	}
+    /**
+     * Add a new callback function. It returns a `Handle` object that must
+     * remain in scope, the destructor of the `Handle` will remove the callback.
+     */
+    [[nodiscard]] Handle on(const std::function<bool(ARGS...)> &f) {
+        std::unique_lock<std::mutex> lk(mutex_);
+        if (callback_) throw FTL_Error("Callback already bound");
+        callback_ = f;
+        return make_handle(this, id_++);
+    }
 
-	/**
-	 * Safely trigger all callbacks. Note that `Handler` is locked when
-	 * triggering so callbacks cannot make modifications to it or they will
-	 * lock up. To remove a callback, return false from the callback, else
-	 * return true.
-	 */
-	bool trigger(ARGS ...args) {
-		std::unique_lock<std::mutex> lk(mutex_);
-		if (callback_) {
-			bool keep = callback_(std::forward<ARGS>(args)...);
-			if (!keep) callback_ = nullptr;
-			return keep;
-		} else {
-			return false;
-		}
-		//} catch (const std::exception &e) {
-		//	LOG(ERROR) << "Exception in callback: " << e.what();
-		//}
-	}
+    /**
+     * Safely trigger all callbacks. Note that `Handler` is locked when
+     * triggering so callbacks cannot make modifications to it or they will
+     * lock up. To remove a callback, return false from the callback, else
+     * return true.
+     */
+    bool trigger(ARGS ...args) {
+        std::unique_lock<std::mutex> lk(mutex_);
+        if (callback_) {
+            bool keep = callback_(std::forward<ARGS>(args)...);
+            if (!keep) callback_ = nullptr;
+            return keep;
+        } else {
+            return false;
+        }
+    }
 
-	/**
-	 * Remove a callback using its `Handle`. This is equivalent to allowing the
-	 * `Handle` to be destroyed or cancelled. If the handle does not match the
-	 * currently bound callback then the callback is not removed.
-	 */
-	void remove(const Handle &h) override {
-		std::unique_lock<std::mutex> lk(mutex_);
-		if (h.id() == id_-1) callback_ = nullptr;
-	}
+    /**
+     * Remove a callback using its `Handle`. This is equivalent to allowing the
+     * `Handle` to be destroyed or cancelled. If the handle does not match the
+     * currently bound callback then the callback is not removed.
+     */
+    void remove(const Handle &h) override {
+        std::unique_lock<std::mutex> lk(mutex_);
+        if (h.id() == id_-1) callback_ = nullptr;
+    }
 
-	void removeUnsafe(const Handle &h) override {
-		if (h.id() == id_-1) callback_ = nullptr;
-	}
+    void removeUnsafe(const Handle &h) override {
+        if (h.id() == id_-1) callback_ = nullptr;
+    }
 
-	void reset() { callback_ = nullptr; }
+    void reset() { callback_ = nullptr; }
 
-	operator bool() const { return (bool)callback_; }
+    operator bool() const { return static_cast<bool>(callback_); }
 
-	private:
-	std::function<bool(ARGS...)> callback_;
+ private:
+    std::function<bool(ARGS...)> callback_;
 };
 
-}
+}  // namespace ftl
 
 ftl::Handle ftl::BaseHandler::make_handle(BaseHandler *h, int id) {
-	return ftl::Handle(h, id);
+    return ftl::Handle(h, id);
 }

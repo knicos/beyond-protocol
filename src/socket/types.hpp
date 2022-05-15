@@ -1,5 +1,10 @@
-#ifndef _FTL_NET_SOCKETS_TYPES_HPP_
-#define _FTL_NET_SOCKETS_TYPES_HPP_
+/**
+ * @file types.hpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
+
+#pragma once
 
 #if defined(WIN32)
 // Windows
@@ -14,8 +19,8 @@ typedef SSIZE_T ssize_t;
 // defined by msgpack, do not redefine here
 /*
 typedef struct iovec {
-	void* iov_base;
-	size_t iov_len;
+    void* iov_base;
+    size_t iov_len;
 };
 */
 
@@ -39,13 +44,11 @@ typedef sockaddr_in SocketAddress;
 typedef int socket_t;
 
 struct SocketAddress {
-	socklen_t len = sizeof(struct sockaddr);
-	struct sockaddr addr;
+    socklen_t len = sizeof(struct sockaddr);
+    struct sockaddr addr;
 };
 #endif
 
-} // internal
-} // net
-} // ftl
-
-#endif //  _FTL_NET_SOCKETS_TYPES_HPP_
+}  // namespace internal
+}  // namespace net
+}  // namespace ftl

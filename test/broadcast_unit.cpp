@@ -15,66 +15,66 @@ using ftl::protocol::ChannelSet;
 using ftl::protocol::FrameID;
 
 class BTestStream : public ftl::protocol::Stream {
-	public:
-	BTestStream() {};
-	~BTestStream() {};
+    public:
+    BTestStream() {};
+    ~BTestStream() {};
 
-	bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
-		seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
-		trigger(spkt, pkt);
-		return true;
-	}
+    bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+        seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
+        trigger(spkt, pkt);
+        return true;
+    }
 
-	bool begin() override { return true; }
-	bool end() override { return true; }
-	bool active() override { return true; }
+    bool begin() override { return true; }
+    bool end() override { return true; }
+    bool active() override { return true; }
 
-	void setProperty(ftl::protocol::StreamProperty opt, std::any value) override {}
+    void setProperty(ftl::protocol::StreamProperty opt, std::any value) override {}
 
-	std::any getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
+    std::any getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
 
-	bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
+    bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 
-	void forceSeen(FrameID id, Channel channel) {
+    void forceSeen(FrameID id, Channel channel) {
         seen(id, channel);
     }
 };
 
 TEST_CASE("ftl::stream::Broadcast()::write", "[stream]") {
-	std::unique_ptr<Broadcast> mux = std::make_unique<Broadcast>();
-	REQUIRE(mux);
+    std::unique_ptr<Broadcast> mux = std::make_unique<Broadcast>();
+    REQUIRE(mux);
 
-	SECTION("write with two streams") {
-		std::shared_ptr<Stream> s1 = std::make_shared<BTestStream>();
-		REQUIRE(s1);
-		std::shared_ptr<Stream> s2 = std::make_shared<BTestStream>();
-		REQUIRE(s2);
+    SECTION("write with two streams") {
+        std::shared_ptr<Stream> s1 = std::make_shared<BTestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<Stream> s2 = std::make_shared<BTestStream>();
+        REQUIRE(s2);
 
-		mux->add(s1);
-		mux->add(s2);
+        mux->add(s1);
+        mux->add(s2);
 
-		StreamPacket tspkt1 = {4,0,0,1,Channel::kColour};
-		StreamPacket tspkt2 = {4,0,0,1,Channel::kColour};
+        StreamPacket tspkt1 = {4,0,0,1,Channel::kColour};
+        StreamPacket tspkt2 = {4,0,0,1,Channel::kColour};
 
-		auto h1 = s1->onPacket([&tspkt1](const StreamPacket &spkt, const Packet &pkt) {
-			tspkt1 = spkt;
-			return true;
-		});
-		auto h2 = s2->onPacket([&tspkt2](const StreamPacket &spkt, const Packet &pkt) {
-			tspkt2 = spkt;
-			return true;
-		});
+        auto h1 = s1->onPacket([&tspkt1](const StreamPacket &spkt, const Packet &pkt) {
+            tspkt1 = spkt;
+            return true;
+        });
+        auto h2 = s2->onPacket([&tspkt2](const StreamPacket &spkt, const Packet &pkt) {
+            tspkt2 = spkt;
+            return true;
+        });
 
-		REQUIRE( mux->post({4,100,0,1,Channel::kColour},{}) );
-		REQUIRE( tspkt1.timestamp == 100 );
-		REQUIRE( tspkt2.timestamp == 100 );
-	}
+        REQUIRE( mux->post({4,100,0,1,Channel::kColour},{}) );
+        REQUIRE( tspkt1.timestamp == 100 );
+        REQUIRE( tspkt2.timestamp == 100 );
+    }
 
 }
 
 TEST_CASE("Broadcast enable", "[stream]") {
-	std::unique_ptr<Broadcast> mux = std::make_unique<Broadcast>();
-	REQUIRE(mux);
+    std::unique_ptr<Broadcast> mux = std::make_unique<Broadcast>();
+    REQUIRE(mux);
 
     std::shared_ptr<BTestStream> s1 = std::make_shared<BTestStream>();
     REQUIRE(s1);
@@ -82,12 +82,12 @@ TEST_CASE("Broadcast enable", "[stream]") {
     REQUIRE(s2);
 
     mux->add(s1);
-	mux->add(s2);
+    mux->add(s2);
 
     SECTION("enable frame id") {
         FrameID id1(0, 1);
         s1->forceSeen(id1, Channel::kColour);
-		// s2->forceSeen(id1, Channel::kColour);
+        // s2->forceSeen(id1, Channel::kColour);
 
         REQUIRE( !s1->enabled(id1) );
         REQUIRE( mux->enable(id1) );
@@ -111,15 +111,15 @@ TEST_CASE("Broadcast enable", "[stream]") {
     SECTION("enable frame id for unseen") {
         FrameID id(0, 1);
         REQUIRE( mux->enable(id) );
-		REQUIRE( s1->enabled(id) );
-		REQUIRE( s2->enabled(id) );
+        REQUIRE( s1->enabled(id) );
+        REQUIRE( s2->enabled(id) );
     }
 
     SECTION("enable channel for unseen") {
         FrameID id(0, 1);
         REQUIRE( mux->enable(id, Channel::kDepth) );
-		REQUIRE( s1->enabled(id, Channel::kDepth) );
-		REQUIRE( s2->enabled(id, Channel::kDepth) );
+        REQUIRE( s1->enabled(id, Channel::kDepth) );
+        REQUIRE( s2->enabled(id, Channel::kDepth) );
     }
 
     SECTION("enable channel set for unseen") {

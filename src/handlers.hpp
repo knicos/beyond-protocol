@@ -8,6 +8,7 @@
 
 #include <functional>
 #include <memory>
+#include <string>
 
 namespace ftl {
 namespace net {
@@ -24,6 +25,5 @@ using ErrorHandler = std::function<void(std::shared_ptr<Socket>, int)>;
 using ConnectHandler = std::function<void(std::shared_ptr<Socket> &)>;
 using DisconnectHandler = std::function<void(std::shared_ptr<Socket>)>;
 
-};
-};
-
+}  // namespace net
+}  // namespace ftl

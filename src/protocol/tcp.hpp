@@ -1,6 +1,13 @@
-#ifndef _FTL_NET_SOCKET_CONNECTION_TCP_HPP_
-#define _FTL_NET_SOCKET_CONNECTION_TCP_HPP_
+/**
+ * @file tcp.hpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
 
+#pragma once
+
+#include <string>
+#include <memory>
 #include <ftl/exception.hpp>
 #include <ftl/uri.hpp>
 
@@ -14,36 +21,34 @@ namespace internal {
 // TCP client/server (directly uses socket without additional processing)
 
 class Server_TCP : public SocketServer {
-private:
-	std::string host_;
+ private:
+    std::string host_;
 
-protected:
-	using SocketServer::SocketServer;
+ protected:
+    using SocketServer::SocketServer;
 
-public:
-	Server_TCP(const std::string& hostname, int port);
-	std::unique_ptr<SocketConnection> accept() override;
+ public:
+    Server_TCP(const std::string& hostname, int port);
+    std::unique_ptr<SocketConnection> accept() override;
 
-	ftl::URI uri() override;
+    ftl::URI uri() override;
 };
 
 class Connection_TCP : public SocketConnection {
-private:
-	friend class Server_TCP;
+ private:
+    friend class Server_TCP;
 
-protected:
-	Connection_TCP(Socket sock, SocketAddress addr);
+ protected:
+    Connection_TCP(Socket sock, SocketAddress addr);
 
-public:
-	Connection_TCP();
-	
-	ftl::URI::scheme_t scheme() const override { return ftl::URI::SCHEME_TCP; }
-	bool connect(const std::string &hostname, int port, int timeout=0);
-	void connect(const ftl::URI& uri, int timeout=0) override;
+ public:
+    Connection_TCP();
+
+    ftl::URI::scheme_t scheme() const override { return ftl::URI::SCHEME_TCP; }
+    bool connect(const std::string &hostname, int port, int timeout = 0);
+    void connect(const ftl::URI& uri, int timeout = 0) override;
 };
 
-} // namespace internal
-} // namespace net
-} // namespace ftl
-
-#endif
+}  // namespace internal
+}  // namespace net
+}  // namespace ftl
