@@ -13,6 +13,6 @@ namespace internal {
 class SocketConnection;
 class SocketServer;
 
-}
-}
-}
+}  // namespace internal
+}  // namespace net
+}  // namespace ftl

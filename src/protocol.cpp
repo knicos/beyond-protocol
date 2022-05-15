@@ -1,3 +1,9 @@
+/**
+ * @file protocol.cpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/self.hpp>
 #include "universe.hpp"
@@ -5,7 +11,7 @@
 
 static std::shared_ptr<ftl::net::Universe> universe;
 
-//ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
+// ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
 ctpl::thread_pool ftl::pool(4);
 
 void ftl::protocol::reset() {

@@ -6,7 +6,7 @@
 
 #pragma once
 
-// TODO: remove platform specific headers from here
+// TODO(Nick): remove platform specific headers from here
 #ifndef WIN32
 #include <unistd.h>
 #include <sys/poll.h>

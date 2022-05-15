@@ -1,3 +1,9 @@
+/**
+ * @file time.hpp
+ * @copyright Copyright (c) 2020 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #pragma once
 
 #include <cinttypes>
@@ -20,5 +26,5 @@ double get_time_seconds();
  */
 void setClockAdjustment(int64_t ms);
 
-}
-}
+}  // namespace time
+}  // namespace ftl

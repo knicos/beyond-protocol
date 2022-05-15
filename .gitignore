@@ -4,5 +4,4 @@ build
 **/config.cpp
 **/config.h
 _CPack_Packages
-.vscode
 .env

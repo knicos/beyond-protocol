@@ -1,8 +1,12 @@
-#include <loguru.hpp>
+/**
+ * @file factory.cpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Sebastian Hahta
+ */
 
-#include <ftl/exception.hpp>
 #include <ftl/protocol/config.h>
-
+#include <loguru.hpp>
+#include <ftl/exception.hpp>
 #include "connection.hpp"
 #include "tcp.hpp"
 #include "tls.hpp"
@@ -19,26 +23,26 @@ using ftl::net::internal::Connection_WSS;
 using ftl::URI;
 
 std::unique_ptr<SocketConnection> ftl::net::internal::createConnection(const URI &uri) {
-	if (uri.getProtocol() == URI::SCHEME_TCP) {
-		auto c = std::make_unique<Connection_TCP>();
-		return c;
+    if (uri.getProtocol() == URI::SCHEME_TCP) {
+        auto c = std::make_unique<Connection_TCP>();
+        return c;
 
-	} else if (uri.getProtocol() == URI::SCHEME_WS) {
-		auto c = std::make_unique<Connection_WS>();
-		return c;
+    } else if (uri.getProtocol() == URI::SCHEME_WS) {
+        auto c = std::make_unique<Connection_WS>();
+        return c;
 
-	} else if (uri.getProtocol() == URI::SCHEME_WSS) {
+    } else if (uri.getProtocol() == URI::SCHEME_WSS) {
 #ifdef HAVE_GNUTLS
-		auto c = std::make_unique<Connection_WSS>();
-		return c;
+        auto c = std::make_unique<Connection_WSS>();
+        return c;
 #else
-		throw FTL_Error("built without TLS support");
+        throw FTL_Error("built without TLS support");
 #endif
 
-	} else {
-		//LOG(ERROR) << "can't connect to: " << uri.to_string();
-		throw FTL_Error("unrecognised connection protocol: " << uri.to_string());
-	}
+    } else {
+        // LOG(ERROR) << "can't connect to: " << uri.to_string();
+        throw FTL_Error("unrecognised connection protocol: " << uri.to_string());
+    }
 
-	return nullptr;
+    return nullptr;
 }

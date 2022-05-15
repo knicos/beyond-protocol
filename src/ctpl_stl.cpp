@@ -6,14 +6,14 @@
 #include <ftl/lib/ctpl_stl.hpp>
 
 void ctpl::thread_pool::set_thread(int i) {
-    std::shared_ptr<std::atomic<bool>> flag(this->flags[i]); // a copy of the shared ptr to the flag
+    std::shared_ptr<std::atomic<bool>> flag(this->flags[i]);  // a copy of the shared ptr to the flag
     auto f = [this, i, flag/* a copy of the shared ptr to the flag */]() {
         std::atomic<bool> & _flag = *flag;
         std::function<void(int id)> * _f;
         bool isPop = this->q.pop(_f);
         while (true) {
             while (isPop) {  // if there is anything in the queue
-                std::unique_ptr<std::function<void(int id)>> func(_f); // at return, delete the function even if an exception occurred
+                std::unique_ptr<std::function<void(int id)>> func(_f);  // at return, delete the function even if an exception occurred
                 (*_f)(i);
                 if (_flag)
                     return;  // the thread is wanted to stop, return even if the queue is not empty yet
@@ -29,7 +29,7 @@ void ctpl::thread_pool::set_thread(int i) {
                 return;  // if the queue is empty and this->isDone == true or *flag then return
         }
     };
-    this->threads[i].reset(new std::thread(f)); // compiler may not support std::make_unique()
+    this->threads[i].reset(new std::thread(f));  // compiler may not support std::make_unique()
 
 	// For excess threads, ensure they only operate if needed.
 	/*if (i >= std::thread::hardware_concurrency()-1) {

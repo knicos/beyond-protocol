@@ -1,3 +1,9 @@
+/**
+ * @file self.cpp
+ * @copyright Copyright (c) 2022 University of Turku, MIT License
+ * @author Nicolas Pope
+ */
+
 #include "universe.hpp"
 #include <ftl/protocol/self.hpp>
 #include "./streams/netstream.hpp"
@@ -18,7 +24,7 @@ std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri
     if (!u.isValid()) throw FTL_Error("Invalid Stream URI");
 
     switch (u.getScheme()) {
-    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true); 
+    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true);
     case ftl::URI::SCHEME_FILE  :
     case ftl::URI::SCHEME_NONE  :
     default                     : throw FTL_Error("Invalid Stream URI");
@@ -31,13 +37,13 @@ std::shared_ptr<ftl::protocol::Stream> Self::getStream(const std::string &uri) {
     if (!u.isValid()) throw FTL_Error("Invalid Stream URI");
 
     switch (u.getScheme()) {
-    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), false); 
+    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), false);
     case ftl::URI::SCHEME_FILE  :
     case ftl::URI::SCHEME_NONE  :
     default                     : throw FTL_Error("Invalid Stream URI");
     }
 }
-	
+
 void Self::start() {
     universe_->start();
 }
@@ -99,7 +105,11 @@ ftl::Handle Self::onDisconnect(const std::function<bool(const std::shared_ptr<ft
     });
 }
 
-ftl::Handle Self::onError(const std::function<bool(const std::shared_ptr<ftl::protocol::Node>&, ftl::protocol::Error, const std::string &)> &cb) {
+using ErrorCb = std::function<bool(
+    const std::shared_ptr<ftl::protocol::Node>&,
+    ftl::protocol::Error, const std::string &)>;
+
+ftl::Handle Self::onError(const ErrorCb &cb) {
     return universe_->onError([cb](const ftl::net::PeerPtr &p, ftl::protocol::Error e, const std::string &estr) {
         return cb(std::make_shared<ftl::protocol::Node>(p), e, estr);
     });

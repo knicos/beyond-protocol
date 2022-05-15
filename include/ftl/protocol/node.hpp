@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <ftl/uuid.hpp>
-
 #include <memory>
+#include <string>
+#include <ftl/uuid.hpp>
 
 namespace ftl {
 namespace net {
@@ -24,94 +24,96 @@ enum struct NodeType {
 };
 
 enum struct NodeStatus {
-    kInvalid,		// no socket
-    kConnecting,	// socket created, no handshake yet
-    kConnected,		// connection fully established
-    kDisconnected,	// socket closed, reconnect not possible
-    kReconnecting	// socket closed, call reconnect() to try reconnecting
+    kInvalid,       // no socket
+    kConnecting,    // socket created, no handshake yet
+    kConnected,     // connection fully established
+    kDisconnected,  // socket closed, reconnect not possible
+    kReconnecting   // socket closed, call reconnect() to try reconnecting
 };
 
 /**
- * To be constructed using the Universe::connect() method and not to be
- * created directly.
+ * @brief An API wrapper for a network connection. This object provides the
+ * available RPC calls and connection status or control methods. Note that
+ * releasing the shared pointer will not result in connection termination,
+ * it must be closed and then released for the garbage collection to happen.
+ * 
  */
-class Node {	
-	public:
-	/** Peer for outgoing connection: resolve address and connect */
-	explicit Node(const ftl::net::PeerPtr &impl);
-	virtual ~Node();
-	
-	/**
-	 * Close the peer if open. Setting retry parameter to true will initiate
-	 * backoff retry attempts. This is used to deliberately close a connection
-	 * and not for error conditions where different close semantics apply.
-	 * 
-	 * @param retry Should reconnection be attempted?
-	 */
-	void close(bool retry=false);
+class Node {
+ public:
+    /** Peer for outgoing connection: resolve address and connect */
+    explicit Node(const ftl::net::PeerPtr &impl);
+    virtual ~Node();
 
-	bool isConnected() const;
-	/**
-	 * Block until the connection and handshake has completed. You should use
-	 * onConnect callbacks instead of blocking, mostly this is intended for
-	 * the unit tests to keep them synchronous.
-	 * 
-	 * @return True if all connections were successful, false if timeout or error.
-	 */
-	bool waitConnection(int seconds = 1);
+    /**
+     * Close the peer if open. Setting retry parameter to true will initiate
+     * backoff retry attempts. This is used to deliberately close a connection
+     * and not for error conditions where different close semantics apply.
+     * 
+     * @param retry Should reconnection be attempted?
+     */
+    void close(bool retry = false);
 
-	/**
-	 * Make a reconnect attempt. Called internally by Universe object.
-	 */
-	bool reconnect();
+    bool isConnected() const;
+    /**
+     * Block until the connection and handshake has completed. You should use
+     * onConnect callbacks instead of blocking, mostly this is intended for
+     * the unit tests to keep them synchronous.
+     * 
+     * @return True if all connections were successful, false if timeout or error.
+     */
+    bool waitConnection(int seconds = 1);
 
-	bool isOutgoing() const;
-	
-	/**
-	 * Test if the connection is valid. This returns true in all conditions
-	 * except where the socket has been disconnected permenantly, or was never
-	 * able to connect, perhaps due to an invalid address, or is in middle of a
-	 * reconnect attempt. (Valid states: kConnecting, kConnected)
-	 * 
-	 * Should return true only in cases when valid OS socket exists.
-	 */
-	bool isValid() const;
-	
-	/** node type */
-	virtual NodeType getType() const { return NodeType::kNode; }
+    /**
+     * Make a reconnect attempt. Called internally by Universe object.
+     */
+    bool reconnect();
 
-	NodeStatus status() const;
-	
-	uint32_t getFTLVersion() const;
-	uint8_t getFTLMajor() const { return getFTLVersion() >> 16; }
-	uint8_t getFTLMinor() const { return (getFTLVersion() >> 8) & 0xFF; }
-	uint8_t getFTLPatch() const { return getFTLVersion() & 0xFF; }
-	
-	/**
-	 * Get the sockets protocol, address and port as a url string. This will be
-	 * the same as the initial connection string on the client.
-	 */
-	std::string getURI() const;
-	
-	/**
-	 * Get the UUID for this peer.
-	 */
-	const ftl::UUID &id() const;
-	
-	/**
-	 * Get the peer id as a string.
-	 */
-	std::string to_string() const;
+    bool isOutgoing() const;
 
-	void noReconnect();
+    /**
+     * Test if the connection is valid. This returns true in all conditions
+     * except where the socket has been disconnected permenantly, or was never
+     * able to connect, perhaps due to an invalid address, or is in middle of a
+     * reconnect attempt. (Valid states: kConnecting, kConnected)
+     * 
+     * Should return true only in cases when valid OS socket exists.
+     */
+    bool isValid() const;
 
-	unsigned int localID();
+    /** node type */
+    virtual NodeType getType() const { return NodeType::kNode; }
 
-	int connectionCount() const;
+    NodeStatus status() const;
+    uint32_t getFTLVersion() const;
+    uint8_t getFTLMajor() const { return getFTLVersion() >> 16; }
+    uint8_t getFTLMinor() const { return (getFTLVersion() >> 8) & 0xFF; }
+    uint8_t getFTLPatch() const { return getFTLVersion() & 0xFF; }
 
-	protected:
-	ftl::net::PeerPtr peer_;
+    /**
+     * Get the sockets protocol, address and port as a url string. This will be
+     * the same as the initial connection string on the client.
+     */
+    std::string getURI() const;
+
+    /**
+     * Get the UUID for this peer.
+     */
+    const ftl::UUID &id() const;
+
+    /**
+     * Get the peer id as a string.
+     */
+    std::string to_string() const;
+
+    void noReconnect();
+
+    unsigned int localID();
+
+    int connectionCount() const;
+
+ protected:
+    ftl::net::PeerPtr peer_;
 };
 
-}
-}
+}  // namespace protocol
+}  // namespace ftl

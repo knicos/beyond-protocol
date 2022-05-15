@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include <ftl/protocol/channels.hpp>
 #include <unordered_set>
+#include <ftl/protocol/channels.hpp>
 
 namespace ftl {
 namespace protocol {
@@ -20,26 +20,26 @@ ftl::protocol::ChannelSet operator&(const ftl::protocol::ChannelSet &a, const ft
 ftl::protocol::ChannelSet operator-(const ftl::protocol::ChannelSet &a, const ftl::protocol::ChannelSet &b);
 
 inline ftl::protocol::ChannelSet &operator+=(ftl::protocol::ChannelSet &t, ftl::protocol::Channel c) {
-	t.insert(c);
-	return t;
+    t.insert(c);
+    return t;
 }
 
 inline ftl::protocol::ChannelSet &operator-=(ftl::protocol::ChannelSet &t, ftl::protocol::Channel c) {
-	t.erase(c);
-	return t;
+    t.erase(c);
+    return t;
 }
 
 inline ftl::protocol::ChannelSet operator+(const ftl::protocol::ChannelSet &t, ftl::protocol::Channel c) {
-	auto r = t;
-	r.insert(c);
-	return r;
+    auto r = t;
+    r.insert(c);
+    return r;
 }
 
 inline ftl::protocol::ChannelSet operator+(ftl::protocol::Channel a, ftl::protocol::Channel b) {
-	std::unordered_set<ftl::protocol::Channel> r;
-	r.insert(a);
-	r.insert(b);
-	return r;
+    std::unordered_set<ftl::protocol::Channel> r;
+    r.insert(a);
+    r.insert(b);
+    return r;
 }
 
 bool operator!=(const ftl::protocol::ChannelSet &a, const ftl::protocol::ChannelSet &b);
