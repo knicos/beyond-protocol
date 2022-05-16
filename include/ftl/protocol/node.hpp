@@ -18,11 +18,19 @@ using PeerPtr = std::shared_ptr<Peer>;
 
 namespace protocol {
 
+/**
+ * @brief Type of node, web-service or regular.
+ * 
+ */
 enum struct NodeType {
     kNode,
     kWebService,
 };
 
+/**
+ * @brief Connection status.
+ * 
+ */
 enum struct NodeStatus {
     kInvalid,       // no socket
     kConnecting,    // socket created, no handshake yet
@@ -53,6 +61,12 @@ class Node {
      */
     void close(bool retry = false);
 
+    /**
+     * @brief Check if the network connection is valid.
+     * 
+     * @return true 
+     * @return false 
+     */
     bool isConnected() const;
     /**
      * Block until the connection and handshake has completed. You should use
@@ -64,7 +78,8 @@ class Node {
     bool waitConnection(int seconds = 1);
 
     /**
-     * Make a reconnect attempt. Called internally by Universe object.
+     * @internal
+     * @brief Make a reconnect attempt. Called internally by Universe object.
      */
     bool reconnect();
 
@@ -83,7 +98,18 @@ class Node {
     /** node type */
     virtual NodeType getType() const { return NodeType::kNode; }
 
+    /**
+     * @brief Get current connection status.
+     * 
+     * @return NodeStatus 
+     */
     NodeStatus status() const;
+
+    /**
+     * @brief Get protocol version in use for this node.
+     * 
+     * @return uint32_t 
+     */
     uint32_t getFTLVersion() const;
     uint8_t getFTLMajor() const { return getFTLVersion() >> 16; }
     uint8_t getFTLMinor() const { return (getFTLVersion() >> 8) & 0xFF; }
@@ -105,8 +131,17 @@ class Node {
      */
     std::string to_string() const;
 
+    /**
+     * @brief Prevent this node auto-reconnecting.
+     * 
+     */
     void noReconnect();
 
+    /**
+     * @brief Obtain a locally unique ID.
+     * 
+     * @return unsigned int 
+     */
     unsigned int localID();
 
     int connectionCount() const;

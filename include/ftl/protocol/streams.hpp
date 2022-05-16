@@ -60,6 +60,10 @@ enum struct StreamProperty {
     kUser
 };
 
+/**
+ * @brief A hint about the streams capabilities.
+ * 
+ */
 enum struct StreamType {
     kMixed,     // Multiple types of stream
     kUnknown,
@@ -78,13 +82,21 @@ class Stream {
  public:
     virtual ~Stream() {}
 
+    /**
+     * @brief If available, get a human readable name for the stream.
+     * 
+     * @return std::string 
+     */
     virtual std::string name() const;
 
     /**
-     * Obtain all packets for next frame. The provided callback function is
-     * called once for every packet. This function might continue to call the
-     * callback even after the read function returns, for example with a
-     * NetStream.
+     * @brief Register a callback to receive packets. The callback is called at the available
+     * frame rate, where each frame may consist of multiple packets and therefore multiple
+     * callbacks. Each callback can occur in a different thread, therefore all packets for
+     * a frame could be triggered in parallel.
+     * 
+     * @param cb 
+     * @return ftl::Handle 
      */
     ftl::Handle onPacket(const StreamCallback &cb) { return cb_.on(cb); }
 
@@ -109,11 +121,17 @@ class Stream {
     // TODO(Nick): Add methods for: pause, paused, statistics
 
     /**
-     * Start the stream. Calls to the onPacket callback will only occur after
+     * @brief Start the stream. Calls to the onPacket callback will only occur after
      * a call to this function (and before a call to end()).
      */
     virtual bool begin() = 0;
 
+    /**
+     * @brief Terminate the stream. This will stop callbacks and will close all resources.
+     * 
+     * @return true 
+     * @return false 
+     */
     virtual bool end() = 0;
 
     /**
@@ -297,6 +315,11 @@ class Stream {
      */
     virtual bool supportsProperty(ftl::protocol::StreamProperty opt) = 0;
 
+    /**
+     * @brief Get the streams type hint.
+     * 
+     * @return StreamType 
+     */
     virtual StreamType type() const { return StreamType::kUnknown; }
 
     /**

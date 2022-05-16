@@ -10,7 +10,15 @@
 #include <string>
 #include <ftl/uuid.hpp>
 
+/**
+ * @brief Future Tech Lab
+ * 
+ */
 namespace ftl {
+/**
+ * @brief Protocol structures.
+ * 
+ */
 namespace protocol {
 class Node;
 class Stream;

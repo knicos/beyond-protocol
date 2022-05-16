@@ -18,11 +18,11 @@ namespace protocol {
 
 static constexpr uint8_t kFlagRequest = 0x01;    ///< Used for empty data packets to mark a request for data
 static constexpr uint8_t kFlagCompleted = 0x02;  ///< Last packet for timestamp
-static constexpr uint8_t kFlagReset = 0x04;
+static constexpr uint8_t kFlagReset = 0x04;      ///< Request full data, including key frames.
 
 static constexpr uint8_t kAllFrames = 255;
 static constexpr uint8_t kAllFramesets = 255;
-static constexpr uint8_t kCurrentFTLVersion = 5;
+static constexpr uint8_t kCurrentFTLVersion = 5;  ///< Protocol version number in use.
 
 /**
  * First bytes of our file format.

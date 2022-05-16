@@ -29,9 +29,32 @@ class Muxer : public Stream {
     Muxer();
     virtual ~Muxer();
 
-    void add(const std::shared_ptr<Stream> &, int fsid = -1);
-    void remove(const std::shared_ptr<Stream> &);
+    /**
+     * @brief Add a child stream. If a frameset ID is given then all input framesets
+     * are merged together into that single frameset as different frames. If no fsid
+     * is given then all seen framesets from this stream are allocated to a new locally
+     * unique frameset number.
+     * 
+     * @param stream the child stream object
+     * @param fsid an optional fixed frameset for this stream
+     */
+    void add(const std::shared_ptr<Stream> &stream, int fsid = -1);
 
+    /**
+     * @brief Remove a child stream.
+     * 
+     * @param stream 
+     */
+    void remove(const std::shared_ptr<Stream> &stream);
+
+    /**
+     * @brief Send packets to the corresponding child stream. The packets streamID and frame
+     * number are used by the muxer to work out which child stream should receive the data.
+     * The numbers are mapped to the correct output values before being sent to the child.
+     * 
+     * @return true 
+     * @return false if the packets could not be forwarded.
+     */
     bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) override;
 
     bool begin() override;

@@ -224,6 +224,20 @@ windows:pack:
       - ./*.zip
     expire_in: 1 week
 
+# Documentation
+
+pages:
+  stage: release
+  script:
+  - DEBIAN_FRONTEND=noninteractive apt update && apt install -y doxygen graphviz
+  - doxygen docs/doxygen.conf
+  - mv docs/html/ public/
+  artifacts:
+    paths:
+    - public
+  only:
+    - tags
+
 # Release
 
 release_job:

@@ -11,6 +11,10 @@
 
 namespace ftl {
 namespace protocol {
+/**
+ * @brief A set of channels.
+ * 
+ */
 using ChannelSet = std::unordered_set<ftl::protocol::Channel>;
 }
 }

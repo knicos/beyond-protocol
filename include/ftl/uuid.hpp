@@ -22,9 +22,9 @@
 #include <msgpack.hpp>
 
 namespace ftl {
-    /**
-     * C++ Wrapper for libuuid. The default constructor generates a new UUID.
-     */
+/**
+ * C++ Wrapper for libuuid. The default constructor generates a new UUID.
+ */
 class UUID {
  public:
     UUID() {
