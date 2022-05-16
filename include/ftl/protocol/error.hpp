@@ -29,7 +29,8 @@ enum struct Error {
     kListen,
     kURIAlreadyExists,
     kURIDoesNotExist,
-    kBadURI
+    kBadURI,
+    kBadVersion
 };
 
 }  // namespace protocol

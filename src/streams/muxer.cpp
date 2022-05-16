@@ -72,7 +72,7 @@ void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
     se.fixed_fs = fsid;
     Muxer::StreamEntry *ptr = &se;
 
-    se.handle = std::move(s->onPacket([this, ptr](const StreamPacket &spkt, const Packet &pkt) {
+    se.handle = std::move(s->onPacket([this, ptr](const StreamPacket &spkt, const DataPacket &pkt) {
         FrameID newID = _mapFromInput(ptr, FrameID(spkt.streamID, spkt.frame_number));
 
         StreamPacket spkt2 = spkt;
@@ -138,7 +138,7 @@ std::shared_ptr<Stream> Muxer::originStream(FrameID id) const {
     return (p.second) ? p.second->stream : nullptr;
 }
 
-bool Muxer::post(const StreamPacket &spkt, const Packet &pkt) {
+bool Muxer::post(const StreamPacket &spkt, const DataPacket &pkt) {
     auto p = _mapToOutput(FrameID(spkt.streamID, spkt.frame_number));
     if (!p.second) return false;
     StreamPacket spkt2 = spkt;

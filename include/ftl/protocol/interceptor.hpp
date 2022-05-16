@@ -26,7 +26,7 @@ class Intercept : public Stream {
 	//bool onPacket(const StreamCallback &) override;
 	bool onIntercept(const StreamCallback &);
 
-	bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) override;
+	bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) override;
 
 	bool begin() override;
 	bool end() override;

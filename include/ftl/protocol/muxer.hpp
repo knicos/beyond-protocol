@@ -32,7 +32,7 @@ class Muxer : public Stream {
     void add(const std::shared_ptr<Stream> &, int fsid = -1);
     void remove(const std::shared_ptr<Stream> &);
 
-    bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) override;
+    bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) override;
 
     bool begin() override;
     bool end() override;

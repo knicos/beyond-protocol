@@ -15,7 +15,7 @@
 using ftl::protocol::FrameID;
 using ftl::protocol::StreamProperty;
 using ftl::protocol::StreamPacket;
-using ftl::protocol::Packet;
+using ftl::protocol::DataPacket;
 using ftl::protocol::Channel;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
@@ -26,7 +26,7 @@ class MockNetStream : public ftl::protocol::Net {
     public:
     MockNetStream(const std::string &uri, ftl::net::Universe *net, bool host=false): Net(uri, net, host) {};
 
-    void hasPosted(const StreamPacket &spkt, const Packet &pkt) override {
+    void hasPosted(const StreamPacket &spkt, const DataPacket &pkt) override {
         lastSpkt = spkt;
     }
 
@@ -64,7 +64,7 @@ TEST_CASE("Net stream options") {
         spkt.frame_number = 2;
         spkt.channel = Channel::kColour;
 
-        Packet pkt;
+        DataPacket pkt;
         pkt.frame_count = 1;
 
         s1->lastSpkt.timestamp = 0;

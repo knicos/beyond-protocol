@@ -128,7 +128,7 @@ void Stream::reset() {
 
 void Stream::refresh() {}
 
-void Stream::trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+void Stream::trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
     cb_.trigger(spkt, pkt);
 }
 

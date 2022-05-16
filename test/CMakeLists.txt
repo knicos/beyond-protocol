@@ -95,6 +95,17 @@ target_link_libraries(netstream_unit
 
 add_test(NetStreamTest netstream_unit)
 
+### File Stream Unit ###########################################################
+add_executable(filestream_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./filestream_unit.cpp
+)
+target_include_directories(filestream_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(filestream_unit
+	beyond-protocol Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+add_test(FileStreamTest filestream_unit)
+
 ### Webservice E2E #############################################################
 add_executable(webservice_e2e
 	$<TARGET_OBJECTS:CatchTestFTL>

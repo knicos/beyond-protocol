@@ -8,7 +8,7 @@
 
 using ftl::protocol::Broadcast;
 using ftl::protocol::StreamPacket;
-using ftl::protocol::Packet;
+using ftl::protocol::DataPacket;
 using ftl::protocol::Channel;
 using ftl::protocol::FrameID;
 
@@ -22,7 +22,7 @@ void Broadcast::add(const std::shared_ptr<Stream> &s) {
     auto &entry = streams_.emplace_back();
     entry.stream = s;
 
-    entry.handle = std::move(s->onPacket([this, s](const StreamPacket &spkt, const Packet &pkt) {
+    entry.handle = std::move(s->onPacket([this, s](const StreamPacket &spkt, const DataPacket &pkt) {
         trigger(spkt, pkt);
         return true;
     }));
@@ -56,7 +56,7 @@ void Broadcast::clear() {
     streams_.clear();
 }
 
-bool Broadcast::post(const StreamPacket &spkt, const Packet &pkt) {
+bool Broadcast::post(const StreamPacket &spkt, const DataPacket &pkt) {
     bool status = true;
     for (auto &s : streams_) {
         status = s.stream->post(spkt, pkt) && status;

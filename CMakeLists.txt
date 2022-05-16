@@ -17,6 +17,7 @@ enable_testing()
 option(WITH_GNUTLS "Enable TLS support" ON)
 option(USE_CPPCHECK "Apply cppcheck during build" ON)
 option(BUILD_TESTS "Compile all unit and integration tests" ON)
+option(BUILD_EXAMPLES "Compile the examples" ON)
 
 if (NOT WIN32)
 	option(WITH_PYTHON "Enable python support" ON)
@@ -205,4 +206,8 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if (BUILD_TESTS)
 	add_subdirectory(test)
+endif()
+
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()

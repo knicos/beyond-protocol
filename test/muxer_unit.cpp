@@ -9,7 +9,7 @@ using ftl::protocol::Muxer;
 using ftl::protocol::Broadcast;
 using ftl::protocol::Stream;
 using ftl::protocol::StreamPacket;
-using ftl::protocol::Packet;
+using ftl::protocol::DataPacket;
 using ftl::protocol::Channel;
 using ftl::protocol::ChannelSet;
 using ftl::protocol::FrameID;
@@ -19,7 +19,7 @@ class TestStream : public ftl::protocol::Stream {
 	TestStream() {};
 	~TestStream() {};
 
-	bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+	bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
 		seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
 		trigger(spkt, pkt);
 		return true;
@@ -57,7 +57,7 @@ TEST_CASE("Muxer post, distinct framesets", "[stream]") {
 
 		ftl::protocol::StreamPacket tspkt = {4,0,0,1, Channel::kColour};
 
-		auto h = s->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = s->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});
@@ -77,7 +77,7 @@ TEST_CASE("Muxer post, distinct framesets", "[stream]") {
 		mux->add(s2);
 
 		ftl::protocol::StreamPacket tspkt = {4,0,0,1,Channel::kColour};
-		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});
@@ -94,11 +94,11 @@ TEST_CASE("Muxer post, distinct framesets", "[stream]") {
 
 		StreamPacket tspkt2 = {4,0,0,1,Channel::kColour};
 		StreamPacket tspkt3 = {4,0,0,1,Channel::kColour};
-		auto h2 = s1->onPacket([&tspkt2](const StreamPacket &spkt, const Packet &pkt) {
+		auto h2 = s1->onPacket([&tspkt2](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt2 = spkt;
 			return true;
 		});
-		auto h3 = s2->onPacket([&tspkt3](const StreamPacket &spkt, const Packet &pkt) {
+		auto h3 = s2->onPacket([&tspkt3](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt3 = spkt;
 			return true;
 		});
@@ -125,7 +125,7 @@ TEST_CASE("Muxer post, single frameset", "[stream]") {
 		mux->add(s2,1);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
-		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});
@@ -140,11 +140,11 @@ TEST_CASE("Muxer post, single frameset", "[stream]") {
 
 		StreamPacket tspkt2 = {4,0,4,4,Channel::kColour};
 		StreamPacket tspkt3 = {4,0,4,4,Channel::kColour};
-		auto h2 = s1->onPacket([&tspkt2](const StreamPacket &spkt, const Packet &pkt) {
+		auto h2 = s1->onPacket([&tspkt2](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt2 = spkt;
 			return true;
 		});
-		auto h3 = s2->onPacket([&tspkt3](const StreamPacket &spkt, const Packet &pkt) {
+		auto h3 = s2->onPacket([&tspkt3](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt3 = spkt;
 			return true;
 		});
@@ -175,7 +175,7 @@ TEST_CASE("Muxer read", "[stream]") {
 		mux->add(s2, 0);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
-		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});
@@ -207,7 +207,7 @@ TEST_CASE("Muxer read", "[stream]") {
 		mux->add(s2, 0);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
-		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});
@@ -251,7 +251,7 @@ TEST_CASE("Muxer read multi-frameset", "[stream]") {
 		mux->add(s4,1);
 
 		StreamPacket tspkt = {4,0,0,1,Channel::kColour};
-		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const Packet &pkt) {
+		auto h = mux->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
 			tspkt = spkt;
 			return true;
 		});

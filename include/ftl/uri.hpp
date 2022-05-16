@@ -81,6 +81,8 @@ class URI {
 
     std::string to_string() const;
 
+    std::string toFilePath() const;
+
     void to_json(nlohmann::json &) const;
 
  private:

@@ -9,7 +9,7 @@ using ftl::protocol::Muxer;
 using ftl::protocol::Broadcast;
 using ftl::protocol::Stream;
 using ftl::protocol::StreamPacket;
-using ftl::protocol::Packet;
+using ftl::protocol::DataPacket;
 using ftl::protocol::Channel;
 using ftl::protocol::ChannelSet;
 using ftl::protocol::FrameID;
@@ -19,7 +19,7 @@ class BTestStream : public ftl::protocol::Stream {
     BTestStream() {};
     ~BTestStream() {};
 
-    bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+    bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
         seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
         trigger(spkt, pkt);
         return true;
@@ -56,11 +56,11 @@ TEST_CASE("ftl::stream::Broadcast()::write", "[stream]") {
         StreamPacket tspkt1 = {4,0,0,1,Channel::kColour};
         StreamPacket tspkt2 = {4,0,0,1,Channel::kColour};
 
-        auto h1 = s1->onPacket([&tspkt1](const StreamPacket &spkt, const Packet &pkt) {
+        auto h1 = s1->onPacket([&tspkt1](const StreamPacket &spkt, const DataPacket &pkt) {
             tspkt1 = spkt;
             return true;
         });
-        auto h2 = s2->onPacket([&tspkt2](const StreamPacket &spkt, const Packet &pkt) {
+        auto h2 = s2->onPacket([&tspkt2](const StreamPacket &spkt, const DataPacket &pkt) {
             tspkt2 = spkt;
             return true;
         });

@@ -11,15 +11,7 @@
 
 namespace ftl {
 
-/**
- * Video and data encoding / decoding components are located in this namespace. 
- * Audio codecs are for now in `ftl::audio` namespace.
- */
 namespace protocol {
-
-static constexpr uint8_t kFlagRequest = 0x01;    ///< Used for empty data packets to mark a request for data
-static constexpr uint8_t kFlagCompleted = 0x02;  ///< Last packet for timestamp
-static constexpr uint8_t kFlagReset = 0x04;
 
 /**
  * Compression format used.
@@ -48,9 +40,6 @@ enum struct Codec : uint8_t {
     kInvalid = 254,
     kAny = 255
 };
-
-/** Given a frame count, return a width x height tile configuration. */
-std::pair<int, int> chooseTileConfig(int size);
 
 }  // namespace protocol
 }  // namespace ftl

@@ -23,7 +23,7 @@ using ftl::protocol::NetStats;
 using ftl::protocol::StreamPacket;
 using ftl::protocol::PacketMSGPACK;
 using ftl::protocol::StreamPacketMSGPACK;
-using ftl::protocol::Packet;
+using ftl::protocol::DataPacket;
 using ftl::protocol::Channel;
 using ftl::protocol::Codec;
 using ftl::protocol::FrameID;
@@ -114,7 +114,7 @@ Net::~Net() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
+bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
     if (!active_) return false;
     if (paused_) return true;
     bool hasStale = false;
@@ -127,7 +127,7 @@ bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
     pkt_strip.codec = pkt.codec;
     pkt_strip.bitrate = pkt.bitrate;
     pkt_strip.frame_count = pkt.frame_count;
-    pkt_strip.flags = pkt.flags;
+    pkt_strip.dataFlags = pkt.dataFlags;
 
     if (host_) {
         SHARED_LOCK(mutex_, lk);
@@ -191,7 +191,7 @@ bool Net::post(const StreamPacket &spkt, const Packet &pkt) {
     return true;
 }
 
-void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, const Packet &pkt) {
+void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, const DataPacket &pkt) {
     int64_t now = time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count();
 
     if (!active_) return;
@@ -252,7 +252,7 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
 }
 
-void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
     _processPacket(nullptr, 0, spkt, pkt);
 }
 
@@ -417,7 +417,7 @@ void Net::_cleanUp() {
  * batches (max 255 unique frames by timestamp). Requests are in the form
  * of packets that match the request except the data component is empty.
  */
-bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const Packet &pkt) {
+bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const DataPacket &pkt) {
     bool found = false;
     DLOG(INFO) << "processing request: " << int(spkt->streamID) << ", " << int(spkt->channel);
 

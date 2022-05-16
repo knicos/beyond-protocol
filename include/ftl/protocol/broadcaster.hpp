@@ -27,7 +27,7 @@ class Broadcast : public Stream {
     void remove(const std::shared_ptr<Stream> &);
     void clear();
 
-    bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) override;
+    bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) override;
 
     bool begin() override;
     bool end() override;

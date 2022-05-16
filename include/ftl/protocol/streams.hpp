@@ -33,7 +33,7 @@ struct Request {
 
 using RequestCallback = std::function<bool(const ftl::protocol::Request&)>;
 
-using StreamCallback = std::function<bool(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &)>;
+using StreamCallback = std::function<bool(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &)>;
 
 /**
  * @brief Enumeration of possible stream properties. Not all properties are supported
@@ -104,7 +104,7 @@ class Stream {
      * @return true if sent
      * @return false if dropped
      */
-    virtual bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::Packet &) = 0;
+    virtual bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) = 0;
 
     // TODO(Nick): Add methods for: pause, paused, statistics
 
@@ -311,7 +311,7 @@ class Stream {
 
  protected:
     /** Dispatch packets to callbacks */
-    void trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt);
+    void trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt);
 
     /** Mark the channel and frame as available */
     void seen(FrameID id, ftl::protocol::Channel channel);
@@ -332,7 +332,7 @@ class Stream {
         // TODO(Nick): Add a name and metadata
     };
 
-    ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::Packet&> cb_;
+    ftl::Handler<const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&> cb_;
     ftl::Handler<const Request &> request_cb_;
     ftl::Handler<FrameID, ftl::protocol::Channel> avail_cb_;
     ftl::Handler<ftl::protocol::Error, const std::string&> error_cb_;
