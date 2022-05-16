@@ -9,11 +9,16 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <tuple>
 #include <ftl/protocol/codecs.hpp>
 #include <ftl/protocol/channels.hpp>
 
 namespace ftl {
 namespace protocol {
+
+static constexpr uint8_t kFlagRequest = 0x01;    ///< Used for empty data packets to mark a request for data
+static constexpr uint8_t kFlagCompleted = 0x02;  ///< Last packet for timestamp
+static constexpr uint8_t kFlagReset = 0x04;
 
 static constexpr uint8_t kAllFrames = 255;
 static constexpr uint8_t kAllFramesets = 255;
@@ -40,7 +45,7 @@ struct IndexHeader {
  * codec may use its own blocks and packets, in which case this is essentially
  * an empty wrapper around that. It is used in the encoding callback.
  */
-struct Packet {
+struct DataPacket {
     ftl::protocol::Codec codec = ftl::protocol::Codec::kInvalid;
     uint8_t reserved = 0;
     uint8_t frame_count = 1;     // v4+ Frames included in this packet
@@ -48,7 +53,7 @@ struct Packet {
     uint8_t bitrate = 0;         // v4+ For multi-bitrate encoding, 0=highest
 
     union {
-        uint8_t flags = 0;       // Codec dependent flags (eg. I-Frame or P-Frame)
+        uint8_t dataFlags = 0;       // Codec dependent flags (eg. I-Frame or P-Frame)
         uint8_t packet_count;
     };
     std::vector<uint8_t> data;
@@ -59,7 +64,7 @@ static constexpr unsigned int kStreamCap_Recorded = 0x02;
 static constexpr unsigned int kStreamCap_NewConnection = 0x04;
 
 /** V4 packets have no stream flags field */
-struct StreamPacketV4 {
+/*struct StreamPacketV4 {
     int version = 4;                   // FTL version, Not encoded into stream
 
     int64_t timestamp;
@@ -75,7 +80,7 @@ struct StreamPacketV4 {
     size_t hint_source_total;          // Number of tracks per frame to expect
 
     operator std::string() const;
-};
+};*/
 
 /**
  * Add timestamp and channel information to a raw encoded frame packet. This
@@ -103,15 +108,7 @@ struct StreamPacket {
     operator std::string() const;
 };
 
-/**
- * Combine both packet types into a single packet unit. This pair is always
- * saved or transmitted in a stream together.
- */
-struct PacketPair {
-    PacketPair(const StreamPacket &s, const Packet &p) : spkt(s), pkt(p) {}
-    const StreamPacket &spkt;
-    const Packet &pkt;
-};
+struct Packet : public StreamPacket, public DataPacket {};
 
 }  // namespace protocol
 }  // namespace ftl

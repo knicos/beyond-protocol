@@ -5,16 +5,22 @@
  */
 
 #include <cstdlib>
+#include <regex>
+#include <string>
 #include <ftl/uri.hpp>
 #include <nlohmann/json.hpp>
 // #include <filesystem>  TODO When available
 
 #include <ftl/lib/loguru.hpp>
+#include <ftl/exception.hpp>
 
 #ifndef WIN32
 #include <unistd.h>
 #else
 #include <direct.h>
+#include <shlwapi.h>
+
+#pragma comment(lib, "Shlwapi.lib")
 #endif
 
 using ftl::URI;
@@ -63,9 +69,20 @@ void URI::_parse(uri_t puri) {
 #endif
     }
 
+#ifdef WIN32
+    if (std::regex_match(puri, std::regex("^[A-Z]:.*"))) {
+        suri.resize(1024);
+        DWORD size = suri.size();
+        if (UrlCreateFromPathA(puri, suri.data(), &size, NULL) != S_OK) {
+            m_valid = false;
+            return;
+        }
+    }
+#endif
+
 #ifdef HAVE_URIPARSESINGLE
     const char *errpos;
-    if (uriParseSingleUriA(&uri, puri, &errpos) != URI_SUCCESS) {
+    if (uriParseSingleUriA(&uri, suri.c_str(), &errpos) != URI_SUCCESS) {
 #else
     UriParserStateA uris;
     uris.uri = &uri;
@@ -161,9 +178,28 @@ string URI::to_string() const {
     return (m_qmap.size() > 0) ? m_base + "?" + getQuery() : m_base;
 }
 
+std::string URI::toFilePath() const {
+    if (getScheme() != scheme_t::SCHEME_FILE && getScheme() != scheme_t::SCHEME_NONE) {
+        throw FTL_Error("Not a file URI");
+    }
+
+#ifdef WIN32
+    std::string result;
+    result.resize(1024);
+    DWORD size = result.size();
+    auto base = getBaseURI();
+    if (PathCreateFromUrlA(base.c_str(), result.data(), &size, NULL) != S_OK) {
+        throw FTL_Error("Not a file URI");
+    }
+    return result;
+#else
+    return getPath();
+#endif
+}
+
 string URI::getPathSegment(int n) const {
     size_t N = (n < 0) ? m_pathseg.size()+n : n;
-    if (N < 0 || N >= m_pathseg.size()) return "";
+    if (N >= m_pathseg.size()) return "";
     else
         return m_pathseg[N];
 }

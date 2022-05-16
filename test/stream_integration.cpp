@@ -51,10 +51,10 @@ TEST_CASE("TCP Stream", "[net]") {
 		auto s2 = self->getStream("ftl://mystream");
 		REQUIRE( s2 );
 
-		ftl::protocol::Packet rpkt;
+		ftl::protocol::DataPacket rpkt;
 		rpkt.bitrate = 20;
 
-		auto h = s2->onPacket([&cv, &rpkt](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::Packet &pkt) {
+		auto h = s2->onPacket([&cv, &rpkt](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
 			rpkt = pkt;
 			cv.notify_one();
 			return true;
@@ -80,7 +80,7 @@ TEST_CASE("TCP Stream", "[net]") {
 		spkt.streamID = 0;
 		spkt.frame_number = 0;
 		spkt.channel = ftl::protocol::Channel::kColour;
-		ftl::protocol::Packet pkt;
+		ftl::protocol::DataPacket pkt;
 		pkt.bitrate = 10;
 		pkt.codec = ftl::protocol::Codec::kJPG;
 		pkt.frame_count = 1;
