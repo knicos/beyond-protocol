@@ -5,3 +5,4 @@ build
 **/config.h
 _CPack_Packages
 .env
+docs/html

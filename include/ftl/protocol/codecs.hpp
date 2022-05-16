@@ -14,7 +14,8 @@ namespace ftl {
 namespace protocol {
 
 /**
- * Compression format used.
+ * @brief Compression codec used for data.
+ * 
  */
 enum struct Codec : uint8_t {
     /* Video (image) codecs */

@@ -66,11 +66,20 @@ class Self {
     void start();
 
     /**
-     * Open a new listening port on a given interfaces.
+     * Open a new listening port on a given interface.
      *   eg. "tcp://localhost:9000"
      * @param addr URI giving protocol, interface and port
      */
     bool listen(const ftl::URI &addr);
+
+    /**
+     * @brief Open a new listening port on a given interface.
+     * 
+     * @param addr as a URI string
+     * @return true if listening was started
+     * @return false if the URI is invalid or could not open the port
+     */
+    bool listen(const std::string &addr) { return listen(ftl::URI(addr)); }
 
     /**
      * @brief Get the list of all listening addresses and ports.
@@ -86,13 +95,26 @@ class Self {
      */
     void shutdown();
 
+    /**
+     * @brief Query if a node is connected.
+     * 
+     * @param uri address and port of the node
+     * @return true if connected
+     * @return false if not found
+     */
     bool isConnected(const ftl::URI &uri);
     bool isConnected(const std::string &s);
 
+    /**
+     * @brief Number of currently available nodes. Note that they may be
+     * in a disconnected or errored state until garbage collected.
+     * 
+     * @return size_t 
+     */
     size_t numberOfNodes() const;
 
     /**
-     * Will block until all currently registered connnections have completed.
+     * @brief Will block until all currently registered connnections have completed.
      * You should not use this, but rather use onConnect.
      */
     int waitConnections(int seconds = 1);
@@ -101,6 +123,12 @@ class Self {
     std::shared_ptr<ftl::protocol::Node> getNode(const ftl::UUID &pid) const;
     /** get webservice peer pointer, returns nullptr if not connected to webservice */
     std::shared_ptr<ftl::protocol::Node>  getWebService() const;
+    /**
+     * @brief Get a list of all available nodes. Not all of these may actually be
+     * connected currently.
+     * 
+     * @return std::list<std::shared_ptr<ftl::protocol::Node>> 
+     */
     std::list<std::shared_ptr<ftl::protocol::Node>> getNodes() const;
 
     /**
