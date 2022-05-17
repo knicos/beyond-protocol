@@ -14,6 +14,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/handle.hpp>
 #include <ftl/protocol/error.hpp>
+#include <ftl/protocol/frameid.hpp>
 
 namespace ftl {
 namespace net {
@@ -158,6 +159,111 @@ class Self {
 
     // Used for testing
     ftl::net::Universe *getUniverse() const { return universe_.get(); }
+
+    // === The RPC methods ===
+
+    /**
+     * @brief Restart all locally connected nodes.
+     * 
+     */
+    void restartAll();
+
+    /**
+     * @brief Shutdown all locally connected nodes.
+     * 
+     */
+    void shutdownAll();
+
+    /**
+     * @brief Get JSON metadata for all connected nodes. This includes names, descriptions
+     * and hardware resources.
+     * 
+     * @return std::vector<nlohmann::json> 
+     */
+    std::vector<nlohmann::json> getAllNodeDetails();
+
+    /**
+     * @brief Get a list of all streams available to this node. It will collate from all
+     * connected nodes and the web service.
+     * 
+     * @return std::vector<std::string> 
+     */
+    std::vector<std::string> getStreams();
+
+    /**
+     * @brief Find which node provides a stream. The returned pointer is a nullptr if the
+     * stream is not found.
+     * 
+     * @param uri The stream URI.
+     * @return std::shared_ptr<ftl::protocol::Node> 
+     */
+    std::shared_ptr<ftl::protocol::Node> locateStream(const std::string &uri);
+
+    /**
+     * @brief Handle a restart request from other machines.
+     * 
+     * @param cb 
+     * @return ftl::Handle 
+     */
+    void onRestart(const std::function<void()> &cb);
+
+    /**
+     * @brief Handle a shutdown request from other machines.
+     * 
+     * @param cb 
+     * @return ftl::Handle 
+     */
+    void onShutdown(const std::function<void()> &cb);
+
+    /**
+     * @brief Handle a stream creation request. Most likely this is being sent by the web service.
+     * 
+     * @param cb 
+     * @return ftl::Handle 
+     */
+    void onCreateStream(const std::function<void(const std::string &uri, FrameID id)> &cb);
+
+    /**
+     * @brief Handle a node details request.
+     * 
+     * The returned JSON object should have the following keys:
+     * * id
+     * * title
+     * * devices
+     * * gpus
+     * 
+     * It may also have:
+     * * description
+     * * tags
+     * 
+     * @param cb 
+     */
+    void onNodeDetails(const std::function<nlohmann::json()> &cb);
+
+    /**
+     * @brief Handle a get configuration request. A path to the configuration property is
+     * provided and a JSON value, possibly an entire object, is returned. Null can also be
+     * returned if not found.
+     * 
+     * @param cb 
+     */
+    void onGetConfig(const std::function<nlohmann::json(const std::string &)> &cb);
+
+    /**
+     * @brief Handle a change config request. The configuration property path and new JSON
+     * value is given.
+     * 
+     * @param cb 
+     */
+    void onSetConfig(const std::function<void(const std::string &, const nlohmann::json &)> &cb);
+
+    /**
+     * @brief Handle a request for all config properties on this machine. This could return
+     * just the root level objects, or every property.
+     * 
+     * @param cb 
+     */
+    void onListConfig(const std::function<std::vector<std::string>()> &cb);
 
  protected:
     std::shared_ptr<ftl::net::Universe> universe_;

@@ -29,7 +29,7 @@ target_link_libraries(handle_unit beyond-protocol
 
 add_test(HandleUnitTest handle_unit)
 
-### URI ########################################################################
+### Net Integ ##################################################################
 add_executable(net_integration
 	$<TARGET_OBJECTS:CatchTestFTL>
 	./net_integration.cpp)
@@ -130,3 +130,14 @@ target_link_libraries(peer_unit
 	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
 
 add_test(PeerUnitTest peer_unit)
+
+### RPC Integ ##################################################################
+add_executable(rpc_integration
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./rpc_integration.cpp)
+target_include_directories(rpc_integration PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(rpc_integration beyond-protocol
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
+
+add_test(RPCIntegrationTest rpc_integration)

@@ -8,7 +8,10 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <ftl/uuid.hpp>
+#include <ftl/protocol/frameid.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 namespace ftl {
 namespace net {
@@ -145,6 +148,26 @@ class Node {
     unsigned int localID();
 
     int connectionCount() const;
+
+    // === RPC Methods ===
+
+    void restart();
+
+    void shutdown();
+
+    bool hasStream(const std::string &uri);
+
+    void createStream(const std::string &uri, FrameID id);
+
+    nlohmann::json details();
+
+    int64_t ping();
+
+    nlohmann::json getConfig(const std::string &path);
+
+    void setConfig(const std::string &path, const nlohmann::json &value);
+
+    std::vector<std::string> listConfigs();
 
  protected:
     ftl::net::PeerPtr peer_;
