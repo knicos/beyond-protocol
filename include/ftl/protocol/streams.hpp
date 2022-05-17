@@ -284,7 +284,31 @@ class Stream {
      */
     virtual bool enable(FrameID id, const ftl::protocol::ChannelSet &channels);
 
-    // TODO(Nick): Disable
+    /**
+     * @brief Disable an entire frame. If the frame is not available or is already
+     * disabled then this method has no effect.
+     * 
+     * @param id 
+     */
+    virtual void disable(FrameID id);
+
+    /**
+     * @brief Disable a specific channel in a frame. If not available or already
+     * disabled then this method has no effect.
+     * 
+     * @param id 
+     * @param channel 
+     */
+    virtual void disable(FrameID id, ftl::protocol::Channel channel);
+
+    /**
+     * @brief Disable a set of channels in a frame. If not available or already
+     * disabled then this method has no effect.
+     * 
+     * @param id 
+     * @param channels 
+     */
+    virtual void disable(FrameID id, const ftl::protocol::ChannelSet &channels);
 
     /**
      * @brief Set a stream property to a new value. If the property is not supported,

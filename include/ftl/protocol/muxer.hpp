@@ -69,6 +69,12 @@ class Muxer : public Stream {
 
     bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
+    void disable(FrameID id) override;
+
+    void disable(FrameID id, ftl::protocol::Channel channel) override;
+
+    void disable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
+
     void setProperty(ftl::protocol::StreamProperty opt, std::any value) override;
 
     std::any getProperty(ftl::protocol::StreamProperty opt) override;

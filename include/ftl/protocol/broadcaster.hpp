@@ -51,6 +51,12 @@ class Broadcast : public Stream {
 
     bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
+    void disable(FrameID id) override;
+
+    void disable(FrameID id, ftl::protocol::Channel channel) override;
+
+    void disable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
+
     StreamType type() const override;
 
  private:
