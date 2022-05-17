@@ -121,6 +121,32 @@ bool Stream::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
     return true;
 }
 
+void Stream::disable(FrameID id) {
+    UNIQUE_LOCK(mtx_, lk);
+    auto &p = state_[id];
+    p.enabled = false;
+}
+
+void Stream::disable(FrameID id, ftl::protocol::Channel channel) {
+    UNIQUE_LOCK(mtx_, lk);
+    auto &p = state_[id];
+    p.selected.erase(channel);
+    if (p.selected.size() == 0) {
+        p.enabled = false;
+    }
+}
+
+void Stream::disable(FrameID id, const ftl::protocol::ChannelSet &channels) {
+    UNIQUE_LOCK(mtx_, lk);
+    auto &p = state_[id];
+    for (const auto &c : channels) {
+        p.selected.erase(c);
+    }
+    if (p.selected.size() == 0) {
+        p.enabled = false;
+    }
+}
+
 void Stream::reset() {
     UNIQUE_LOCK(mtx_, lk);
     state_.clear();

@@ -201,6 +201,27 @@ bool Muxer::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
     return r;
 }
 
+void Muxer::disable(FrameID id) {
+    auto p = _mapToOutput(id);
+    if (!p.second) return;
+    p.second->stream->disable(p.first);
+    Stream::disable(id);
+}
+
+void Muxer::disable(FrameID id, ftl::protocol::Channel channel) {
+    auto p = _mapToOutput(id);
+    if (!p.second) return;
+    p.second->stream->disable(p.first, channel);
+    Stream::disable(id, channel);
+}
+
+void Muxer::disable(FrameID id, const ftl::protocol::ChannelSet &channels) {
+    auto p = _mapToOutput(id);
+    if (!p.second) return;
+    p.second->stream->disable(p.first, channels);
+    Stream::disable(id, channels);
+}
+
 void Muxer::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     for (auto &s : streams_) {
         s.stream->setProperty(opt, value);

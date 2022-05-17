@@ -134,6 +134,36 @@ bool Broadcast::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
     return r;
 }
 
+void Broadcast::disable(FrameID id) {
+    {
+        SHARED_LOCK(mtx_, lk);
+        for (auto &s : streams_) {
+            s.stream->disable(id);
+        }
+    }
+    Stream::disable(id);
+}
+
+void Broadcast::disable(FrameID id, ftl::protocol::Channel channel) {
+    {
+        SHARED_LOCK(mtx_, lk);
+        for (auto &s : streams_) {
+            s.stream->disable(id, channel);
+        }
+    }
+    Stream::disable(id, channel);
+}
+
+void Broadcast::disable(FrameID id, const ftl::protocol::ChannelSet &channels) {
+    {
+        SHARED_LOCK(mtx_, lk);
+        for (auto &s : streams_) {
+            s.stream->disable(id, channels);
+        }
+    }
+    Stream::disable(id, channels);
+}
+
 void Broadcast::setProperty(ftl::protocol::StreamProperty opt, std::any value) {}
 
 std::any Broadcast::getProperty(ftl::protocol::StreamProperty opt) {
