@@ -8,8 +8,11 @@
 #include <ftl/protocol/self.hpp>
 #include "./streams/netstream.hpp"
 #include "./streams/filestream.hpp"
+#include <ftl/lib/nlohmann/json.hpp>
+#include <ftl/uuid.hpp>
 
 using ftl::protocol::Self;
+using ftl::protocol::FrameID;
 
 Self::Self(const std::shared_ptr<ftl::net::Universe> &impl): universe_(impl) {}
 
@@ -114,4 +117,71 @@ ftl::Handle Self::onError(const ErrorCb &cb) {
     return universe_->onError([cb](const ftl::net::PeerPtr &p, ftl::protocol::Error e, const std::string &estr) {
         return cb(std::make_shared<ftl::protocol::Node>(p), e, estr);
     });
+}
+
+void Self::restartAll() {
+    universe_->broadcast("restart");
+}
+
+void Self::shutdownAll() {
+    universe_->broadcast("shutdown");
+}
+
+std::vector<nlohmann::json> Self::getAllNodeDetails() {
+    auto response = universe_->findAll<std::string>("node_details");
+    std::vector<nlohmann::json> result(response.size());
+    for (auto &r : response) {
+        result.push_back(nlohmann::json::parse(r));
+    }
+    return result;
+}
+
+std::vector<std::string> Self::getStreams() {
+    return universe_->findAll<std::string>("list_streams");
+}
+
+std::shared_ptr<ftl::protocol::Node> Self::locateStream(const std::string &uri) {
+    auto p = universe_->findOne<ftl::UUID>("find_stream", uri);
+
+    if (!p) return nullptr;
+    auto peer = universe_->getPeer(*p);
+    if (!peer) return nullptr;
+
+    return std::make_shared<ftl::protocol::Node>(peer);
+}
+
+void Self::onRestart(const std::function<void()> &cb) {
+    universe_->bind("restart", cb);
+}
+
+void Self::onShutdown(const std::function<void()> &cb) {
+    universe_->bind("shutdown", cb);
+}
+
+void Self::onCreateStream(const std::function<void(const std::string &uri, FrameID id)> &cb) {
+    universe_->bind("create_stream", [cb](const std::string &uri, int fsid, int fid) {
+        cb(uri, FrameID(fsid, fid));
+    });
+}
+
+void Self::onNodeDetails(const std::function<nlohmann::json()> &cb) {
+    universe_->bind("node_details", [cb]() {
+        return cb().dump();
+    });
+}
+
+void Self::onGetConfig(const std::function<nlohmann::json(const std::string &)> &cb) {
+    universe_->bind("get_cfg", [cb](const std::string &path) {
+        return cb(path).dump();
+    });
+}
+
+void Self::onSetConfig(const std::function<void(const std::string &, const nlohmann::json &)> &cb) {
+    universe_->bind("update_cfg", [cb](const std::string &path, const std::string &value) {
+        cb(path, nlohmann::json::parse(value));
+    });
+}
+
+void Self::onListConfig(const std::function<std::vector<std::string>()> &cb) {
+    universe_->bind("list_configurables", cb);
 }
