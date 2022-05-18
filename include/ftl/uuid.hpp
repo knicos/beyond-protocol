@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <ftl/lib/loguru.hpp>
 
 #ifndef WIN32
@@ -18,8 +19,6 @@
 #include <memory>
 #include <string>
 #include <functional>
-
-#include <msgpack.hpp>
 
 namespace ftl {
 /**
@@ -128,10 +127,7 @@ class UUID {
 */
     }
 
-    /* Allow the UUID to be packed into an RPC message. */
-    MSGPACK_DEFINE(uuid_);
-
- private:
+ protected:
 #ifdef WIN32
     union {
         _GUID guid_;

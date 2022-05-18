@@ -3,6 +3,7 @@
 #include "../../src/socket.hpp"
 #include "../../src/universe.hpp"
 #include "../../src/protocol/connection.hpp"
+#include "../../src/uuidMSGPACK.hpp"
 #include <ftl/protocol/self.hpp>
 #include <chrono>
 
@@ -77,7 +78,7 @@ ftl::net::PeerPtr createMockPeer(int c) {
 
 void send_handshake(ftl::net::Peer &p) {
 	ftl::UUID id;
-	p.send("__handshake__", ftl::net::kMagic, ((8 << 16) + (5 << 8) + 2), id);
+	p.send("__handshake__", ftl::net::kMagic, ((8 << 16) + (5 << 8) + 2), ftl::UUIDMSGPACK(id));
 }
 
 void provideResponses(const ftl::net::PeerPtr &p, int c, const std::vector<std::tuple<bool,std::string,msgpack::object>> &responses) {

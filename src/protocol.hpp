@@ -11,11 +11,12 @@
 #include <ftl/protocol/config.h>
 #include <tuple>
 #include <ftl/uuid.hpp>
+#include "uuidMSGPACK.hpp"
 
 namespace ftl {
 namespace net {
 
-typedef std::tuple<uint64_t, uint32_t, ftl::UUID> Handshake;
+typedef std::tuple<uint64_t, uint32_t, ftl::UUIDMSGPACK> Handshake;
 
 static const uint64_t kMagic = 0x0009340053640912;
 static const uint32_t kVersion = (FTL_VERSION_MAJOR << 16) +
