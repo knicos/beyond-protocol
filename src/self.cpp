@@ -9,7 +9,7 @@
 #include "./streams/netstream.hpp"
 #include "./streams/filestream.hpp"
 #include <ftl/lib/nlohmann/json.hpp>
-#include <ftl/uuid.hpp>
+#include "uuidMSGPACK.hpp"
 
 using ftl::protocol::Self;
 using ftl::protocol::FrameID;
@@ -141,7 +141,7 @@ std::vector<std::string> Self::getStreams() {
 }
 
 std::shared_ptr<ftl::protocol::Node> Self::locateStream(const std::string &uri) {
-    auto p = universe_->findOne<ftl::UUID>("find_stream", uri);
+    auto p = universe_->findOne<ftl::UUIDMSGPACK>("find_stream", uri);
 
     if (!p) return nullptr;
     auto peer = universe_->getPeer(*p);

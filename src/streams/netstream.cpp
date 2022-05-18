@@ -8,6 +8,7 @@
 #include <string>
 #include "netstream.hpp"
 #include <ftl/time.hpp>
+#include "../uuidMSGPACK.hpp"
 #include "packetMsgpack.hpp"
 
 #define LOGURU_REPLACE_GLOG 1
@@ -48,7 +49,7 @@ static std::list<std::string> net_streams;
 static SHARED_MUTEX stream_mutex;
 
 void Net::installRPC(ftl::net::Universe *net) {
-    net->bind("find_stream", [net](const std::string &uri) -> optional<ftl::UUID> {
+    net->bind("find_stream", [net](const std::string &uri) -> optional<ftl::UUIDMSGPACK> {
         DLOG(INFO) << "Request for stream: " << uri;
 
         ftl::URI u1(uri);
@@ -59,7 +60,8 @@ void Net::installRPC(ftl::net::Universe *net) {
             ftl::URI u2(s);
             // Don't compare query string components.
             if (base == u2.getBaseURI()) {
-                return std::reference_wrapper(net->id());
+                ftl::UUIDMSGPACK mpuuid(net->id());
+                return std::reference_wrapper(mpuuid);
             }
         }
         return {};
@@ -321,7 +323,7 @@ bool Net::_enable(FrameID id) {
 
     // not hosting, try to find peer now
     // First find non-proxy version, then check for proxy version if no match
-    auto p = net_->findOne<ftl::UUID>("find_stream", uri_);
+    auto p = net_->findOne<ftl::UUIDMSGPACK>("find_stream", uri_);
 
     if (p) {
         peer_ = *p;

@@ -21,6 +21,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/time.hpp>
 #include "peer.hpp"
+#include "uuidMSGPACK.hpp"
 
 #include "protocol/connection.hpp"
 
@@ -77,7 +78,7 @@ void Peer::_send_handshake() {
             << " peer) handshake sent, status: "
             << (isConnected() ? "connected" : "connecting");
 
-    send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, net_->id());
+    send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::UUIDMSGPACK(net_->id()));
 }
 
 void Peer::_process_handshake(uint64_t magic, uint32_t version, const UUID &pid) {
@@ -113,7 +114,7 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, const UUID &pid)
 
 void Peer::_bind_rpc() {
     // Install return handshake handler.
-    bind("__handshake__", [this](uint64_t magic, uint32_t version, const UUID &pid) {
+    bind("__handshake__", [this](uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid) {
         _process_handshake(magic, version, pid);
     });
 

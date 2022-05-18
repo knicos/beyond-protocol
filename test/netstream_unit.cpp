@@ -10,6 +10,7 @@
 
 #include "../src/streams/netstream.hpp"
 #include "../src/streams/packetMsgpack.hpp"
+#include "../src/uuidMSGPACK.hpp"
 #include "mocks/connection.hpp"
 
 using ftl::protocol::FrameID;
@@ -100,7 +101,7 @@ TEST_CASE("Net stream sending requests") {
 		std::thread thr([&p]() {
             auto z = std::make_unique<msgpack::zone>();
             provideResponses(p, 0, {
-                {false, "find_stream", packResponse(*z, p->id())},
+                {false, "find_stream", packResponse(*z, ftl::UUIDMSGPACK(p->id()))},
                 {true, "enable_stream", {}},
             });
 		});
