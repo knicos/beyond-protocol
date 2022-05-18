@@ -16,6 +16,8 @@ namespace ftl {
 
 struct Handle;
 struct BaseHandler {
+    virtual ~BaseHandler() {}
+
     virtual void remove(const Handle &) = 0;
 
     virtual void removeUnsafe(const Handle &) = 0;
@@ -97,7 +99,7 @@ struct [[nodiscard]] Handle {
 template <typename ...ARGS>
 struct Handler : BaseHandler {
     Handler() {}
-    ~Handler() {
+    virtual ~Handler() {
         // Ensure all thread pool jobs are done
         while (jobs_ > 0 && ftl::pool.size() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
