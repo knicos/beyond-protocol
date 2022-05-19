@@ -27,6 +27,7 @@ typedef struct iovec {
 #else
 // Linux
 #include <sys/socket.h>
+#include <netinet/in.h>
 #endif
 
 namespace ftl {
@@ -45,7 +46,7 @@ typedef int socket_t;
 
 struct SocketAddress {
     socklen_t len = sizeof(struct sockaddr);
-    struct sockaddr addr;
+    struct sockaddr_in addr;
 };
 #endif
 

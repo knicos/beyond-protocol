@@ -36,7 +36,9 @@ bool ftl::net::internal::resolve_inet_address(const std::string &hostname, int p
     if (rc != 0 || addrs == nullptr) return false;
 
     address.len = (socklen_t) addrs->ai_addrlen;
-    memcpy(&address.addr, addrs->ai_addr, address.len);
+    if (address.len <= sizeof(address.addr)) {
+        memcpy(&address.addr, addrs->ai_addr, address.len);
+    }
     freeaddrinfo(addrs);
     return true;
 }
@@ -70,7 +72,7 @@ ssize_t Socket::writev(const struct iovec *iov, int iovcnt) {
 }
 
 int Socket::bind(const SocketAddress &addr) {
-    auto retval = ::bind(fd_, &addr.addr, addr.len);
+    auto retval = ::bind(fd_, reinterpret_cast<const sockaddr*>(&addr.addr), addr.len);
     if (retval) {
         status_ = Socket::OPEN;
     }
@@ -84,7 +86,7 @@ int Socket::listen(int backlog) {
 Socket Socket::accept(SocketAddress &addr) {
     addr.len = sizeof(SocketAddress);
     Socket socket;
-    int retval = ::accept(fd_, &(addr.addr), &(addr.len));
+    int retval = ::accept(fd_, reinterpret_cast<sockaddr*>(&(addr.addr)), &(addr.len));
     if (retval > 0) {
         socket.status_ = STATUS::OPEN;
         socket.fd_ = retval;
@@ -99,7 +101,7 @@ Socket Socket::accept(SocketAddress &addr) {
 int Socket::connect(const SocketAddress& address) {
     int err = 0;
     if (status_ == STATUS::UNCONNECTED) {
-        err = ::connect(fd_, &address.addr, address.len);
+        err = ::connect(fd_, reinterpret_cast<const sockaddr*>(&address.addr), address.len);
         if (err == 0) {
             status_ = STATUS::OPEN;
             return 0;
@@ -203,7 +205,7 @@ Socket ftl::net::internal::create_tcp_socket() {
 
 std::string ftl::net::internal::get_host(const SocketAddress& addr) {
     char hbuf[1024];
-    int err = getnameinfo(&(addr.addr), addr.len, hbuf, sizeof(hbuf), NULL, 0, NI_NAMEREQD);
+    int err = getnameinfo(reinterpret_cast<const sockaddr*>(&(addr.addr)), addr.len, hbuf, sizeof(hbuf), NULL, 0, NI_NAMEREQD);
     if (err == 0) { return std::string(hbuf); }
     else if (err == EAI_NONAME) return ftl::net::internal::get_ip(addr);
     else
