@@ -63,9 +63,15 @@ void URI::_parse(uri_t puri) {
         suri = std::string("file://") + suri;
     } else if (suri[0] == '~') {
 #ifdef WIN32
-        suri = string("file://") + string(std::getenv("HOMEDRIVE")) + string(std::getenv("HOMEPATH")) + suri.substr(1);
+        const char *homeDrive = std::getenv("HOMEDRIVE");
+        const char *homePath = std::getenv("HOMEPATH");
+        suri = string("file://")
+            + string((homeDrive) ? homeDrive : "")
+            + string((homePath) ? homePath : "")
+            + suri.substr(1);
 #else
-        suri = string("file://") + string(std::getenv("HOME")) + suri.substr(1);
+        const char *homeDir = std::getenv("HOME");
+        suri = string("file://") + string((homeDir) ? homeDir : "") + suri.substr(1);
 #endif
     }
 
