@@ -35,7 +35,6 @@ class UUID {
     }
     explicit UUID(int u) { memset(uuid_, u, 16); }
     explicit UUID(const ftl::UUID &u) { memcpy(uuid_, u.uuid_, 16); }
-    explicit UUID(const unsigned char *raw) { memcpy(uuid_, raw, 16); }
     explicit UUID(const std::string &s) {
 #ifdef WIN32
         // TODO(Nick) Windows UUID parse
