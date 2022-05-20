@@ -172,6 +172,9 @@ class Universe {
 
     static inline std::shared_ptr<Universe> getInstance() { return instance_; }
 
+    void setMaxConnections(size_t m);
+    size_t getMaxConnections() const { return peers_.size(); }
+
     // --- Test support -------------------------------------------------------
 
     PeerPtr injectFakePeer(std::unique_ptr<ftl::net::internal::SocketConnection> s);

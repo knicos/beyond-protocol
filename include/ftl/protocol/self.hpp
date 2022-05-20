@@ -115,6 +115,23 @@ class Self {
     size_t numberOfNodes() const;
 
     /**
+     * @brief Get the maximum allowed number of connections. Any attempt to connect more
+     * peers will result in them being rejected.
+     * 
+     * @return size_t 
+     */
+    size_t getMaxConnections() const;
+
+    /**
+     * @brief Set the maximum allowed connections. This should only be changed before
+     * there are any active connections, resizing with active connections could cause
+     * errors. The default number is 10.
+     * 
+     * @param m Number of allowed node connections 
+     */
+    void setMaxConnections(size_t m);
+
+    /**
      * @brief Will block until all currently registered connnections have completed.
      * You should not use this, but rather use onConnect.
      */

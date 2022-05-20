@@ -76,6 +76,14 @@ size_t Self::numberOfNodes() const {
     return universe_->numberOfPeers();
 }
 
+size_t Self::getMaxConnections() const {
+    return universe_->getMaxConnections();
+}
+
+void Self::setMaxConnections(size_t m) {
+    universe_->setMaxConnections(m);
+}
+
 int Self::waitConnections(int seconds) {
     return universe_->waitConnections(seconds);
 }

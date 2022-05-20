@@ -47,6 +47,8 @@ using ftl::net::internal::SocketServer;
 using ftl::net::internal::Server_TCP;
 using std::chrono::milliseconds;
 
+constexpr int kDefaultMaxConnections = 10;
+
 namespace ftl {
 namespace net {
 
@@ -81,35 +83,22 @@ Universe::Universe() :
         active_(true),
         this_peer(ftl::protocol::id),
         impl_(new ftl::net::NetImplDetail()),
-        peers_(10),
+        peers_(kDefaultMaxConnections),
         phase_(0),
         periodic_time_(1.0),
         reconnect_attempts_(5),
         thread_(Universe::__start, this) {
     _installBindings();
-
-    // Add an idle timer job to garbage collect peer objects
-    // Note: Important to be a timer job to ensure no other timer jobs are
-    // using the object.
-    // FIXME: Replace use of timer.
-    /*garbage_timer_ = ftl::timer::add(ftl::timer::kTimerIdle10, [this](int64_t ts) {
-        if (garbage_.size() > 0) {
-            UNIQUE_LOCK(net_mutex_,lk);
-            if (ftl::pool.n_idle() == ftl::pool.size()) {
-                if (garbage_.size() > 0) LOG(1) << "Garbage collection";
-                while (garbage_.size() > 0) {
-                    delete garbage_.front();
-                    garbage_.pop_front();
-                }
-            }
-        }
-        return true;
-    });*/
 }
 
 Universe::~Universe() {
     shutdown();
     CHECK_EQ(peer_instances_, 0);
+}
+
+void Universe::setMaxConnections(size_t m) {
+    UNIQUE_LOCK(net_mutex_, lk);
+    peers_.resize(m);
 }
 
 size_t Universe::getSendBufferSize(ftl::URI::scheme_t s) {
@@ -447,6 +436,19 @@ void Universe::_periodic() {
             garbage_.push_back((*i).peer);
             i = reconnects_.erase(i);
         }*/
+    }
+
+    // Garbage peers may not be needed any more
+    if (garbage_.size() > 0) {
+        UNIQUE_LOCK(net_mutex_, lk);
+        // Only do garbage if processing is idle.
+        if (ftl::pool.n_idle() == ftl::pool.size()) {
+            if (garbage_.size() > 0) DLOG(1) << "Garbage collection";
+            while (garbage_.size() > 0) {
+                garbage_.front().reset();
+                garbage_.pop_front();
+            }
+        }
     }
 }
 
