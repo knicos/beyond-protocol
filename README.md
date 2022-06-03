@@ -65,6 +65,7 @@ It will not provide video encode or decode functionality and will remain lightwe
 This library has been developed by the following individuals:
 * Nicolas Pope (lead) - nicolas.pope@utu.fi
 * Sebastian Hahta
+* Jason Mendes
 
 Funding has been provided by:
 * University of Turku, Finland
