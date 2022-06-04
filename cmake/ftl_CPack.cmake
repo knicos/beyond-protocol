@@ -3,7 +3,7 @@
 #set(CPACK_PACKAGE_VERSION_PATCH "${BUILD_TIME}")
 set(CPACK_PACKAGE_NAME "libftl-protocol")
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_SOURCE_DIR}")
-set(CPACK_DEBIAN_PACKAGE_NAME "FTL Protocol Library")
+set(CPACK_DEBIAN_PACKAGE_NAME "FTL-Protocol-Library")
 set(CPACK_PACKAGE_VENDOR "University of Turku")
 set(CPACK_PACKAGE_DESCRIPTION "Networking and streaming library for FTL data")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "UTU Future Tech Lab")
