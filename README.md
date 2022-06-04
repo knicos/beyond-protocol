@@ -1,11 +1,11 @@
 # Beyond Protocol
 
-![pipeline status](https://gitlab.utu.fi/nicolas.pope/beyond-protocol/badges/main/pipeline.svg)
-![Latest Release](https://gitlab.utu.fi/nicolas.pope/beyond-protocol/-/badges/release.svg)
+![pipeline status](https://gitlab.utu.fi/beyondaka/beyond-protocol/badges/main/pipeline.svg)
+![Latest Release](https://gitlab.utu.fi/beyondaka/beyond-protocol/-/badges/release.svg)
 
 ["Beyond"](https://sites.utu.fi/bittip/) is a remote presence research project to develop an immersive sense of presence using 3D and multi-sensory capture. This library provides the core network protocol and file format allowing you to connect to our web services, other nodes or load the capture files with a simple API that provides asynchonous packet callbacks. Utility functions are also provided, along with a thread pool that is used for processing each packet. An API using remote procedure calls is also available for communicating between other nodes or the web service.
 
-A description of the [protocol](https://gitlab.utu.fi/nicolas.pope/beyond-protocol/-/wikis/Protocol-Definition) can be found on our wiki.
+A description of the [protocol](https://gitlab.utu.fi/beyondaka/beyond-protocol/-/wikis/Protocol-Definition) can be found on our wiki.
 
 The library requires C++ 17.
 
@@ -31,7 +31,7 @@ sudo make install
 Download the ZIP containing the binaries and place the includes and static library in an appropriate build location.
 
 ## Usage
-Check the `examples` directory in the repository to see how the library could be used, or checkout the [doxygen documentation](https://nicolaspope.utugit.fi/beyond-protocol/).
+Check the `examples` directory in the repository to see how the library could be used, or checkout the [doxygen documentation](https://beyondaka.utugit.fi/beyond-protocol).
 
 A simple example of opening an FTL file would be:
 
