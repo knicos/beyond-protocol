@@ -23,14 +23,14 @@ std::string name(Channel c);
 int type(Channel c);
 
 /** @deprecated */
-inline bool isFloatChannel(ftl::codecs::Channel chan) {
+inline bool isFloatChannel(ftl::protocol::Channel chan) {
     switch (chan) {
-    case Channel::GroundTruth  :
-    case Channel::Depth        :
-    case Channel::Confidence   :
-    case Channel::Flow         :
-    case Channel::Density      :
-    case Channel::Energy       : return true;
+    case Channel::kGroundTruth  :
+    case Channel::kDepth        :
+    case Channel::kConfidence   :
+    case Channel::kFlow         :
+    case Channel::kDensity      :
+    case Channel::kEnergy       : return true;
     default                    : return false;
     }
 }
