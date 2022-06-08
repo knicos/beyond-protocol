@@ -39,19 +39,25 @@ bool ftl::net::internal::resolve_inet_address(const std::string& hostname, int p
     return true;
 }
 
-static std::atomic_bool is_initialized_;
-static WSAData wsaData_;
-
-Socket::Socket(int domain, int type, int protocol) :
-    status_(STATUS::UNCONNECTED), fd_(-1), family_(domain) {
-    if (!is_initialized_.exchange(true)) {
+class WinSock {
+ public:
+    WinSock() {
         if (WSAStartup(MAKEWORD(1, 1), &wsaData_) != 0) {
             LOG(FATAL) << "could not initialize sockets";
             // is it possible to retry/recover?
         }
     }
 
-    // TODO(Seb): initialization might not be complete if called from another thread
+ private:
+    WSAData wsaData_;
+};
+
+// Do WSAStartup as static initialisation so no threads active.
+static WinSock winSock;
+
+Socket::Socket(int domain, int type, int protocol) :
+    status_(STATUS::UNCONNECTED), fd_(-1), family_(domain) {
+
     fd_ = ::socket(domain, type, protocol);
     if (fd_ == INVALID_SOCKET) {
         err_ = WSAGetLastError();
