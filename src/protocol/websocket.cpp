@@ -42,6 +42,7 @@ using ftl::net::internal::Connection_TLS;
 struct wsheader_type {
     unsigned header_size;
     bool fin;
+    int rsv;
     bool mask;
     enum opcode_type {
         CONTINUATION = 0x0,
@@ -112,21 +113,21 @@ int ws_prepare(wsheader_type::opcode_type op, bool useMask, uint32_t mask,
 }
 
 // parse ws header, returns true on success
-// TODO(Seb): return error code for different results (not enough bytes in buffer
-//    to build the header vs corrputed/invalid header)
-bool ws_parse(uchar *data, size_t len, wsheader_type *ws) {
-    if (len < 2) return false;
+void ws_parse(uchar *data, size_t len, wsheader_type *ws) {
+    if (len < 2) throw FTL_Error("Websock header too small");
 
     ws->fin = (data[0] & 0x80) == 0x80;
+    ws->rsv = (data[0] & 0x70);
     ws->opcode = (wsheader_type::opcode_type) (data[0] & 0x0f);
     ws->mask = (data[1] & 0x80) == 0x80;
     ws->N0 = (data[1] & 0x7f);
     ws->header_size = 2 + (ws->N0 == 126? 2 : 0) + (ws->N0 == 127? 8 : 0) + (ws->mask? 4 : 0);
 
-    if (len < ws->header_size) return false;
+    if (len < ws->header_size) throw FTL_Error("Websock header too small");
+    if (ws->rsv != 0) throw FTL_Error("WS header reserved not zero");
 
     // invalid opcode, corrupted header?
-    if ((ws->opcode > 10) || ((ws->opcode > 2) && (ws->opcode < 8))) return false;
+    if ((ws->opcode > 10) || ((ws->opcode > 2) && (ws->opcode < 8))) throw FTL_Error("Websock opcode invalid");
 
     int i = 0;
     if (ws->N0 < 126) {
@@ -161,13 +162,11 @@ bool ws_parse(uchar *data, size_t len, wsheader_type *ws) {
         ws->masking_key[2] = 0;
         ws->masking_key[3] = 0;
     }
-
-    return true;
 }
 
 // same as above, pointer type casted to unsigned
-bool ws_parse(char *data, size_t len, wsheader_type *ws) {
-    return ws_parse(reinterpret_cast<unsigned char*>(data), len, ws);
+void ws_parse(char *data, size_t len, wsheader_type *ws) {
+    ws_parse(reinterpret_cast<unsigned char*>(data), len, ws);
 }
 
 
@@ -289,9 +288,7 @@ bool WebSocketBase<SocketT>::prepare_next(char* data, size_t data_len, size_t& o
     if (data_len < 14) { return false; }
 
     wsheader_type header;
-    if (!ws_parse(data, data_len, &header)) {
-        throw FTL_Error("corrupted WS header");
-    }
+    ws_parse(data, data_len, &header);
 
     if ((header.N + header.header_size) > data_len) {
         /*LOG(WARNING) << "buffered: " << data_len
