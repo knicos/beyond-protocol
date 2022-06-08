@@ -66,5 +66,6 @@
         "valarray": "cpp",
         "variant": "cpp",
         "any": "cpp"
-    }
+    },
+    "cmake.cmakePath": "/snap/cmake/current/bin/cmake"
 }

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <memory>
 #include <unordered_map>
+#include <optional>
 #include "universe.hpp"
 #include "socketImpl.hpp"
 
@@ -87,6 +88,10 @@ Universe::Universe() :
         phase_(0),
         periodic_time_(1.0),
         reconnect_attempts_(5),
+        tcp_send_buffer_(TCP_SEND_BUFFER_SIZE),
+        tcp_recv_buffer_(TCP_RECEIVE_BUFFER_SIZE),
+        ws_send_buffer_(WS_SEND_BUFFER_SIZE),
+        ws_recv_buffer_(WS_RECEIVE_BUFFER_SIZE),
         thread_(Universe::__start, this) {
     _installBindings();
 }
@@ -102,14 +107,13 @@ void Universe::setMaxConnections(size_t m) {
 }
 
 size_t Universe::getSendBufferSize(ftl::URI::scheme_t s) {
-    // TODO(Nick): Allow these to be configured again.
     switch (s) {
         case ftl::URI::scheme_t::SCHEME_WS:
         case ftl::URI::scheme_t::SCHEME_WSS:
-            return WS_SEND_BUFFER_SIZE;
+            return ws_send_buffer_;
 
         default:
-            return TCP_SEND_BUFFER_SIZE;
+            return tcp_send_buffer_;
     }
 }
 
@@ -117,9 +121,32 @@ size_t Universe::getRecvBufferSize(ftl::URI::scheme_t s) {
     switch (s) {
         case ftl::URI::scheme_t::SCHEME_WS:
         case ftl::URI::scheme_t::SCHEME_WSS:
-            return WS_RECEIVE_BUFFER_SIZE;
+            return ws_recv_buffer_;
         default:
-            return TCP_RECEIVE_BUFFER_SIZE;
+            return tcp_recv_buffer_;
+    }
+}
+
+void Universe::setSendBufferSize(ftl::URI::scheme_t s, size_t size) {
+    switch (s) {
+        case ftl::URI::scheme_t::SCHEME_WS:
+        case ftl::URI::scheme_t::SCHEME_WSS:
+            ws_send_buffer_ = size;
+            break;
+
+        default:
+            tcp_send_buffer_ = size;
+    }
+}
+
+void Universe::setRecvBufferSize(ftl::URI::scheme_t s, size_t size) {
+    switch (s) {
+        case ftl::URI::scheme_t::SCHEME_WS:
+        case ftl::URI::scheme_t::SCHEME_WSS:
+            ws_recv_buffer_ = size;
+            break;
+        default:
+            tcp_recv_buffer_ = size;
     }
 }
 

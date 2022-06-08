@@ -193,3 +193,19 @@ void Self::onSetConfig(const std::function<void(const std::string &, const nlohm
 void Self::onListConfig(const std::function<std::vector<std::string>()> &cb) {
     universe_->bind("list_configurables", cb);
 }
+
+size_t Self::getSendBufferSize(ftl::URI::scheme_t s) {
+    return universe_->getSendBufferSize(s);
+}
+
+size_t Self::getRecvBufferSize(ftl::URI::scheme_t s) {
+    return universe_->getRecvBufferSize(s);
+}
+
+void Self::setSendBufferSize(ftl::URI::scheme_t s, size_t size) {
+    universe_->setSendBufferSize(s, size);
+}
+
+void Self::setRecvBufferSize(ftl::URI::scheme_t s, size_t size) {
+    universe_->setRecvBufferSize(s, size);
+}
