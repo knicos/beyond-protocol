@@ -18,6 +18,8 @@
 
 #include "func_traits.hpp"
 
+#include <ftl/threads.hpp>
+
 #include <msgpack.hpp>
 
 namespace ftl {
@@ -70,10 +72,7 @@ namespace net {
  */
 class Dispatcher {
  public:
-    explicit Dispatcher(Dispatcher *parent = nullptr) : parent_(parent) {
-        // FIXME: threading and funcs_; hack use large size
-        funcs_.reserve(1024);
-    }
+    explicit Dispatcher(Dispatcher *parent = nullptr) : parent_(parent) {}
 
     /**
      * Primary method by which a peer dispatches a msgpack object that this
@@ -94,6 +93,7 @@ class Dispatcher {
                           ftl::internal::tags::zero_arg const &,
                           ftl::internal::false_ const &) {
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
             std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
                 enforce_arg_count(name, 0, args.via.array.size);
@@ -116,6 +116,7 @@ class Dispatcher {
         using args_type = typename func_traits<F>::args_type;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
             std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
                 constexpr int args_count = std::tuple_size<args_type>::value;
@@ -140,6 +141,7 @@ class Dispatcher {
         using ftl::internal::func_traits;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
                                             name](ftl::net::Peer &p, msgpack::object const &args) {
             enforce_arg_count(name, 0, args.via.array.size);
@@ -163,6 +165,7 @@ class Dispatcher {
         using args_type = typename func_traits<F>::args_type;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
                                             name](ftl::net::Peer &p, msgpack::object const &args) {
             constexpr int args_count = std::tuple_size<args_type>::value;
@@ -183,6 +186,7 @@ class Dispatcher {
                           ftl::internal::tags::zero_arg const &,
                           ftl::internal::true_ const &) {
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
             std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
                 enforce_arg_count(name, 0, args.via.array.size);
@@ -200,6 +204,7 @@ class Dispatcher {
         using args_type = typename func_traits<F>::args_type;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
             std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
                 constexpr int args_count = std::tuple_size<args_type>::value;
@@ -219,6 +224,7 @@ class Dispatcher {
         using ftl::internal::func_traits;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
                                             name](ftl::net::Peer &p, msgpack::object const &args) {
             enforce_arg_count(name, 0, args.via.array.size);
@@ -237,6 +243,7 @@ class Dispatcher {
         using args_type = typename func_traits<F>::args_type;
 
         enforce_unique_name(name);
+        UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
                                             name](ftl::net::Peer &p, msgpack::object const &args) {
             constexpr int args_count = std::tuple_size<args_type>::value;
@@ -255,6 +262,7 @@ class Dispatcher {
      * Remove a previous bound function by name.
      */
     void unbind(const std::string &name) {
+        UNIQUE_LOCK(mutex_, lk);
         auto i = funcs_.find(name);
         if (i != funcs_.end()) {
             funcs_.erase(i);
@@ -290,6 +298,7 @@ class Dispatcher {
  private:
     Dispatcher *parent_;
     std::unordered_map<std::string, adaptor_type> funcs_;
+    mutable SHARED_MUTEX mutex_;
 
     std::optional<adaptor_type> _locateHandler(const std::string &name) const;
 
