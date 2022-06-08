@@ -120,7 +120,13 @@ void URI::_parse(uri_t puri) {
         m_protostr = prototext;
 
         std::string porttext = std::string(uri.portText.first, uri.portText.afterLast - uri.portText.first);
-        m_port = atoi(porttext.c_str());
+        try {
+            m_port = std::stoi(porttext);
+            if (m_port < 0 || m_port >= 65535) {
+                throw FTL_Error("Port out of range");
+            }
+        } catch (const std::invalid_argument &e) {}
+
         m_userinfo = std::string(uri.userInfo.first, uri.userInfo.afterLast - uri.userInfo.first);
 
         for (auto h = uri.pathHead; h != NULL; h = h->next) {
