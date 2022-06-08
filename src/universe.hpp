@@ -169,6 +169,8 @@ class Universe {
 
     size_t getSendBufferSize(ftl::URI::scheme_t s);
     size_t getRecvBufferSize(ftl::URI::scheme_t s);
+    void setSendBufferSize(ftl::URI::scheme_t s, size_t size);
+    void setRecvBufferSize(ftl::URI::scheme_t s, size_t size);
 
     static inline std::shared_ptr<Universe> getInstance() { return instance_; }
 
@@ -225,6 +227,12 @@ class Universe {
     ftl::Handler<const ftl::net::PeerPtr&, ftl::protocol::Error, const std::string &> on_error_;
 
     static std::shared_ptr<Universe> instance_;
+
+    // Socket buffer sizes
+    size_t tcp_send_buffer_;
+    size_t tcp_recv_buffer_;
+    size_t ws_send_buffer_;
+    size_t ws_recv_buffer_;
 
     // NOTE: Must always be last member
     std::thread thread_;

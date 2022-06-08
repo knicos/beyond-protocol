@@ -282,6 +282,38 @@ class Self {
      */
     void onListConfig(const std::function<std::vector<std::string>()> &cb);
 
+    /**
+     * @brief Get the Send Buffer Size in bytes.
+     * 
+     * @param s protocol
+     * @return size_t
+     */
+    size_t getSendBufferSize(ftl::URI::scheme_t s);
+
+    /**
+     * @brief Get the Recv Buffer Size in bytes
+     * 
+     * @param s protocol
+     * @return size_t 
+     */
+    size_t getRecvBufferSize(ftl::URI::scheme_t s);
+
+    /**
+     * @brief Set the Send Buffer size in bytes
+     * 
+     * @param s protocol
+     * @param size new size
+     */
+    void setSendBufferSize(ftl::URI::scheme_t s, size_t size);
+
+    /**
+     * @brief Set the Recv Buffer size in bytes
+     * 
+     * @param s protocol
+     * @param size new size
+     */
+    void setRecvBufferSize(ftl::URI::scheme_t s, size_t size);
+
  protected:
     std::shared_ptr<ftl::net::Universe> universe_;
 };
