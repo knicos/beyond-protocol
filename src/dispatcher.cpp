@@ -34,6 +34,7 @@ std::string object_type_to_string(const msgpack::type::object_type t) {
 }
 
 vector<string> Dispatcher::getBindings() const {
+    SHARED_LOCK(mutex_, lk);
     vector<string> res;
     for (auto x : funcs_) {
         res.push_back(x.first);
@@ -94,6 +95,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 }
 
 optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const std::string &name) const {
+    SHARED_LOCK(mutex_, lk);
     auto it_func = funcs_.find(name);
     if (it_func == funcs_.end()) {
         if (parent_ != nullptr) {
@@ -107,6 +109,7 @@ optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const st
 }
 
 bool ftl::net::Dispatcher::isBound(const std::string &name) const {
+    SHARED_LOCK(mutex_, lk);
     return funcs_.find(name) != funcs_.end();
 }
 
@@ -151,6 +154,7 @@ void ftl::net::Dispatcher::enforce_arg_count(std::string const &func, std::size_
 }
 
 void ftl::net::Dispatcher::enforce_unique_name(std::string const &func) {
+    SHARED_LOCK(mutex_, lk);
     auto pos = funcs_.find(func);
     if (pos != end(funcs_)) {
         throw FTL_Error("RPC non unique binding for '" << func << "'");
