@@ -8,6 +8,7 @@
 
 #include <string>
 #include <list>
+#include <unordered_map>
 #include "../universe.hpp"
 #include <ftl/threads.hpp>
 #include <ftl/protocol/packet.hpp>
@@ -21,16 +22,10 @@ namespace detail {
 struct StreamClient {
     ftl::UUID peerid;
     std::atomic<int> txcount;           // Frames sent since last request
-    int txmax;                          // Frames to send in request
     std::atomic<uint32_t> channels;     // A channel mask, those that have been requested
     uint8_t quality;
 };
 }
-
-/**
- * The maximum number of frames a client can request in a single request.
- */
-static const int kMaxFrames = 100;
 
 struct NetStats {
     float rxRate;
@@ -124,7 +119,7 @@ class Net : public Stream {
     static int64_t last_msg__;
     static MUTEX msg_mtx__;
 
-    std::list<detail::StreamClient> clients_;
+    std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClient>> clients_;
 
     bool _enable(FrameID id);
     bool _processRequest(ftl::net::Peer *p, ftl::protocol::StreamPacket *spkt, const ftl::protocol::DataPacket &pkt);

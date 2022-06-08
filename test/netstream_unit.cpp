@@ -41,23 +41,23 @@ class MockNetStream : public ftl::protocol::Net {
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("Net stream options") {
-	SECTION("can get correct URI") {
-		auto s1 = ftl::createStream("ftl://mystream?opt=none");
-		REQUIRE( s1 );
-		REQUIRE( s1->begin() );
+    SECTION("can get correct URI") {
+        auto s1 = ftl::createStream("ftl://mystream?opt=none");
+        REQUIRE( s1 );
+        REQUIRE( s1->begin() );
 
-		REQUIRE( std::any_cast<std::string>(s1->getProperty(StreamProperty::kURI)) == "ftl://mystream" );
-	}
+        REQUIRE( std::any_cast<std::string>(s1->getProperty(StreamProperty::kURI)) == "ftl://mystream" );
+    }
 
     SECTION("can get a name") {
-		auto s1 = ftl::createStream("ftl://mystream?opt=none");
-		REQUIRE( s1 );
-		REQUIRE( std::any_cast<std::string>(s1->getProperty(StreamProperty::kName)).size() > 0 );
-	}
+        auto s1 = ftl::createStream("ftl://mystream?opt=none");
+        REQUIRE( s1 );
+        REQUIRE( std::any_cast<std::string>(s1->getProperty(StreamProperty::kName)).size() > 0 );
+    }
 
-	SECTION("can pause the stream") {
-		auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
-		REQUIRE( s1->begin() );
+    SECTION("can pause the stream") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
+        REQUIRE( s1->begin() );
 
         StreamPacket spkt;
         spkt.timestamp = 100;
@@ -77,34 +77,34 @@ TEST_CASE("Net stream options") {
         spkt.timestamp = 200;
         REQUIRE( s1->post(spkt, pkt) );
         REQUIRE( s1->lastSpkt.timestamp == 100 );
-		REQUIRE( std::any_cast<bool>(s1->getProperty(StreamProperty::kPaused)) );
-	}
+        REQUIRE( std::any_cast<bool>(s1->getProperty(StreamProperty::kPaused)) );
+    }
 }
 
 TEST_CASE("Net stream sending requests") {
     auto p = createMockPeer(0);
     fakedata[0] = "";
     send_handshake(*p.get());
-	p->data();
-	sleep_for(milliseconds(50));
+    p->data();
+    sleep_for(milliseconds(50));
 
-	SECTION("cannot enable if not seen") {
-		auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
-		REQUIRE( s1->begin() );
+    SECTION("cannot enable if not seen") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+        REQUIRE( s1->begin() );
         REQUIRE( !s1->enable(FrameID(1, 1), Channel::kDepth));
-	}
+    }
 
     SECTION("sends request on enable") {
-		auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
-		
-		// Thread to provide response to otherwise blocking call
-		std::thread thr([&p]() {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+        
+        // Thread to provide response to otherwise blocking call
+        std::thread thr([&p]() {
             auto z = std::make_unique<msgpack::zone>();
             provideResponses(p, 0, {
                 {false, "find_stream", packResponse(*z, ftl::UUIDMSGPACK(p->id()))},
                 {true, "enable_stream", {}},
             });
-		});
+        });
 
         REQUIRE( s1->begin() );
 
@@ -115,14 +115,14 @@ TEST_CASE("Net stream sending requests") {
         thr.join();
 
         REQUIRE( s1->lastSpkt.streamID == 1 );
-        REQUIRE( int(s1->lastSpkt.frame_number) == 255 );  // TODO: update when this is fixed
+        REQUIRE( int(s1->lastSpkt.frame_number) == 1 );  // TODO: update when this is fixed
         REQUIRE( s1->lastSpkt.channel == Channel::kDepth );
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
-	}
+    }
 
     SECTION("responds to requests") {
-		auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
-		
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
+        
         REQUIRE( s1->begin() );
 
         bool seenReq = false;
@@ -143,7 +143,7 @@ TEST_CASE("Net stream sending requests") {
 
         sleep_for(milliseconds(50));
         REQUIRE( seenReq );
-	}
+    }
 
     p.reset();
     ftl::protocol::reset();
@@ -153,12 +153,12 @@ TEST_CASE("Net stream can see received data") {
     auto p = createMockPeer(0);
     fakedata[0] = "";
     send_handshake(*p.get());
-	p->data();
-	sleep_for(milliseconds(50));
+    p->data();
+    sleep_for(milliseconds(50));
 
     SECTION("available if packet is seen") {
-		auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
-		
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
+        
         REQUIRE( s1->begin() );
 
         bool seenReq = false;
@@ -179,7 +179,7 @@ TEST_CASE("Net stream can see received data") {
         sleep_for(milliseconds(50));
         REQUIRE( seenReq );
         REQUIRE( s1->available(FrameID(1, 1), Channel::kColour) );
-	}
+    }
 
     p.reset();
     ftl::protocol::reset();
