@@ -6,6 +6,7 @@
 
 #include <list>
 #include <string>
+#include <algorithm>
 #include "netstream.hpp"
 #include <ftl/time.hpp>
 #include "../uuidMSGPACK.hpp"
@@ -29,8 +30,6 @@ using ftl::protocol::Channel;
 using ftl::protocol::Codec;
 using ftl::protocol::FrameID;
 using ftl::protocol::Error;
-using ftl::protocol::kAllFrames;
-using ftl::protocol::kAllFramesets;
 using ftl::protocol::StreamProperty;
 using std::string;
 using std::optional;
@@ -133,40 +132,47 @@ bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
 
     if (host_) {
         SHARED_LOCK(mutex_, lk);
-        for (auto &client : clients_) {
-            // Strip packet data if channel is not wanted by client
-            const bool strip =
-                static_cast<int>(spkt.channel) < 32 && pkt.data.size() > 0
-                && ((1 << static_cast<int>(spkt.channel)) & client.channels) == 0;
 
-            try {
-                int16_t pre_transmit_latency = int16_t(ftl::time::get_time() - spkt.localTimestamp);
+        const FrameID frameId(spkt.streamID, spkt.frame_number);
 
-                // TODO(Nick): msgpack only once and broadcast.
-                // TODO(Nick): send in parallel and then wait on all futures?
-                // Or send non-blocking and wait
-                if (!net_->send(client.peerid,
-                        base_uri_,
-                        pre_transmit_latency,  // Time since timestamp for tx
-                        spkt_net,
-                        (strip) ? pkt_strip : reinterpret_cast<const PacketMSGPACK&>(pkt))) {
-                    // Send failed so mark as client stream completed
-                    client.txcount = client.txmax;
-                } else {
-                    if (!strip && pkt.data.size() > 0) _checkTXRate(pkt.data.size(), 0, spkt.timestamp);
+        // If this particular frame has clients then loop over them
+        if (clients_.count(frameId) > 0) {
+            auto &clients = clients_.at(frameId);
 
-                    // Count frame as completed only if last block and channel is 0
-                    // FIXME: This is unreliable, colour might not exist etc.
-                    if (spkt_net.streamID == 0 && spkt.frame_number == 0 && spkt.channel == Channel::kColour) {
-                        ++client.txcount;
+            for (auto &client : clients) {
+                // Strip packet data if channel is not wanted by client
+                const bool strip =
+                    static_cast<int>(spkt.channel) < 32 && pkt.data.size() > 0
+                    && ((1 << static_cast<int>(spkt.channel)) & client.channels) == 0;
+
+                try {
+                    int16_t pre_transmit_latency = int16_t(ftl::time::get_time() - spkt.localTimestamp);
+
+                    // TODO(Nick): msgpack only once and broadcast.
+                    // TODO(Nick): send in parallel and then wait on all futures?
+                    // Or send non-blocking and wait
+                    if (!net_->send(client.peerid,
+                            base_uri_,
+                            pre_transmit_latency,  // Time since timestamp for tx
+                            spkt_net,
+                            (strip) ? pkt_strip : reinterpret_cast<const PacketMSGPACK&>(pkt))) {
+                        // Send failed so mark as client stream completed
+                        client.txcount = 0;
+                    } else {
+                        if (!strip && pkt.data.size() > 0) _checkTXRate(pkt.data.size(), 0, spkt.timestamp);
+
+                        // Count every frame sent
+                        if (spkt.channel == Channel::kEndFrame) {
+                            --client.txcount;
+                        }
                     }
+                } catch(...) {
+                    client.txcount = 0;
                 }
-            } catch(...) {
-                client.txcount = client.txmax;
-            }
 
-            if (client.txcount >= client.txmax) {
-                hasStale = true;
+                if (client.txcount <= 0) {
+                    hasStale = true;
+                }
             }
         }
     } else {
@@ -230,7 +236,7 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
                 // for (size_t i = 0; i < size(); ++i) {
                     const auto &sel = enabledChannels(localFrame);
                     for (auto c : sel) {
-                        _sendRequest(c, localFrame.frameset(), kAllFrames, frames_to_request_, 255);
+                        _sendRequest(c, localFrame.frameset(), localFrame.source(), frames_to_request_, 255);
                     }
                 //}
                 tally_ = frames_to_request_;
@@ -307,7 +313,7 @@ void Net::refresh() {
         auto sel = enabledChannels(i);
 
         for (auto c : sel) {
-            _sendRequest(c, i.frameset(), kAllFrames, frames_to_request_, 255, true);
+            _sendRequest(c, i.frameset(), i.source(), frames_to_request_, 255, true);
         }
     }
     tally_ = frames_to_request_;
@@ -347,7 +353,7 @@ bool Net::enable(FrameID id) {
     if (host_) { return false; }
     if (!_enable(id)) return false;
     if (!Stream::enable(id)) return false;
-    _sendRequest(Channel::kColour, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
+    _sendRequest(Channel::kColour, id.frameset(), id.source(), kFramesToRequest, 255, true);
 
     return true;
 }
@@ -356,7 +362,7 @@ bool Net::enable(FrameID id, Channel c) {
     if (host_) { return false; }
     if (!_enable(id)) return false;
     if (!Stream::enable(id, c)) return false;
-    _sendRequest(c, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
+    _sendRequest(c, id.frameset(), id.source(), kFramesToRequest, 255, true);
     return true;
 }
 
@@ -365,7 +371,7 @@ bool Net::enable(FrameID id, const ChannelSet &channels) {
     if (!_enable(id)) return false;
     if (!Stream::enable(id, channels)) return false;
     for (auto c : channels) {
-        _sendRequest(c, id.frameset(), kAllFrames, kFramesToRequest, 255, true);
+        _sendRequest(c, id.frameset(), id.source(), kFramesToRequest, 255, true);
     }
     return true;
 }
@@ -403,14 +409,24 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
 
 void Net::_cleanUp() {
     UNIQUE_LOCK(mutex_, lk);
-    for (auto i = clients_.begin(); i != clients_.end(); ++i) {
-        auto &client = *i;
-        if (client.txcount >= client.txmax) {
-            if (client.peerid == time_peer_) {
-                time_peer_ = ftl::UUID(0);
+    for (auto i = clients_.begin(); i != clients_.end();) {
+        auto &clients = i->second;
+        for (auto j = clients.begin(); j != clients.end();) {
+            auto &client = *j;
+            if (client.txcount <= 0) {
+                if (client.peerid == time_peer_) {
+                    time_peer_ = ftl::UUID(0);
+                }
+                DLOG(INFO) << "Remove peer: " << client.peerid.to_string();
+                j = clients.erase(j);
+            } else {
+                ++j;
             }
-            DLOG(INFO) << "Remove peer: " << client.peerid.to_string();
+        }
+        if (clients.size() == 0) {
             i = clients_.erase(i);
+        } else {
+            ++i;
         }
     }
 }
@@ -423,19 +439,25 @@ bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const DataPacke
     bool found = false;
     DLOG(INFO) << "processing request: " << int(spkt->streamID) << ", " << int(spkt->channel);
 
+    const FrameID frameId(spkt->streamID, spkt->frame_number);
+
     if (p) {
         SHARED_LOCK(mutex_, lk);
-        // Does the client already exist
-        for (auto &c : clients_) {
-            if (c.peerid == p->id()) {
-                // Yes, so reset internal request counters
-                c.txcount = 0;
-                c.txmax = static_cast<int>(pkt.frame_count);
-                if (static_cast<int>(spkt->channel) < 32) {
-                    c.channels |= 1 << static_cast<int>(spkt->channel);
+
+        if (clients_.count(frameId) > 0) {
+            auto &clients = clients_.at(frameId);
+
+            // Does the client already exist
+            for (auto &c : clients) {
+                if (c.peerid == p->id()) {
+                    // Yes, so reset internal request counters
+                    c.txcount = std::max(static_cast<int>(c.txcount), static_cast<int>(pkt.frame_count));
+                    if (static_cast<int>(spkt->channel) < 32) {
+                        c.channels |= 1 << static_cast<int>(spkt->channel);
+                    }
+                    found = true;
+                    // break;
                 }
-                found = true;
-                // break;
             }
         }
     }
@@ -445,11 +467,11 @@ bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const DataPacke
         {
             UNIQUE_LOCK(mutex_, lk);
 
-            auto &client = clients_.emplace_back();
+            auto &clients = clients_[frameId];
+            auto &client = clients.emplace_back();
             client.peerid = p->id();
             client.quality = 255;  // TODO(Nick): Use quality given in packet
-            client.txcount = 0;
-            client.txmax = static_cast<int>(pkt.frame_count);
+            client.txcount = std::max(static_cast<int>(client.txcount), static_cast<int>(pkt.frame_count));
             if (static_cast<int>(spkt->channel) < 32) {
                 client.channels |= 1 << static_cast<int>(spkt->channel);
             }

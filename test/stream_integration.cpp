@@ -16,85 +16,128 @@ using ftl::protocol::StreamProperty;
 // --- Tests -------------------------------------------------------------------
 
 TEST_CASE("TCP Stream", "[net]") {
-	std::mutex mtx;
+    std::mutex mtx;
 
-	auto self = ftl::createDummySelf();
-	self->listen(ftl::URI("tcp://localhost:0")); 
+    auto self = ftl::createDummySelf();
+    self->listen(ftl::URI("tcp://localhost:0")); 
 
-	auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
-	LOG(INFO) << uri;
-	auto p = ftl::connectNode(uri);
-	p->waitConnection(5);
+    auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
+    LOG(INFO) << uri;
+    auto p = ftl::connectNode(uri);
+    p->waitConnection(5);
 
-	SECTION("fails if stream doesn't exist") {
-		auto s1 = self->getStream("ftl://mystream_bad");
-		REQUIRE( s1 );
+    SECTION("fails if stream doesn't exist") {
+        auto s1 = self->getStream("ftl://mystream_bad");
+        REQUIRE( s1 );
 
-		auto seenError = ftl::protocol::Error::kNoError;
-		auto h = s1->onError([&seenError](ftl::protocol::Error err, const std::string &str) {
-			seenError = err;
-			return true;
-		});
+        auto seenError = ftl::protocol::Error::kNoError;
+        auto h = s1->onError([&seenError](ftl::protocol::Error err, const std::string &str) {
+            seenError = err;
+            return true;
+        });
 
-		REQUIRE( s1->begin() );
-		REQUIRE( !s1->enable(FrameID(0, 0)) );
-		REQUIRE( seenError == ftl::protocol::Error::kURIDoesNotExist );
-	}
+        REQUIRE( s1->begin() );
+        REQUIRE( !s1->enable(FrameID(0, 0)) );
+        REQUIRE( seenError == ftl::protocol::Error::kURIDoesNotExist );
+    }
 
-	SECTION("single enabled packet stream") {
-		std::condition_variable cv;
-		std::unique_lock<std::mutex> lk(mtx);
+    SECTION("single enabled packet stream") {
+        std::condition_variable cv;
+        std::unique_lock<std::mutex> lk(mtx);
 
-		auto s1 = ftl::createStream("ftl://mystream");
-		REQUIRE( s1 );
+        auto s1 = ftl::createStream("ftl://mystream");
+        REQUIRE( s1 );
 
-		auto s2 = self->getStream("ftl://mystream");
-		REQUIRE( s2 );
+        auto s2 = self->getStream("ftl://mystream");
+        REQUIRE( s2 );
 
-		ftl::protocol::DataPacket rpkt;
-		rpkt.bitrate = 20;
+        ftl::protocol::DataPacket rpkt;
+        rpkt.bitrate = 20;
 
-		auto h = s2->onPacket([&cv, &rpkt](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
-			rpkt = pkt;
-			cv.notify_one();
-			return true;
-		});
+        auto h = s2->onPacket([&cv, &rpkt](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            rpkt = pkt;
+            cv.notify_one();
+            return true;
+        });
 
-		bool seenReq = false;
-		auto h2 = s1->onRequest([&seenReq](const ftl::protocol::Request &req) {
-			seenReq = true;
-			return true;
-		});
+        bool seenReq = false;
+        auto h2 = s1->onRequest([&seenReq](const ftl::protocol::Request &req) {
+            seenReq = true;
+            return true;
+        });
 
-		s1->begin();
-		s2->begin();
+        s1->begin();
+        s2->begin();
 
-		s2->enable(FrameID(0, 0));
+        s2->enable(FrameID(0, 0));
 
-		// TODO: Find better option
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // TODO: Find better option
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-		REQUIRE( seenReq );
+        REQUIRE( seenReq );
 
-		ftl::protocol::StreamPacket spkt;
-		spkt.streamID = 0;
-		spkt.frame_number = 0;
-		spkt.channel = ftl::protocol::Channel::kColour;
-		ftl::protocol::DataPacket pkt;
-		pkt.bitrate = 10;
-		pkt.codec = ftl::protocol::Codec::kJPG;
-		pkt.frame_count = 1;
-		s1->post(spkt, pkt);
+        ftl::protocol::StreamPacket spkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = ftl::protocol::Channel::kColour;
+        ftl::protocol::DataPacket pkt;
+        pkt.bitrate = 10;
+        pkt.codec = ftl::protocol::Codec::kJPG;
+        pkt.frame_count = 1;
+        s1->post(spkt, pkt);
 
-		bool r = cv.wait_for(lk, std::chrono::seconds(5), [&rpkt](){ return rpkt.bitrate == 10; });
-		REQUIRE( r );
-		REQUIRE( rpkt.bitrate == 10 );
-		REQUIRE( rpkt.codec == ftl::protocol::Codec::kJPG );
-		REQUIRE( rpkt.frame_count == 1 );
+        bool r = cv.wait_for(lk, std::chrono::seconds(5), [&rpkt](){ return rpkt.bitrate == 10; });
+        REQUIRE( r );
+        REQUIRE( rpkt.bitrate == 10 );
+        REQUIRE( rpkt.codec == ftl::protocol::Codec::kJPG );
+        REQUIRE( rpkt.frame_count == 1 );
 
-		REQUIRE( std::any_cast<size_t>(s1->getProperty(StreamProperty::kObservers)) == 1 );
-	}
+        REQUIRE( std::any_cast<size_t>(s1->getProperty(StreamProperty::kObservers)) == 1 );
+    }
 
-	p.reset();
-	ftl::protocol::reset();
+    SECTION("stops sending when request expires") {
+        std::atomic_int rcount = 0;
+        auto s1 = ftl::createStream("ftl://mystream");
+        REQUIRE( s1 );
+
+        auto s2 = self->getStream("ftl://mystream");
+        REQUIRE( s2 );
+
+        auto h = s2->onPacket([&rcount](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            ++rcount;
+            return true;
+        });
+
+        s1->begin();
+        s2->begin();
+
+        s2->enable(FrameID(0, 0));
+
+        // TODO: Find better option
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        ftl::protocol::StreamPacket spkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = ftl::protocol::Channel::kEndFrame;
+        ftl::protocol::DataPacket pkt;
+        pkt.bitrate = 10;
+        pkt.codec = ftl::protocol::Codec::kJPG;
+        pkt.frame_count = 1;
+
+        for (int i=0; i<30 + 20; ++i) {
+            spkt.timestamp = i;
+            s1->post(spkt, pkt);
+        }
+
+        // TODO: Find better option
+        int k = 10;
+        while (--k > 0 && rcount < 30) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        REQUIRE( rcount == 30 );
+    }
+
+    p.reset();
+    ftl::protocol::reset();
 }

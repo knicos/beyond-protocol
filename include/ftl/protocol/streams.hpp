@@ -31,6 +31,11 @@ struct Request {
     ftl::protocol::Codec codec;
 };
 
+/**
+ * The maximum number of frames a client can request in a single request.
+ */
+static const int kMaxFrames = 100;
+
 using RequestCallback = std::function<bool(const ftl::protocol::Request&)>;
 
 using StreamCallback = std::function<bool(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &)>;
