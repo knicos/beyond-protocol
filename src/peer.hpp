@@ -213,7 +213,8 @@ class Peer {
     void data();
 
  public:
-    static const int kMaxMessage = 2*1024*1024;  // 10Mb currently
+    static const int kMaxMessage = 4*1024*1024;      // 4Mb currently
+    static const int kDefaultMessage = 512*1024;     // 0.5Mb currently
 
  private:  // Functions
     bool socketError();  // Process one error from socket
@@ -266,6 +267,7 @@ class Peer {
     std::atomic_flag recv_checked_ = ATOMIC_FLAG_INIT;
 
     msgpack::unpacker recv_buf_;
+    size_t recv_buf_max_ = kDefaultMessage;
     MUTEX recv_mtx_;
 
     // Send buffers

@@ -288,21 +288,24 @@ void Peer::data() {
     int rc = 0;
 
     // Only need to lock and reserve buffer if there isn't enough
-    if (recv_buf_.buffer_capacity() < kMaxMessage) {
+    if (recv_buf_.buffer_capacity() < recv_buf_max_) {
         UNIQUE_LOCK(recv_mtx_, lk);
-        recv_buf_.reserve_buffer(kMaxMessage);
+        recv_buf_.reserve_buffer(recv_buf_max_);
     }
 
-    int cap = static_cast<int>(recv_buf_.buffer_capacity());
+    size_t cap = recv_buf_.buffer_capacity();
 
     try {
         rc = sock_->recv(recv_buf_.buffer(), recv_buf_.buffer_capacity());
 
-        if (rc >= cap - 1) {
+        if (rc >= static_cast<int>(cap - 1)) {
             net_->_notifyError(this, Error::kBufferSize, "Too much data received");
-            // TODO(Nick): Increase the buffer size next time
+            // Increase buffer size
+            if (recv_buf_max_ < kMaxMessage) {
+                recv_buf_max_ += 512 * 1024;
+            }
         }
-        if (cap < (kMaxMessage / 10)) {
+        if (cap < (recv_buf_max_ / 10)) {
             net_->_notifyError(this, Error::kBufferSize, "Buffer is at capacity");
         }
     } catch (std::exception& ex) {
