@@ -38,7 +38,7 @@ code_quality:
   tags:
     - docker
   script:
-    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y python3 python3-pip cppcheck
+    - DEBIAN_FRONTEND=noninteractive TZ="Europe/London" apt update && apt install -y python3 python3-pip cppcheck
     - python3 -m pip install -U cppcheck_codequality
     - cppcheck --xml --enable=warning,style,performance --std=c++14 --suppress=*:*catch.hpp --suppress=*:*loguru.cpp --suppress=*:*json.hpp ./ 2> cppcheck_out.xml
     - cppcheck-codequality --input-file=cppcheck_out.xml --output-file=cppcheck.json
@@ -57,7 +57,7 @@ linux:build:
     - docker
 
   script:
-    - DEBIAN_FRONTEND=noninteractive apt update && apt install -y build-essential uuid-dev git libmsgpack-dev liburiparser-dev libgnutls28-dev cmake ninja-build cppcheck
+    - DEBIAN_FRONTEND=noninteractive TZ="Europe/London" apt update && apt install -y build-essential uuid-dev git libmsgpack-dev liburiparser-dev libgnutls28-dev cmake ninja-build cppcheck
     - mkdir build && cd build
     - cmake $CI_PROJECT_DIR -GNinja -DFTL_VERSION=$CI_COMMIT_TAG -DCMAKE_CXX_FLAGS="-fdiagnostics-color" -DUSE_CPPCHECK=TRUE -DCMAKE_BUILD_TYPE=Release -DCPACK_GENERATOR=DEB
     - ninja
