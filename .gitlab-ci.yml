@@ -25,7 +25,7 @@ flawfinder-sast:
 include:
 - template: Security/SAST.gitlab-ci.yml
 
-image: ubuntu:focal
+image: app.ftlab.utu.fi/base:1.8-dev
 
 code_quality:
   stage: static
