@@ -17,6 +17,16 @@ target_link_libraries(uri_unit beyond-protocol
 
 add_test(URIUnitTest uri_unit)
 
+### Util #######################################################################
+add_executable(util_unit
+	$<TARGET_OBJECTS:CatchTest>
+	./utils_unit.cpp)
+target_include_directories(util_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(util_unit beyond-protocol
+	Threads::Threads ${OS_LIBS})
+
+add_test(UtilUnitTest util_unit)
+
 ### Handle Unit ################################################################
 add_executable(handle_unit
 	$<TARGET_OBJECTS:CatchTest>
