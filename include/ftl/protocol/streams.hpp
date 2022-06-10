@@ -361,12 +361,12 @@ class Stream {
         return error_cb_.on(cb);
     }
 
+    /** Mark the channel and frame as available */
+    void seen(FrameID id, ftl::protocol::Channel channel);
+
  protected:
     /** Dispatch packets to callbacks */
     void trigger(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt);
-
-    /** Mark the channel and frame as available */
-    void seen(FrameID id, ftl::protocol::Channel channel);
 
     /** Dispatch a request */
     void request(const Request &req);

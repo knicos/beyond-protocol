@@ -642,3 +642,67 @@ TEST_CASE("Muxer onError", "[stream]") {
 
     REQUIRE( seenErr == ftl::protocol::Error::kUnknown );
 }
+
+TEST_CASE("Muxer mappings", "[stream]") {
+
+    std::unique_ptr<Muxer> mux = std::make_unique<Muxer>();
+    REQUIRE(mux);
+
+    SECTION("can get local from remote") {
+        std::shared_ptr<Stream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+
+        auto f1 = mux->findLocal(s2, FrameID(0, 0));
+
+        REQUIRE( f1.frameset() == 1 );
+    }
+
+    SECTION("fails if mapping not valid") {
+        std::shared_ptr<Stream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+
+        bool didThrow = false;
+
+        try {
+            mux->findLocal(s2, FrameID(1, 0));
+        } catch(const ftl::exception &e) {
+            e.what();
+            didThrow = true;
+        }
+
+        REQUIRE( didThrow );
+    }
+
+    SECTION("can get remote from local") {
+        std::shared_ptr<Stream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<Stream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+
+        auto f1 = mux->findRemote(FrameID(1, 0));
+
+        REQUIRE( f1.frameset() == 0 );
+    }
+}

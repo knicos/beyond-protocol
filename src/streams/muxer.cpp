@@ -53,6 +53,17 @@ FrameID Muxer::_mapFromInput(Muxer::StreamEntry *s, FrameID id) {
     }
 }
 
+FrameID Muxer::_mapFromInput(const Muxer::StreamEntry *s, FrameID id) const {
+    SHARED_LOCK(mutex_, lk);
+    int64_t iid = (int64_t(s->id) << 32) | id.id;
+    auto it = imap_.find(iid);
+    if (it != imap_.end()) {
+        return it->second;
+    } else {
+        throw FTL_Error("No mapping");
+    }
+}
+
 std::pair<FrameID, Muxer::StreamEntry*> Muxer::_mapToOutput(FrameID id) const {
     SHARED_LOCK(mutex_, lk);
     auto it = omap_.find(id);
@@ -61,6 +72,54 @@ std::pair<FrameID, Muxer::StreamEntry*> Muxer::_mapToOutput(FrameID id) const {
     } else {
         return {id, nullptr};
     }
+}
+
+FrameID Muxer::findLocal(const std::string &uri, FrameID remote) const {
+    const StreamEntry *entry = nullptr;
+
+    {
+        SHARED_LOCK(mutex_, lk);
+        for (const auto &e : streams_) {
+            if (std::any_cast<std::string>(e.stream->getProperty(StreamProperty::kURI)) == uri) {
+                entry = &e;
+                break;
+            }
+        }
+    }
+
+    if (entry) {
+        return _mapFromInput(entry, remote);
+    } else {
+        throw FTL_Error("No stream");
+    }
+}
+
+FrameID Muxer::findLocal(const std::shared_ptr<Stream> &stream, FrameID remote) const {
+    const StreamEntry *entry = nullptr;
+
+    {
+        SHARED_LOCK(mutex_, lk);
+        for (const auto &e : streams_) {
+            if (e.stream == stream) {
+                entry = &e;
+                break;
+            }
+        }
+    }
+
+    if (entry) {
+        return _mapFromInput(entry, remote);
+    } else {
+        throw FTL_Error("No stream");
+    }
+}
+
+FrameID Muxer::findRemote(FrameID local) const {
+    auto m = _mapToOutput(local);
+    if (m.second == nullptr) {
+        throw FTL_Error("No mapping");
+    }
+    return m.first;
 }
 
 void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
