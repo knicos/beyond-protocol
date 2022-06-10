@@ -117,6 +117,24 @@ enum struct Channel : int {
     kPipeline_EnableMVMLS     = 501,
     kPipeline_EnableAruco     = 502,
 
+    /* Stereo video settings */
+    kSGMResolution              = 600,
+    kStereoRectify              = 601,
+    kStereoRightPose            = 602,
+    kStereoRectifyCubic         = 603,
+    kVideoOffsetZ               = 604,
+    kVideoSize                  = 605,
+
+    /* Sender settings */
+    kSenderLosslessFloat        = 700,
+    kSenderLosslessColour       = 701,
+    kSenderIFrames              = 702,
+    kSenderCodecFloat           = 703,
+    kSenderCodecColour          = 704,
+    kSenderMaxBitrate           = 705,
+    kSenderFloatBitrateScale    = 706,
+
+
     /* Custom / user data channels */
     kData           = 2048,  // Do not use
     kEndFrame       = 2048,  // Signify the last packet

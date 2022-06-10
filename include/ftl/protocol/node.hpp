@@ -173,5 +173,7 @@ class Node {
     ftl::net::PeerPtr peer_;
 };
 
+using NodePtr = std::shared_ptr<Node>;
+
 }  // namespace protocol
 }  // namespace ftl

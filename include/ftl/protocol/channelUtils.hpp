@@ -19,6 +19,14 @@ inline bool isData(Channel c) { return static_cast<int>(c) >= 64; }
 /** Obtain a string name for channel. */
 std::string name(Channel c);
 
+/**
+ * @brief Get the channel ID from a name.
+ * 
+ * @param name 
+ * @return Channel 
+ */
+Channel fromName(const std::string &name);
+
 /** Obtain OpenCV type for channel. */
 int type(Channel c);
 
