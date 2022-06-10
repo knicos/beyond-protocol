@@ -11,6 +11,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <string>
 #include <ftl/protocol/streams.hpp>
 
 namespace ftl {
@@ -90,6 +91,12 @@ class Muxer : public Stream {
      */
     std::shared_ptr<Stream> originStream(FrameID) const;
 
+    FrameID findLocal(const std::string &uri, FrameID remote) const;
+
+    FrameID findLocal(const std::shared_ptr<Stream> &stream, FrameID remote) const;
+
+    FrameID findRemote(FrameID local) const;
+
  private:
     struct StreamEntry {
         std::shared_ptr<Stream> stream;
@@ -112,6 +119,8 @@ class Muxer : public Stream {
 
     /* On packet receive, map to local ID */
     FrameID _mapFromInput(StreamEntry *, FrameID id);
+
+    FrameID _mapFromInput(const StreamEntry *, FrameID id) const;
 
     /* On posting, map to output ID */
     std::pair<FrameID, StreamEntry*> _mapToOutput(FrameID id) const;
