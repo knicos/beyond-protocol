@@ -90,8 +90,11 @@ void Node::createStream(const std::string &uri, FrameID id) {
 }
 
 nlohmann::json Node::details() {
-    const std::string res = peer_->call<std::string>("node_details");
-    return nlohmann::json::parse(res);
+    const auto res = peer_->call<std::vector<std::string>>("node_details");
+    if (res.size() > 0) {
+        return nlohmann::json::parse(res[0]);
+    }
+    return {};
 }
 
 int64_t Node::ping() {
