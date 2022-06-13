@@ -38,21 +38,10 @@ File::File(const std::string &uri, bool writeable) :
         istream_(nullptr),
         active_(false) {
     mode_ = (writeable) ? Mode::Write : Mode::Read;
-
-    // Open the file
-    if (!writeable) {
-        if (!_checkFile()) {
-            throw FTL_Error("Could not open file");
-        }
-    }
 }
 
 File::File(std::ifstream *is) : Stream(), ostream_(nullptr), istream_(is), active_(false) {
     mode_ = Mode::Read;
-
-    if (!_checkFile()) {
-        throw FTL_Error("Could not open file");
-    }
 }
 
 File::File(std::ofstream *os) : Stream(), ostream_(os), istream_(nullptr), active_(false) {
@@ -492,7 +481,12 @@ bool File::run() {
 bool File::begin() {
     if (active_) return true;
     if (mode_ == Mode::Read) {
-        if (!checked_) _checkFile();
+        if (!checked_) {
+            if (!_checkFile()) {
+                LOG(ERROR) << "Could not open file: " << uri_.toFilePath();
+                return false;
+            }
+        }
         _open();
 
         // Capture current time to adjust timestamps
