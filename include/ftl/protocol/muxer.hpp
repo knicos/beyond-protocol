@@ -91,11 +91,63 @@ class Muxer : public Stream {
      */
     std::shared_ptr<Stream> originStream(FrameID) const;
 
+    /**
+     * @brief Get a stream by URI.
+     * 
+     * If the stream does not exist in the muxer, then returns nullptr.
+     * 
+     * @param uri 
+     * @return std::shared_ptr<Stream> 
+     */
+    std::shared_ptr<Stream> findStream(const std::string &uri) const;
+
+    /**
+     * @brief Find the local frame ID using only the URI.
+     * 
+     * If the URI does not contain a "set" and "frame" query component,
+     * then 0 and 0 are assumed.
+     * 
+     * @param uri 
+     * @return FrameID 
+     */
+    FrameID findLocal(const std::string &uri) const;
+
+    /**
+     * @brief Find the local frame ID given a URI and stream specific ID.
+     * 
+     * This function first attempts to find a stream entity using the URI.
+     * 
+     * @param uri 
+     * @param remote 
+     * @return FrameID 
+     */
     FrameID findLocal(const std::string &uri, FrameID remote) const;
 
+    /**
+     * @brief Find the system local ID for a stream specific ID.
+     * 
+     * @param stream 
+     * @param remote 
+     * @return FrameID 
+     */
     FrameID findLocal(const std::shared_ptr<Stream> &stream, FrameID remote) const;
 
+    /**
+     * @brief Given a local frame ID, get the stream specific ID.
+     * 
+     * @see originStream
+     * 
+     * @param local 
+     * @return FrameID 
+     */
     FrameID findRemote(FrameID local) const;
+
+    /**
+     * @brief Obtain a list of all streams in the muxer.
+     * 
+     * @return std::list<std::shared_ptr<Stream>> 
+     */
+    std::list<std::shared_ptr<Stream>> streams() const;
 
  private:
     struct StreamEntry {
