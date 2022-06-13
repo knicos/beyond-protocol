@@ -173,8 +173,8 @@ void Self::onCreateStream(const std::function<void(const std::string &uri, Frame
 }
 
 void Self::onNodeDetails(const std::function<nlohmann::json()> &cb) {
-    universe_->bind("node_details", [cb]() {
-        return cb().dump();
+    universe_->bind("node_details", [cb]() -> std::vector<std::string> {
+        return {cb().dump()};
     });
 }
 

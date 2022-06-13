@@ -3,6 +3,7 @@
 #include <ftl/protocol/self.hpp>
 #include <ftl/protocol/node.hpp>
 #include <ftl/uri.hpp>
+#include <nlohmann/json.hpp>
 
 // --- Tests -------------------------------------------------------------------
 
@@ -19,6 +20,11 @@ TEST_CASE("Webservice connection", "[net]") {
 		REQUIRE( p );
 		
 		REQUIRE( p->waitConnection(5) );
+
+        auto details = p->details();
+        REQUIRE(details.contains("id"));
+
+        LOG(INFO) << "Details: " << details.dump();
 	}
 
 	ftl::protocol::reset();
