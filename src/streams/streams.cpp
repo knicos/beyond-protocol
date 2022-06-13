@@ -29,7 +29,7 @@ bool Stream::available(FrameID id, Channel channel) const {
     return false;
 }
 
-bool Stream::available(FrameID id, ChannelSet channels) const {
+bool Stream::available(FrameID id, const ChannelSet &channels) const {
     SHARED_LOCK(mtx_, lk);
     auto it = state_.find(id);
     if (it != state_.end()) {

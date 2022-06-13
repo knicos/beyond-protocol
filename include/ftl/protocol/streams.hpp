@@ -190,7 +190,7 @@ class Stream {
      * @return true if all channels exist
      * @return false if one or more do not exist
      */
-    bool available(FrameID id, const ftl::protocol::ChannelSet channels) const;
+    bool available(FrameID id, const ftl::protocol::ChannelSet &channels) const;
 
     /**
      * @brief Register a callback for when new frames and channels become available.

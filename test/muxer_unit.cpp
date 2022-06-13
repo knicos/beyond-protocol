@@ -16,8 +16,9 @@ using ftl::protocol::FrameID;
 
 class TestStream : public ftl::protocol::Stream {
     public:
-    TestStream() {};
-    ~TestStream() {};
+    TestStream() {}
+    explicit TestStream(const std::string &uri) : uri_(uri) {}
+    ~TestStream() {}
 
     bool post(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
         seen(FrameID(spkt.streamID, spkt.frame_number), spkt.channel);
@@ -31,7 +32,12 @@ class TestStream : public ftl::protocol::Stream {
 
     void setProperty(ftl::protocol::StreamProperty opt, std::any value) override {}
 
-    std::any getProperty(ftl::protocol::StreamProperty opt) override { return 0; }
+    std::any getProperty(ftl::protocol::StreamProperty opt) override {
+        if (opt == ftl::protocol::StreamProperty::kURI) {
+            return uri_;
+        }
+        return 0;
+    }
 
     bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 
@@ -42,6 +48,9 @@ class TestStream : public ftl::protocol::Stream {
     void fakeError(ftl::protocol::Error err, const std::string &str) {
         error(err, str);
     }
+
+ private:
+    std::string uri_;
 };
 
 TEST_CASE("Muxer post, distinct framesets", "[stream]") {
@@ -704,5 +713,21 @@ TEST_CASE("Muxer mappings", "[stream]") {
         auto f1 = mux->findRemote(FrameID(1, 0));
 
         REQUIRE( f1.frameset() == 0 );
+    }
+
+    SECTION("can find stream by URI") {
+        std::shared_ptr<Stream> s1 = std::make_shared<TestStream>("ftl://myuri1");
+        REQUIRE(s1);
+        std::shared_ptr<Stream> s2 = std::make_shared<TestStream>("ftl://myuri2");
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        auto foundS = mux->findStream("ftl://myuri2");
+        REQUIRE( foundS == s2 );
+
+        auto foundS2 = mux->findStream("ftl://myuri3");
+        REQUIRE( foundS2 == nullptr );
     }
 }

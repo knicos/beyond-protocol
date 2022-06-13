@@ -6,6 +6,7 @@
 
 #include <ftl/protocol/muxer.hpp>
 #include <ftl/lib/loguru.hpp>
+#include <ftl/uri.hpp>
 
 using ftl::protocol::Muxer;
 using ftl::protocol::Stream;
@@ -74,6 +75,47 @@ std::pair<FrameID, Muxer::StreamEntry*> Muxer::_mapToOutput(FrameID id) const {
     }
 }
 
+std::shared_ptr<Stream> Muxer::findStream(const std::string &uri) const {
+    SHARED_LOCK(mutex_, lk);
+    for (const auto &e : streams_) {
+        if (std::any_cast<std::string>(e.stream->getProperty(StreamProperty::kURI)) == uri) {
+            return e.stream;
+        }
+    }
+    return nullptr;
+}
+
+FrameID Muxer::findLocal(const std::string &uri) const {
+    ftl::URI u(uri);
+    const StreamEntry *entry = nullptr;
+
+    int fsid = 0;
+    int fid = 0;
+    if (u.hasAttribute("set")) {
+        fsid = u.getAttribute<int>("set");
+    }
+    if (u.hasAttribute("frame")) {
+        fid = u.getAttribute<int>("frame");
+    }
+    FrameID remote(fsid, fid);
+
+    {
+        SHARED_LOCK(mutex_, lk);
+        for (const auto &e : streams_) {
+            if (std::any_cast<std::string>(e.stream->getProperty(StreamProperty::kURI)) == uri) {
+                entry = &e;
+                break;
+            }
+        }
+    }
+
+    if (entry) {
+        return _mapFromInput(entry, remote);
+    } else {
+        throw FTL_Error("No stream");
+    }
+}
+
 FrameID Muxer::findLocal(const std::string &uri, FrameID remote) const {
     const StreamEntry *entry = nullptr;
 
@@ -120,6 +162,15 @@ FrameID Muxer::findRemote(FrameID local) const {
         throw FTL_Error("No mapping");
     }
     return m.first;
+}
+
+std::list<std::shared_ptr<Stream>> Muxer::streams() const {
+    std::list<std::shared_ptr<Stream>> result;
+    result.resize(streams_.size());
+    std::transform(streams_.begin(), streams_.end(), result.begin(), [](const StreamEntry &e) {
+        return e.stream;
+    });
+    return result;
 }
 
 void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
