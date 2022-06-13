@@ -27,6 +27,8 @@ TEST_CASE("File write and read", "[stream]") {
 
         auto reader = ftl::getStream(filename);
 
+        REQUIRE( reader->frames().size() == 0 );
+
         StreamPacket tspkt = {4,0,0,1, Channel::kColour};
         auto h = reader->onPacket([&tspkt](const StreamPacket &spkt, const DataPacket &pkt) {
             if (spkt.channel == Channel::kEndFrame) return true;
@@ -34,6 +36,8 @@ TEST_CASE("File write and read", "[stream]") {
             return true;
         });
         REQUIRE( reader->begin() );
+
+        REQUIRE( reader->frames().size() == 1 );
 
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         reader->end();
