@@ -200,10 +200,22 @@ void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
     }));
 
     se.req_handle = std::move(s->onRequest([this, ptr](const Request &req) {
-        FrameID newID = _mapFromInput(ptr, req.id);
-        Request newRequest = req;
-        newRequest.id = newID;
-        request(newRequest);
+        if (req.id.frameset() == 255 || req.id.source() == 255) {
+            for (const auto &i : ptr->stream->frames()) {
+                if (req.id.frameset() != 255 && req.id.frameset() != i.frameset()) continue;
+                if (req.id.source() != 255 && req.id.source() != i.source()) continue;
+
+                FrameID newID = _mapFromInput(ptr, i);
+                Request newRequest = req;
+                newRequest.id = newID;
+                request(newRequest);
+            }
+        } else {
+            FrameID newID = _mapFromInput(ptr, req.id);
+            Request newRequest = req;
+            newRequest.id = newID;
+            request(newRequest);
+        }
         return true;
     }));
 
@@ -288,26 +300,71 @@ void Muxer::reset() {
 }
 
 bool Muxer::enable(FrameID id) {
-    auto p = _mapToOutput(id);
-    if (!p.second) return false;
-    bool r = p.second->stream->enable(p.first);
-    if (r) Stream::enable(id);
+    bool r = true;
+
+    if (id.frameset() == 255 || id.source() == 255) {
+        for (const auto &i : frames()) {
+            if (id.frameset() != 255 && id.frameset() != i.frameset()) continue;
+            if (id.source() != 255 && id.source() != i.source()) continue;
+
+            auto p = _mapToOutput(i);
+            if (!p.second) return false;
+            bool rr = p.second->stream->enable(p.first);
+            if (rr) Stream::enable(i);
+            r = r && rr;
+        }
+    } else {
+        auto p = _mapToOutput(id);
+        if (!p.second) return false;
+        r = p.second->stream->enable(p.first);
+        if (r) Stream::enable(id);
+    }
     return r;
 }
 
 bool Muxer::enable(FrameID id, ftl::protocol::Channel channel) {
-    auto p = _mapToOutput(id);
-    if (!p.second) return false;
-    bool r = p.second->stream->enable(p.first, channel);
-    if (r) Stream::enable(id, channel);
+    bool r = true;
+
+    if (id.frameset() == 255 || id.source() == 255) {
+        for (const auto &i : frames()) {
+            if (id.frameset() != 255 && id.frameset() != i.frameset()) continue;
+            if (id.source() != 255 && id.source() != i.source()) continue;
+
+            auto p = _mapToOutput(i);
+            if (!p.second) return false;
+            bool rr = p.second->stream->enable(p.first, channel);
+            if (rr) Stream::enable(i, channel);
+            r = r && rr;
+        }
+    } else {
+        auto p = _mapToOutput(id);
+        if (!p.second) return false;
+        r = p.second->stream->enable(p.first, channel);
+        if (r) Stream::enable(id, channel);
+    }
     return r;
 }
 
 bool Muxer::enable(FrameID id, const ftl::protocol::ChannelSet &channels) {
-    auto p = _mapToOutput(id);
-    if (!p.second) return false;
-    bool r = p.second->stream->enable(p.first, channels);
-    if (r) Stream::enable(id, channels);
+    bool r = true;
+
+    if (id.frameset() == 255 || id.source() == 255) {
+        for (const auto &i : frames()) {
+            if (id.frameset() != 255 && id.frameset() != i.frameset()) continue;
+            if (id.source() != 255 && id.source() != i.source()) continue;
+
+            auto p = _mapToOutput(i);
+            if (!p.second) return false;
+            bool rr = p.second->stream->enable(p.first, channels);
+            if (rr) Stream::enable(i, channels);
+            r = r && rr;
+        }
+    } else {
+        auto p = _mapToOutput(id);
+        if (!p.second) return false;
+        r = p.second->stream->enable(p.first, channels);
+        if (r) Stream::enable(id, channels);
+    }
     return r;
 }
 
