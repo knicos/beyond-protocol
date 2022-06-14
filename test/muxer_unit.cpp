@@ -39,6 +39,16 @@ class TestStream : public ftl::protocol::Stream {
         return 0;
     }
 
+    void sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count) {
+        ftl::protocol::Request req;
+        req.id = FrameID(frameset, frames);
+        req.channel = c;
+        req.bitrate = 255;
+        req.codec = ftl::protocol::Codec::kAny;
+        req.count = count;
+        request(req);
+    }
+
     bool supportsProperty(ftl::protocol::StreamProperty opt) override { return true; }
 
     void forceSeen(FrameID id, Channel channel) {
@@ -318,6 +328,23 @@ TEST_CASE("Muxer enable", "[stream]") {
         REQUIRE( frames.find(id2) != frames.end() );
     }
 
+    SECTION("enable frame id 255") {
+        FrameID id1(0, 1);
+        FrameID id2(0, 2);
+        FrameID id3(0, 3);
+        s1->forceSeen(id1, Channel::kColour);
+        s1->forceSeen(id2, Channel::kColour);
+        s1->forceSeen(id3, Channel::kColour);
+
+        REQUIRE( !s1->enabled(id1) );
+        REQUIRE( !s1->enabled(id2) );
+        REQUIRE( !s1->enabled(id3) );
+        REQUIRE( mux->enable(FrameID(0, 255)) );
+        REQUIRE( s1->enabled(id1) );
+        REQUIRE( s1->enabled(id2) );
+        REQUIRE( s1->enabled(id3) );
+    }
+
     SECTION("enable frame id fails for unseen") {
         FrameID id(0, 1);
         REQUIRE( !mux->enable(id) );
@@ -342,6 +369,23 @@ TEST_CASE("Muxer enable", "[stream]") {
         REQUIRE( mux->enable(id1, Channel::kDepth) );
         REQUIRE( s1->enabled(id1, Channel::kDepth) );
         REQUIRE( !s2->enabled(id1, Channel::kDepth) );
+    }
+
+    SECTION("enable frame id 255 and channel") {
+        FrameID id1(0, 1);
+        FrameID id2(0, 2);
+        FrameID id3(0, 3);
+        s1->forceSeen(id1, Channel::kColour);
+        s1->forceSeen(id2, Channel::kColour);
+        s1->forceSeen(id3, Channel::kColour);
+
+        REQUIRE( !s1->enabled(id1) );
+        REQUIRE( !s1->enabled(id2) );
+        REQUIRE( !s1->enabled(id3) );
+        REQUIRE( mux->enable(FrameID(0, 255), Channel::kColour) );
+        REQUIRE( s1->enabled(id1, Channel::kColour) );
+        REQUIRE( s1->enabled(id2, Channel::kColour) );
+        REQUIRE( s1->enabled(id3, Channel::kColour) );
     }
 
     SECTION("enable frame id and channel set") {
@@ -729,5 +773,117 @@ TEST_CASE("Muxer mappings", "[stream]") {
 
         auto foundS2 = mux->findStream("ftl://myuri3");
         REQUIRE( foundS2 == nullptr );
+    }
+}
+
+TEST_CASE("Muxer requests", "[stream]") {
+
+    std::unique_ptr<Muxer> mux = std::make_unique<Muxer>();
+    REQUIRE(mux);
+
+    SECTION("can propagate specific request") {
+        std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+
+        std::atomic_int seenReq = 0;
+        ftl::protocol::Request lastReq;
+
+        auto h1 = mux->onRequest([&seenReq, &lastReq](const ftl::protocol::Request &req) {
+            ++seenReq;
+            lastReq = req;
+            return true;
+        });
+
+        s2->sendRequest(Channel::kColour, 0, 0, 1);
+
+        REQUIRE( seenReq == 1 );
+        REQUIRE( lastReq.id.frameset() == 1 );
+    }
+
+    SECTION("can generate a single 255 frameset request") {
+        std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+
+        std::atomic_int seenReq = 0;
+        ftl::protocol::Request lastReq;
+        lastReq.id = 0;
+
+        auto h1 = mux->onRequest([&seenReq, &lastReq](const ftl::protocol::Request &req) {
+            ++seenReq;
+            lastReq = req;
+            return true;
+        });
+
+        s2->sendRequest(Channel::kColour, 255, 255, 1);
+
+        REQUIRE( seenReq == 1 );
+        REQUIRE( lastReq.id.frameset() == 1 );
+        REQUIRE( mux->findRemote(lastReq.id).frameset() == 0 );
+    }
+
+    SECTION("can generate multiple requests from a 255 frameset") {
+        std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 1), Channel::kEndFrame);
+        s2->seen(FrameID(1, 0), Channel::kEndFrame);
+
+        std::atomic_int seenReq = 0;
+        auto h1 = mux->onRequest([&seenReq](const ftl::protocol::Request &req) {
+            ++seenReq;
+            return true;
+        });
+
+        s2->sendRequest(Channel::kColour, 255, 255, 1);
+
+        REQUIRE( seenReq == 3 );
+    }
+
+    SECTION("can generate multiple requests from a 255 frame") {
+        std::shared_ptr<TestStream> s1 = std::make_shared<TestStream>();
+        REQUIRE(s1);
+        std::shared_ptr<TestStream> s2 = std::make_shared<TestStream>();
+        REQUIRE(s2);
+
+        mux->add(s1,1);
+        mux->add(s2,1);
+
+        s1->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 0), Channel::kEndFrame);
+        s2->seen(FrameID(0, 1), Channel::kEndFrame);
+        s2->seen(FrameID(1, 0), Channel::kEndFrame);
+
+        std::atomic_int seenReq = 0;
+        auto h1 = mux->onRequest([&seenReq](const ftl::protocol::Request &req) {
+            ++seenReq;
+            return true;
+        });
+
+        s2->sendRequest(Channel::kColour, 0, 255, 1);
+
+        REQUIRE( seenReq == 2 );
     }
 }
