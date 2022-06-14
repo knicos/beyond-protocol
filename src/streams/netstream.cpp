@@ -211,9 +211,13 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     spkt.version = 4;
     if (p) spkt.hint_peerid = p->localID();
 
+    bool isRequest = host_ && pkt.data.size() == 0 && (spkt.flags & ftl::protocol::kFlagRequest);
+
     FrameID localFrame(spkt.streamID, spkt.frame_number);
 
-    seen(localFrame, spkt.channel);
+    if (!isRequest) {
+        seen(localFrame, spkt.channel);
+    }
 
     if (paused_) return;
 
@@ -252,7 +256,7 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     // If hosting and no data then it is a request for data
     // Note: a non host can receive empty data, meaning data is available
     // but that you did not request it
-    if (host_ && pkt.data.size() == 0 && (spkt.flags & ftl::protocol::kFlagRequest)) {
+    if (isRequest) {
         _processRequest(p, &spkt, pkt);
     }
 
@@ -293,8 +297,8 @@ bool Net::begin() {
             net_streams.push_back(uri_);
         }
 
-        net_->broadcast("add_stream", uri_);
         active_ = true;
+        net_->broadcast("add_stream", uri_);
 
     } else {
         tally_ = frames_to_request_;
@@ -437,6 +441,18 @@ void Net::_cleanUp() {
  */
 bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const DataPacket &pkt) {
     bool found = false;
+
+    if (spkt->streamID == 255 || spkt->frame_number == 255) {
+        // Generate a batch of requests
+        ftl::protocol::StreamPacket spkt2 = *spkt;
+        for (const auto &i : frames()) {
+            spkt2.streamID = i.frameset();
+            spkt2.frame_number = i.source();
+            _processRequest(p, &spkt2, pkt);
+        }
+        return false;
+    }
+
     DLOG(INFO) << "processing request: " << int(spkt->streamID) << ", " << int(spkt->channel);
 
     const FrameID frameId(spkt->streamID, spkt->frame_number);

@@ -145,6 +145,32 @@ TEST_CASE("Net stream sending requests") {
         REQUIRE( seenReq );
     }
 
+    SECTION("responds to 255 requests") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
+        
+        REQUIRE( s1->begin() );
+        s1->seen(FrameID(1, 0), Channel::kEndFrame);
+
+        bool seenReq = false;
+
+        auto h = s1->onRequest([&seenReq](const ftl::protocol::Request &req) {
+            if (req.id.frameset() == 1) seenReq = true;
+            return true;
+        });
+
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 255;
+        spkt.frame_number = 255;
+        spkt.channel = Channel::kColour;
+        spkt.flags = ftl::protocol::kFlagRequest;
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        p->data();
+
+        sleep_for(milliseconds(50));
+        REQUIRE( seenReq );
+    }
+
     p.reset();
     ftl::protocol::reset();
 }
