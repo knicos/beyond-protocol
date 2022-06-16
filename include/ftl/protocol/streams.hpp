@@ -146,6 +146,8 @@ class Stream {
      */
     virtual bool active() = 0;
 
+    virtual bool active(FrameID id);
+
     /**
      * @brief Clear all state. This will remove all information about available
      * and enabled frames or channels. You will then need to enable frames and

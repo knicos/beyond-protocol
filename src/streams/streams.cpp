@@ -176,3 +176,7 @@ void Stream::request(const ftl::protocol::Request &req) {
 void Stream::error(ftl::protocol::Error err, const std::string &str) {
     error_cb_.trigger(err, str);
 }
+
+bool Stream::active(FrameID id) {
+    return active();
+}

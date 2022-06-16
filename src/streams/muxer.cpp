@@ -293,6 +293,15 @@ bool Muxer::active() {
     return r;
 }
 
+bool Muxer::active(FrameID id) {
+    auto p = _mapToOutput(id);
+    if (p.second) {
+        return p.second->stream->active(p.first);
+    } else {
+        return false;
+    }
+}
+
 void Muxer::reset() {
     for (auto &s : streams_) {
         s.stream->reset();

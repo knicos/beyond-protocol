@@ -554,6 +554,11 @@ bool Net::active() {
     return active_;
 }
 
+bool Net::active(FrameID id) {
+    SHARED_LOCK(mtx_, lk);
+    return active_ && clients_.count(id) > 0;
+}
+
 void Net::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     switch (opt) {
     case StreamProperty::kBitrate       :
