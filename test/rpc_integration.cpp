@@ -2,6 +2,7 @@
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/self.hpp>
 #include <ftl/protocol/node.hpp>
+#include <ftl/protocol/service.hpp>
 #include <ftl/uri.hpp>
 #include <ftl/exception.hpp>
 #include <ftl/lib/nlohmann/json.hpp>
@@ -50,7 +51,7 @@ TEST_CASE("RPC List Streams", "[rpc]") {
     {
         auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
         LOG(INFO) << uri;
-        auto p = ftl::connectNode(uri);
+        auto p = ftl::setServiceProvider(uri);
         REQUIRE(p);
         REQUIRE(p->waitConnection(5));
         REQUIRE(self->waitConnections(5) == 1);
