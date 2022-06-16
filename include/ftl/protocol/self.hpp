@@ -25,6 +25,7 @@ namespace protocol {
 
 class Node;
 class Stream;
+class Service;
 
 /**
  * @brief A wrapper providing RPC API and local node management. Internally the
@@ -47,6 +48,16 @@ class Self {
      * @return std::shared_ptr<ftl::protocol::Node> 
      */
     std::shared_ptr<ftl::protocol::Node> connectNode(const std::string &uri);
+
+    /**
+     * @brief Connect to the web service.
+     * 
+     * Only one service connection is allowed per self object.
+     * 
+     * @param uri 
+     * @return std::shared_ptr<ftl::protocol::Service> 
+     */
+    std::shared_ptr<ftl::protocol::Service> connectService(const std::string &uri);
 
     /**
      * @brief Create a new stream. Use the namespace method if possible.

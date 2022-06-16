@@ -6,6 +6,7 @@
 
 #include "universe.hpp"
 #include <ftl/protocol/self.hpp>
+#include <ftl/protocol/service.hpp>
 #include "./streams/netstream.hpp"
 #include "./streams/filestream.hpp"
 #include <ftl/protocol/muxer.hpp>
@@ -22,6 +23,10 @@ Self::~Self() {}
 
 std::shared_ptr<ftl::protocol::Node> Self::connectNode(const std::string &uri) {
     return std::make_shared<ftl::protocol::Node>(universe_->connect(uri));
+}
+
+std::shared_ptr<ftl::protocol::Service> Self::connectService(const std::string &uri) {
+    return std::make_shared<ftl::protocol::Service>(universe_->connect(uri));
 }
 
 std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri) {

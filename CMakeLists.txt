@@ -192,6 +192,7 @@ add_library(beyond-protocol STATIC
 	src/protocol.cpp
 	src/rpc.cpp
     src/channelUtils.cpp
+    src/service.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

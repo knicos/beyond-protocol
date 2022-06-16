@@ -36,9 +36,9 @@ std::shared_ptr<ftl::protocol::Self> ftl::createDummySelf() {
     return std::make_shared<ftl::protocol::Self>(u);
 }
 
-/*std::shared_ptr<ftl::protocol::Service> ftl::setServiceProvider(const std::string &uri) {
-
-}*/
+std::shared_ptr<ftl::protocol::Service> ftl::setServiceProvider(const std::string &uri) {
+    return getSelf()->connectService(uri);
+}
 
 std::shared_ptr<ftl::protocol::Node> ftl::connectNode(const std::string &uri) {
     return getSelf()->connectNode(uri);
