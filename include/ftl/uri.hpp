@@ -66,8 +66,12 @@ class URI {
         SCHEME_IPC,
         SCHEME_FILE,
         SCHEME_OTHER,
-        SCHEME_DEVICE,
-        SCHEME_GROUP
+        SCHEME_DEVICE,      // Data source
+        SCHEME_GROUP,
+        SCHEME_CAST,        // Broadcaster stream
+        SCHEME_MUX,         // Multiplexer for streams
+        SCHEME_MIRROR,      // Proxy for streams
+        SCHEME_BEYOND       // Settings
     };
 
     /**
