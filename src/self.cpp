@@ -8,6 +8,8 @@
 #include <ftl/protocol/self.hpp>
 #include "./streams/netstream.hpp"
 #include "./streams/filestream.hpp"
+#include <ftl/protocol/muxer.hpp>
+#include <ftl/protocol/broadcaster.hpp>
 #include <ftl/lib/nlohmann/json.hpp>
 #include "uuidMSGPACK.hpp"
 
@@ -31,6 +33,8 @@ std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri
     case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true);
     case ftl::URI::SCHEME_FILE  :
     case ftl::URI::SCHEME_NONE  : return std::make_shared<ftl::protocol::File>(uri, true);
+    case ftl::URI::SCHEME_CAST  : return std::make_shared<ftl::protocol::Broadcast>();
+    case ftl::URI::SCHEME_MUX   : return std::make_shared<ftl::protocol::Muxer>();
     default                     : throw FTL_Error("Invalid Stream URI: " << uri);
     }
 }

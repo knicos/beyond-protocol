@@ -27,6 +27,23 @@ using ftl::URI;
 using ftl::uri_t;
 using std::string;
 
+static const std::unordered_map<std::string, ftl::URI::scheme_t> schemeMap = {
+    {"tcp", URI::SCHEME_TCP},
+    {"udp", URI::SCHEME_UDP},
+    {"ws", URI::SCHEME_WS},
+    {"wss", URI::SCHEME_WSS},
+    {"ftl", URI::SCHEME_FTL},
+    {"http", URI::SCHEME_HTTP},
+    {"ipc", URI::SCHEME_IPC},
+    {"device", URI::SCHEME_DEVICE},
+    {"file", URI::SCHEME_FILE},
+    {"group", URI::SCHEME_GROUP},
+    {"beyond", URI::SCHEME_TCP},
+    {"mux", URI::SCHEME_MUX},
+    {"mirror", URI::SCHEME_MIRROR},
+    {"cast", URI::SCHEME_CAST}
+};
+
 URI::URI(uri_t puri) {
     _parse(puri);
 }
@@ -105,18 +122,16 @@ void URI::_parse(uri_t puri) {
         m_host = std::string(uri.hostText.first, uri.hostText.afterLast - uri.hostText.first);
 
         std::string prototext = std::string(uri.scheme.first, uri.scheme.afterLast - uri.scheme.first);
-        if (prototext == "tcp") m_proto = SCHEME_TCP;
-        else if (prototext == "udp") m_proto = SCHEME_UDP;
-        else if (prototext == "ftl") m_proto = SCHEME_FTL;
-        else if (prototext == "http") m_proto = SCHEME_HTTP;
-        else if (prototext == "ws") m_proto = SCHEME_WS;
-        else if (prototext == "wss") m_proto = SCHEME_WSS;
-        else if (prototext == "ipc") m_proto = SCHEME_IPC;
-        else if (prototext == "device") m_proto = SCHEME_DEVICE;
-        else if (prototext == "file") m_proto = SCHEME_FILE;
-        else if (prototext == "group") m_proto = SCHEME_GROUP;
-        else
-            m_proto = SCHEME_OTHER;
+        if (prototext == "") {
+            m_proto = SCHEME_FILE;
+        } else {
+            auto protoIt = schemeMap.find(prototext);
+            if (protoIt == schemeMap.end()) {
+                m_proto = SCHEME_OTHER;
+            } else {
+                m_proto = protoIt->second;
+            }
+        }
         m_protostr = prototext;
 
         std::string porttext = std::string(uri.portText.first, uri.portText.afterLast - uri.portText.first);
