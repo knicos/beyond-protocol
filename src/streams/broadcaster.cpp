@@ -89,6 +89,17 @@ bool Broadcast::active() {
     return r;
 }
 
+bool Broadcast::active(FrameID id) {
+    if (streams_.size() == 0) return false;
+
+    for (auto &s : streams_) {
+        if (s.stream->active(id)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Broadcast::reset() {
     SHARED_LOCK(mtx_, lk);
     for (auto &s : streams_) {

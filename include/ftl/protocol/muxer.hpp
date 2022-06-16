@@ -61,6 +61,7 @@ class Muxer : public Stream {
     bool begin() override;
     bool end() override;
     bool active() override;
+    bool active(FrameID id) override;
 
     void reset() override;
 

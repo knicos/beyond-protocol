@@ -111,10 +111,14 @@ TEST_CASE("TCP Stream", "[net]") {
         s1->begin();
         s2->begin();
 
+        REQUIRE(s1->active(FrameID(0, 0)) == false);
+
         s2->enable(FrameID(0, 0));
 
         // TODO: Find better option
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        REQUIRE(s1->active(FrameID(0, 0)) == true);
 
         ftl::protocol::StreamPacket spkt;
         spkt.streamID = 0;
