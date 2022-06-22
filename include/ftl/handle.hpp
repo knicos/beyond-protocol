@@ -9,6 +9,7 @@
 #include <functional>
 #include <unordered_map>
 #include <utility>
+#include <string>
 #include <ftl/threads.hpp>
 #include <ftl/exception.hpp>
 
@@ -123,19 +124,21 @@ struct Handler : BaseHandler {
      */
     void trigger(ARGS ...args) {
         bool hadFault = false;
+        std::string faultMsg;
         std::unique_lock<std::mutex> lk(mutex_);
         for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
             bool keep = true;
             try {
                 keep = i->second(args...);
-            } catch(...) {
+            } catch(const std::exception &e) {
                 hadFault = true;
+                faultMsg = e.what();
             }
             if (!keep) i = callbacks_.erase(i);
             else
                 ++i;
         }
-        if (hadFault) throw FTL_Error("Callback exception");
+        if (hadFault) throw FTL_Error("Callback exception: " << faultMsg);
     }
 
     /**
@@ -146,20 +149,22 @@ struct Handler : BaseHandler {
         ++jobs_;
         ftl::pool.push([this, args...](int id) {
             bool hadFault = false;
+            std::string faultMsg;
             std::unique_lock<std::mutex> lk(mutex_);
             for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
                 bool keep = true;
                 try {
                     keep = i->second(args...);
-                } catch (...) {
+                } catch(const std::exception &e) {
                     hadFault = true;
+                    faultMsg = e.what();
                 }
                 if (!keep) i = callbacks_.erase(i);
                 else
                     ++i;
             }
             --jobs_;
-            if (hadFault) throw FTL_Error("Callback exception");
+            if (hadFault) throw FTL_Error("Callback exception: " << faultMsg);
         });
     }
 
