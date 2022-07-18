@@ -193,6 +193,8 @@ add_library(beyond-protocol STATIC
 	src/rpc.cpp
     src/channelUtils.cpp
     src/service.cpp
+    src/codecs/golomb.cpp
+    src/codecs/h264.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

@@ -19,6 +19,7 @@ namespace protocol {
 static constexpr uint8_t kFlagRequest = 0x01;    ///< Used for empty data packets to mark a request for data
 static constexpr uint8_t kFlagCompleted = 0x02;  ///< Last packet for timestamp
 static constexpr uint8_t kFlagReset = 0x04;      ///< Request full data, including key frames.
+static constexpr uint8_t kFlagFull = 0x04;       ///< If set on EndFrame packet then that frame contained full data
 
 static constexpr uint8_t kAllFrames = 255;
 static constexpr uint8_t kAllFramesets = 255;

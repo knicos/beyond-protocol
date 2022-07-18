@@ -170,8 +170,6 @@ void URI::_parse(uri_t puri) {
             uriFreeQueryListA(queryList);
         }
 
-        uriFreeUriMembersA(&uri);
-
         auto fraglast = (uri.query.first != NULL) ? uri.query.first : uri.fragment.afterLast;
         if (uri.fragment.first != NULL && fraglast - uri.fragment.first > 0) {
             m_frag = std::string(uri.fragment.first, fraglast - uri.fragment.first);
@@ -198,6 +196,8 @@ void URI::_parse(uri_t puri) {
                 m_base += std::string("");
             }
         }
+
+        uriFreeUriMembersA(&uri);
     }
 }
 
