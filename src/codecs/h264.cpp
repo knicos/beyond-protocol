@@ -33,12 +33,12 @@ static NALHeader extractNALHeader(ParseContext *ctx) {
 bool ftl::codec::h264::Parser::_skipToNAL(ParseContext *ctx) {
     uint32_t code = 0xFFFFFFFF;
 
-    while (ctx->index < ctx->length && code != 1) {
+    while (ctx->index < ctx->length && (code & 0xFFFFFF) != 1) {
         code = (code << 8) | ctx->ptr[ctx->index >> 3];
         ctx->index += 8;
     }
 
-    return (code == 1);
+    return ((code & 0xFFFFFF) == 1);
 }
 
 static void decodeScalingList(ParseContext *ctx, uint8_t *factors, int size) {
@@ -77,8 +77,6 @@ void ftl::codec::h264::Parser::_parseSPS(ParseContext *ctx, size_t length) {
     int level_idc = getBits(ctx, 8);
     unsigned int sps_id = golombUnsigned31(ctx);
     sps_.id = sps_id;
-
-    LOG(INFO) << "Parse SPS " << sps_.id;
 
     sps_.profile_idc = static_cast<ProfileIDC>(profile_idc);
     sps_.level_idc = static_cast<LevelIDC>(level_idc);
@@ -161,21 +159,57 @@ void ftl::codec::h264::Parser::_parseSPS(ParseContext *ctx, size_t length) {
 
     sps_.vui_parameters_present_flag = getBits1(ctx);
     if (sps_.vui_parameters_present_flag) {
-        // TODO(Nick): decode VUI
+        if (getBits1(ctx)) {
+            // Aspect ratio info
+            int ratio_idc = getBits(ctx, 8);
+            if (ratio_idc == 255) {
+                LOG(WARNING) << "Extended SAR";
+            }
+        }
+        if (getBits1(ctx)) {
+            getBits1(ctx);
+        }
+        sps_.video_signal_type_present_flag = getBits1(ctx);
+        if (sps_.video_signal_type_present_flag) {
+            LOG(WARNING) << "Video signal info present";
+        }
+        if (getBits1(ctx)) {
+            LOG(WARNING) << "Chromo location info";
+        }
+        sps_.timing_info_present_flag = getBits1(ctx);
+        if (sps_.timing_info_present_flag) {
+            sps_.num_units_in_tick = getBits(ctx, 32);
+            sps_.time_scale = getBits(ctx, 32);
+            sps_.fixed_frame_rate_flag = getBits1(ctx);
+        }
+        sps_.nal_hrd_parameters_present_flag = getBits1(ctx);
+        if (sps_.nal_hrd_parameters_present_flag) {
+            LOG(WARNING) << "NAL HRD present";
+        }
+        sps_.vcl_hrd_parameters_present_flag = getBits1(ctx);
+        if (sps_.vcl_hrd_parameters_present_flag) {
+            LOG(WARNING) << "VCL HRD present";
+        }
+        sps_.pic_struct_present_flag = getBits1(ctx);
+        sps_.bitstream_restriction_flag = getBits1(ctx);
+        if (sps_.bitstream_restriction_flag) {
+            LOG(WARNING) << "Bitstream restriction";
+        }
     }
+
+    _checkEnding(ctx, length);
 }
 
 void ftl::codec::h264::Parser::_parsePPS(ParseContext *ctx, size_t length) {
     pps_.id = golombUnsigned(ctx);
     pps_.sps_id = golombUnsigned31(ctx);
 
-    LOG(INFO) << "Parse PPS " << pps_.id << ", " << pps_.sps_id;
-
-    pps_.cabac = getBits1(ctx);
+    pps_.cabac = getBits1(ctx);  // Entropy encoding mode
     pps_.pic_order_present = getBits1(ctx);
-    pps_.slice_group_count = golombUnsigned(ctx);
+    pps_.slice_group_count = golombUnsigned(ctx) + 1;
     if (pps_.slice_group_count > 1) {
         pps_.mb_slice_group_map_type = golombUnsigned(ctx);
+        LOG(WARNING) << "Slice group parsing";
     }
     pps_.ref_count[0] = golombUnsigned(ctx) + 1;
     pps_.ref_count[1] = golombUnsigned(ctx) + 1;
@@ -193,8 +227,40 @@ void ftl::codec::h264::Parser::_parsePPS(ParseContext *ctx, size_t length) {
 
     if (ctx->index < length) {
         // Read some other stuff
+        pps_.transform_8x8_mode = getBits1(ctx);
+        // Decode scaling matrices
+        if (getBits1(ctx)) {
+            LOG(WARNING) << "HAS SCALING MATRIX";
+        }
+        pps_.chroma_qp_index_offset[1] = golombSigned(ctx);
     } else {
         pps_.chroma_qp_index_offset[1] = pps_.chroma_qp_index_offset[0];
+    }
+
+    // TODO: Build QP table.
+
+    if (pps_.chroma_qp_index_offset[0] != pps_.chroma_qp_index_offset[1]) {
+        pps_.chroma_qp_diff = 1;
+    }
+
+    _checkEnding(ctx, length);
+}
+
+void ftl::codec::h264::Parser::_checkEnding(ParseContext *ctx, size_t length) {
+    if (!getBits1(ctx)) {
+        throw FTL_Error("Missing NAL stop bit");
+    }
+    int remainingBits = 8 - (ctx->index % 8);
+    if (remainingBits != 8) {
+        if (getBits(ctx, remainingBits) != 0) {
+            throw FTL_Error("Non-zero terminating bits");
+        }
+    }
+    if (length - ctx->index != 16) {
+        throw FTL_Error("No trailing zero word");
+    }
+    if (getBits(ctx, 16) != 0) {
+        throw FTL_Error("Trailing bits not zero");
     }
 }
 
@@ -320,20 +386,20 @@ std::list<Slice> ftl::codec::h264::Parser::parse(const std::vector<uint8_t> &dat
     while (true) {
         bool hasNext = _skipToNAL(&nextCtx);
         offset = parseCtx.index;
-        length = nextCtx.index - parseCtx.index;
+        length = (hasNext) ? nextCtx.index - parseCtx.index - 24 : data.size() * 8 - parseCtx.index;
         // auto type = ftl::codecs::h264::extractNALType(&parseCtx);
         auto header = extractNALHeader(&parseCtx);
         auto type = static_cast<NALType>(header.type);
 
         switch (type) {
         case NALType::SPS:
-            _parseSPS(&parseCtx, 0);
+            _parseSPS(&parseCtx, length + parseCtx.index);
             if (parseCtx.index > nextCtx.index) {
                 throw FTL_Error("Bad SPS parse");
             }
             break;
         case NALType::PPS:
-            _parsePPS(&parseCtx, 0);
+            _parsePPS(&parseCtx, length + parseCtx.index);
             if (parseCtx.index > nextCtx.index) {
                 throw FTL_Error("Bad PPS parse");
             }
@@ -399,6 +465,7 @@ std::string ftl::codec::h264::prettyPPS(const PPS &pps) {
     stream << "  - weighted_pred: " << std::to_string(pps.weighted_pred) << std::endl;
     stream << "  - init_qp: " << std::to_string(pps.init_qp) << std::endl;
     stream << "  - init_qs: " << std::to_string(pps.init_qs) << std::endl;
+    stream << "  - transform_8x8_mode: " << std::to_string(pps.transform_8x8_mode) << std::endl;
     return stream.str();
 }
 
@@ -409,6 +476,7 @@ std::string ftl::codec::h264::prettySPS(const SPS &sps) {
     stream << "  - level_idc: " << std::to_string(static_cast<int>(sps.level_idc)) << std::endl;
     stream << "  - chroma_format_idc: " << std::to_string(static_cast<int>(sps.chroma_format_idc)) << std::endl;
     stream << "  - transform_bypass: " << std::to_string(sps.transform_bypass) << std::endl;
+    stream << "  - scaling_matrix_present: " << std::to_string(sps.scaling_matrix_present) << std::endl;
     stream << "  - maxFrameNum: " << std::to_string(sps.maxFrameNum) << std::endl;
     stream << "  - poc_type: " << std::to_string(static_cast<int>(sps.poc_type)) << std::endl;
     stream << "  - offset_for_non_ref_pic: " << std::to_string(sps.offset_for_non_ref_pic) << std::endl;
