@@ -29,8 +29,9 @@ int main(int argc, char *argv[]) {
         if (spkt.channel == Channel::kColour && pkt.codec == Codec::kH264) {
             try {
                 auto slices = parser->parse(pkt.data);
+                int ix = 0;
                 for (const ftl::codec::h264::Slice &s : slices) {
-                    LOG(INFO) << "Slice (" << spkt.timestamp << ")" << std::endl << ftl::codec::h264::prettySlice(s);
+                    LOG(INFO) << "Slice (" << spkt.timestamp << ", " << ix++ << ")" << std::endl << ftl::codec::h264::prettySlice(s);
                 }
             } catch (const std::exception &e) {
                 LOG(ERROR) << e.what();

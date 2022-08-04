@@ -87,9 +87,9 @@ struct PPS {
     bool constrained_intra_pred = false;
     bool redundant_pic_cnt_present = false;
     int transform_8x8_mode = 0;
-    uint8_t scaling_matrix4[6][16];
-    uint8_t scaling_matrix8[2][64];
-    uint8_t chroma_qp_table[2][64];
+    uint8_t scaling_matrix4[6][16];  // NOT Populated
+    uint8_t scaling_matrix8[2][64];  // NOT Populated
+    uint8_t chroma_qp_table[2][64];  // NOT Populated
     int chroma_qp_diff = 0;
 };
 
@@ -102,7 +102,7 @@ struct SPS{
     int log2_max_frame_num = 0;
     int maxFrameNum = 0;
     POCType poc_type = POCType::kType0;
-    int log2_max_poc_lsb = 0;
+    int log2_max_poc_lsb = 4;
     bool delta_pic_order_always_zero_flag = false;
     int offset_for_non_ref_pic = 0;
     int offset_for_top_to_bottom_field = 0;
@@ -248,6 +248,7 @@ class Parser {
 
     void _parsePPS(ftl::codec::detail::ParseContext *ctx, size_t length);
     void _parseSPS(ftl::codec::detail::ParseContext *ctx, size_t length);
+    void _checkEnding(ftl::codec::detail::ParseContext *ctx, size_t length);
     bool _skipToNAL(ftl::codec::detail::ParseContext *ctx);
     Slice _createSlice(ftl::codec::detail::ParseContext *ctx, const NALHeader &header, size_t length);
 };
