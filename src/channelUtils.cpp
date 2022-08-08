@@ -255,7 +255,7 @@ std::string ftl::protocol::name(Channel c) {
     if (i != info.end()) {
         return i->second.name;
     } else {
-        return "Unknown";
+        return "Unknown(" + std::to_string(static_cast<int>(c)) + ")";
     }
 }
 
