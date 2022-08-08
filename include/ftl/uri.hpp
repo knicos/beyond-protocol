@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <nlohmann/json_fwd.hpp>
+#include <ftl/lib/nlohmann/json_fwd.hpp>
 
 
 namespace ftl {

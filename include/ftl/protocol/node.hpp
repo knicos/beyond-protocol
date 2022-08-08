@@ -11,7 +11,7 @@
 #include <vector>
 #include <ftl/uuid.hpp>
 #include <ftl/protocol/frameid.hpp>
-#include <nlohmann/json_fwd.hpp>
+#include <ftl/lib/nlohmann/json_fwd.hpp>
 
 namespace ftl {
 namespace net {

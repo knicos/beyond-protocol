@@ -25,7 +25,7 @@
 #include <ftl/threads.hpp>
 #include <ftl/handle.hpp>
 
-#include <nlohmann/json_fwd.hpp>
+#include <ftl/lib/nlohmann/json_fwd.hpp>
 
 namespace ftl {
 namespace net {
