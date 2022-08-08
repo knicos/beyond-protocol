@@ -84,9 +84,8 @@ static inline int golombSigned(ParseContext *ctx) {
         buf >>= log;
         ctx->index += 32 - log;
 
-        if(buf & 1) buf = -(buf>>1);
-        else buf = (buf>>1);
-        return buf;
+        if(buf & 1) return -static_cast<int>(buf>>1);
+        else return buf >> 1;
     }
 }
 
