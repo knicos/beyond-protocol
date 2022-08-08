@@ -189,7 +189,7 @@ windows:build_debug:
       - Import-Module "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/Common7/Tools/Microsoft.VisualStudio.DevShell.dll"
       - Enter-VsDevShell -VsInstallPath "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/"
       - cd $CI_PROJECT_DIR
-      - if (Test-Path build) { Remove-Item build_debug/ -Recurse }
+      - if (Test-Path build_debug) { Remove-Item build_debug/ -Recurse }
       - mkdir build_debug
       - cd build_debug
       - cmake -DCMAKE_GENERATOR_PLATFORM=x64 "-DFTL_VERSION=$CI_COMMIT_TAG" -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
