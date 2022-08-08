@@ -192,11 +192,17 @@ void Universe::shutdown() {
     active_ = false;
     thread_.join();
 
-    // FIXME: This shouldn't be needed
-    if (peer_instances_ > 0 && ftl::pool.size() > 0) {
-        DLOG(WARNING) << "Waiting on peer destruction... " << peer_instances_;
+    _cleanupPeers();
+    while (garbage_.size() > 0) {
+        _garbage();
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        if (peer_instances_ > 0) LOG(FATAL) << "Peers not destroyed";
+    }
+
+    // Try 10 times to delete the peers
+    // Note: other threads may still be using the peer object
+    int count = 10;
+    while (peer_instances_ > 0 && count-- > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 }
 
@@ -467,14 +473,18 @@ void Universe::_periodic() {
 
     // Garbage peers may not be needed any more
     if (garbage_.size() > 0) {
-        UNIQUE_LOCK(net_mutex_, lk);
-        // Only do garbage if processing is idle.
-        if (ftl::pool.n_idle() == ftl::pool.size()) {
-            if (garbage_.size() > 0) DLOG(1) << "Garbage collection";
-            while (garbage_.size() > 0) {
-                garbage_.front().reset();
-                garbage_.pop_front();
-            }
+        _garbage();
+    }
+}
+
+void Universe::_garbage() {
+    UNIQUE_LOCK(net_mutex_, lk);
+    // Only do garbage if processing is idle.
+    if (ftl::pool.n_idle() == ftl::pool.size()) {
+        if (garbage_.size() > 0) DLOG(1) << "Garbage collection";
+        while (garbage_.size() > 0) {
+            garbage_.front().reset();
+            garbage_.pop_front();
         }
     }
 }

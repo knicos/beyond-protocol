@@ -24,6 +24,25 @@ static bool try_for(int count, const std::function<bool()> &f) {
 
 // --- Tests -------------------------------------------------------------------
 
+TEST_CASE("Garbage bug", "[net]") {
+    auto self = ftl::createDummySelf();
+    
+    self->listen(ftl::URI("tcp://localhost:0")); 
+
+    auto uri = "tcp://127.0.0.1:" + std::to_string(self->getListeningURIs().front().getPort());
+    LOG(INFO) << uri;
+    auto p = ftl::connectNode(uri);
+    REQUIRE( p );
+    
+    REQUIRE( p->waitConnection(5) );
+    
+    REQUIRE( self->waitConnections(5) == 1 );
+    REQUIRE( ftl::getSelf()->numberOfNodes() == 1);
+
+    p.reset();
+    ftl::protocol::reset();
+}
+
 TEST_CASE("Listen and Connect", "[net]") {
     auto self = ftl::createDummySelf();
     

@@ -191,6 +191,7 @@ class Universe {
     void _notifyDisconnect(ftl::net::Peer *);
     void _notifyError(ftl::net::Peer *, ftl::protocol::Error, const std::string &);
     void _periodic();
+    void _garbage();
     ftl::net::PeerPtr _findPeer(const ftl::net::Peer *p);
     void _removePeer(PeerPtr &p);
     void _insertPeer(const ftl::net::PeerPtr &ptr);

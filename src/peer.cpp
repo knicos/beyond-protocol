@@ -568,9 +568,11 @@ Peer::~Peer() {
     }
 
     // Prevent deletion if there are any jobs remaining
-    if (job_count_ > 0 && ftl::pool.size() > 0) {
+    int count = 10;
+    while (job_count_ > 0 && ftl::pool.size() > 0 && count-- > 0) {
         DLOG(1) << "Waiting on peer jobs... " << job_count_;
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        if (job_count_ > 0) LOG(FATAL) << "Peer jobs not terminated";
     }
+
+    if (job_count_ > 0) LOG(FATAL) << "Peer jobs not terminated";
 }
