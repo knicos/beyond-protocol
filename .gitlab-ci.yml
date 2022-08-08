@@ -181,7 +181,7 @@ windows:build_debug:
   dependencies: []
 
   cache: # use artifacts instead if multiple runners available
-    key: $CI_COMMIT_SHORT_SHA
+    key: "$CI_COMMIT_SHORT_SHA debug"
     paths:
       - build_debug/
 
@@ -262,7 +262,7 @@ windows:pack_debug:
   needs: ["windows:test", "windows:build_debug"]
 
   cache: # use artifacts instead if multiple runners available
-    key: $CI_COMMIT_SHORT_SHA
+    key: "$CI_COMMIT_SHORT_SHA debug"
     paths:
       - build_debug/
 
