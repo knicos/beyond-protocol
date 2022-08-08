@@ -269,7 +269,7 @@ windows:pack_debug:
   script:
     - $env:PATH+=";C:/Shared/Deploy"
     - cd build_debug
-    - cpack
+    - cpack -DCPACK_INSTALL_CMAKE_CONFIGURATIONS=RelWithDebInfo
     - Invoke-RestMethod -Headers @{ "JOB-TOKEN"="$CI_JOB_TOKEN" } -InFile "../libftl-protocol-${CI_COMMIT_TAG}-win64.zip" -uri "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol-${CI_COMMIT_TAG}-win64-debug.zip" -Method put
 
   artifacts:
@@ -303,6 +303,8 @@ release_job:
     - echo "running release_job"
   needs:
     - job: windows:pack
+      artifacts: true
+    - job: windows:pack_debug
       artifacts: true
     - job: linux:pack
       artifacts: true
