@@ -128,6 +128,10 @@ static const std::unordered_map<Channel,ChannelInfo> info = {
     {Channel::kTags,                {"Tags",                -1}},
     {Channel::KDescription,         {"Decription",          -1}},
     {Channel::kSelectPoint,         {"SelectPoint",         -1}},
+    {Channel::kStereoPose,          {"StereoPose",          -1}},
+
+    {Channel::kAccelerometer,       {"Accelerometer",       -1}},
+    {Channel::kGyroscope,           {"Gyroscope",           -1}},
 
     {Channel::kBrightness,          {"Brightness",          -1}},
     {Channel::kContrast,            {"Contrast",            -1}},
