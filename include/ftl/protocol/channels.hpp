@@ -70,6 +70,7 @@ enum struct Channel : int {
     kTags             = 79,   /// Array of string tag names
     KDescription      = 80,
     kSelectPoint      = 81,   /// A selected X,Y screen point
+    kStereoPose       = 82,   /// A pair of poses for stereo rendering
 
     kAccelerometer    = 90,   /// Eigen::Vector3f
     kGyroscope        = 91,   /// Eigen::Vector3f
