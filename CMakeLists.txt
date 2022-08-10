@@ -196,6 +196,7 @@ add_library(beyond-protocol STATIC
     src/service.cpp
     src/codecs/golomb.cpp
     src/codecs/h264.cpp
+    src/codecs/data.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC

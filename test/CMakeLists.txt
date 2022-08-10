@@ -151,3 +151,14 @@ target_link_libraries(rpc_integration beyond-protocol
 	${URIPARSER_LIBRARIES})
 
 add_test(RPCIntegrationTest rpc_integration)
+
+### Data Codec Unit ############################################################
+add_executable(datacodec_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./datacodec.cpp)
+target_include_directories(datacodec_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(datacodec_unit beyond-protocol
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
+
+add_test(DataCodecTest datacodec_unit)
