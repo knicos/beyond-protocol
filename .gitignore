@@ -6,3 +6,6 @@ build
 _CPack_Packages
 .env
 docs/html
+/build*
+/.vs
+/CMakeSettings.json
