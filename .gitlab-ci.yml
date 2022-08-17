@@ -195,6 +195,33 @@ windows:build_debug:
       - cmake -DCMAKE_GENERATOR_PLATFORM=x64 "-DFTL_VERSION=$CI_COMMIT_TAG" -DWITH_GNUTLS=TRUE -DGNUTLS_INCLUDE_DIR="C:/Build/bin/gnutls/lib/includes/" -DGNUTLS_LIBRARY="C:/Build/bin/gnutls/lib/libgnutls.dll.a" ..
       - '& MSBuild.exe beyond-protocol.sln -property:Configuration=RelWithDebInfo -nr:false -maxCpuCount'
 
+
+windows:build_arm64:
+  only:
+    - main
+    - merge_requests
+    - tags
+
+  stage: build
+  tags:
+    - windows
+
+  needs: []
+  dependencies: []
+  
+  cache: # use artifacts instead if multiple runners available
+    key: "$CI_COMMIT_SHORT_SHA arm64"
+    paths:
+      - build_arm64/
+    
+  script:
+      - cd $CI_PROJECT_DIR
+      - if (Test-Path build_arm64) { Remove-Item build_arm64/ -Recurse }
+      - mkdir build_arm64
+      - cd build_arm64
+      - cmake -DCMAKE_GENERATOR_PLATFORM=arm64 -DWITH_GNUTLS=FALSE -DBUILD_TESTS=FALSE -DURIPARSER_LIBRARY="C:/Build/bin_arm64/uriparser/Release/uriparser.lib" -DBUILD_TESTING=FALSE  ..
+      - cmake --build . --config Release
+
 windows:test:
   only:
     - main
@@ -265,6 +292,35 @@ windows:pack_debug:
     key: "$CI_COMMIT_SHORT_SHA debug"
     paths:
       - build_debug/
+
+  script:
+    - $env:PATH+=";C:/Shared/Deploy"
+    - cd build_debug
+    - cpack -C RelWithDebInfo
+    - Invoke-RestMethod -Headers @{ "JOB-TOKEN"="$CI_JOB_TOKEN" } -InFile "../libftl-protocol-${CI_COMMIT_TAG}-win64.zip" -uri "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol-${CI_COMMIT_TAG}-win64-debug.zip" -Method put
+
+  artifacts:
+    when: always
+    paths:
+      - ./*.zip
+    expire_in: 1 week
+
+
+windows:pack_arm64:
+  only:
+    - tags
+  
+  stage: pack
+
+  tags:
+    - windows
+  dependencies: ["windows:build_arm64"]
+  needs: ["windows:test", "windows:build_arm64"]
+
+  cache: # use artifacts instead if multiple runners available
+    key: "$CI_COMMIT_SHORT_SHA arm64"
+    paths:
+      - build_arm64/
 
   script:
     - $env:PATH+=";C:/Shared/Deploy"

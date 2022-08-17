@@ -23,12 +23,16 @@ inline uint32_t secure_rnd() {
     return rnd;
 }
 #else
+// TODO(Seb): Use cryptographically strong RNG. RFC 6455 (WebSicket protocol)
+//            requires new masking key for every frame and the key must not be
+//            predictable (use system random number source such as /dev/random
+//            or another library if GnuTLS is not enabled).
+
 #include <random>
 static std::random_device rd_;
 static std::uniform_int_distribution<uint32_t> dist_(0);
 
 inline uint32_t secure_rnd() {
-    // TODO(Seb)
     return dist_(rd_);
 }
 #endif
@@ -36,7 +40,9 @@ inline uint32_t secure_rnd() {
 using ftl::URI;
 using ftl::net::internal::WebSocketBase;
 using ftl::net::internal::Connection_TCP;
+#ifdef HAVE_GNUTLS
 using ftl::net::internal::Connection_TLS;
+#endif
 
 /* Taken from easywsclient */
 struct wsheader_type {

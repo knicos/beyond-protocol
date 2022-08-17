@@ -48,7 +48,6 @@ if (WITH_GNUTLS)
 	message(STATUS "Gnutls found: ${GNUTLS_FOUND}")
 	set(HAVE_GNUTLS true)
 else()
-	add_library(gnutls INTERFACE)
 endif()
 
 # ==============================================================================
@@ -82,11 +81,11 @@ endif()
 
 # Only need libuuid on Linux, Windows has its own
 if (NOT WIN32)
-check_include_file("uuid/uuid.h" UUID_FOUND)
-if (NOT UUID_FOUND)
-	message(ERROR "UUID library is required")
-endif()
-find_library(UUID_LIBRARIES NAMES uuid libuuid)
+	check_include_file("uuid/uuid.h" UUID_FOUND)
+	if (NOT UUID_FOUND)
+		message(ERROR "UUID library is required")
+	endif()
+	find_library(UUID_LIBRARIES NAMES uuid libuuid)
 else()
 endif()
 
@@ -104,12 +103,17 @@ include(ftl_paths)
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
 	add_definitions(-DWIN32)
-	#set(CMAKE_GENERATOR_TOOLSET "host=x64")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2 /MP /std:c++17 /wd4996 /Zc:__cplusplus")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /std:c++17 /wd4996 /Zc:__cplusplus")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /DFTL_DEBUG /Wall")
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /W3")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /O2 /W3 /Z7")
 	set(OS_LIBS "")
+	
+	if ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "x64")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+	elseif ("${CMAKE_GENERATOR_PLATFORM}" STREQUAL "ARM64")	
+	endif()
+	
 else()
 	add_definitions(-DUNIX)
 	# -fdiagnostics-color
@@ -202,7 +206,11 @@ add_library(beyond-protocol STATIC
 target_include_directories(beyond-protocol PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>)
-target_link_libraries(beyond-protocol Threads::Threads ${UUID_LIBRARIES} GnuTLS::GnuTLS)
+target_link_libraries(beyond-protocol Threads::Threads ${UUID_LIBRARIES})
+
+if (WITH_GNUTLS)
+	target_link_libraries(beyond-protocol GnuTLS::GnuTLS)
+endif()
 
 install(TARGETS beyond-protocol
 	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
