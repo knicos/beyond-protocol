@@ -219,7 +219,7 @@ windows:build_arm64:
       - if (Test-Path build_arm64) { Remove-Item build_arm64/ -Recurse }
       - mkdir build_arm64
       - cd build_arm64
-      - cmake -DCMAKE_GENERATOR_PLATFORM=arm64 -DWITH_GNUTLS=FALSE -DBUILD_TESTS=FALSE -DURIPARSER_LIBRARY="C:/Build/bin_arm64/uriparser/Release/uriparser.lib" -DBUILD_TESTING=FALSE  ..
+      - cmake -DCMAKE_GENERATOR_PLATFORM=arm64 "-DFTL_VERSION=$CI_COMMIT_TAG" -DWITH_GNUTLS=FALSE -DBUILD_TESTS=FALSE -DURIPARSER_LIBRARY="C:/Build/bin_arm64/uriparser/Release/uriparser.lib" -DBUILD_TESTING=FALSE  ..
       - cmake --build . --config Release
 
 windows:test:
@@ -326,7 +326,7 @@ windows:pack_arm64:
     - $env:PATH+=";C:/Shared/Deploy"
     - cd build_arm64
     - cpack
-    - Invoke-RestMethod -Headers @{ "JOB-TOKEN"="$CI_JOB_TOKEN" } -InFile "../libftl-protocol-${CI_COMMIT_TAG}-arm64.zip" -uri "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol-${CI_COMMIT_TAG}-arm64.zip" -Method put
+    - Invoke-RestMethod -Headers @{ "JOB-TOKEN"="$CI_JOB_TOKEN" } -InFile "../libftl-protocol-${CI_COMMIT_TAG}-win64.zip" -uri "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/libftl-protocol/${CI_COMMIT_TAG}/libftl-protocol-${CI_COMMIT_TAG}-arm64.zip" -Method put
 
   artifacts:
     when: always
