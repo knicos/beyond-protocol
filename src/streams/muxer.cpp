@@ -22,6 +22,7 @@ Muxer::~Muxer() {
         se.handle.cancel();
         se.req_handle.cancel();
         se.avail_handle.cancel();
+        se.err_handle.cancel();
     }
 }
 

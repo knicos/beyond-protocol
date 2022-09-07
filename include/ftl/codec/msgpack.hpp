@@ -6,7 +6,9 @@
 
 template <typename T>
 void ftl::codec::pack(const T &v, std::vector<uint8_t> &out) {
-    out.resize(0);
+    // Note: The following breaks in gcc 11 and 12.
+    //out.resize(0);
+    //out.reserve(1024);
     ftl::util::FTLVectorBuffer buf(out);
     msgpack::pack(buf, v);
 }

@@ -38,7 +38,7 @@ static const std::unordered_map<std::string, ftl::URI::scheme_t> schemeMap = {
     {"device", URI::SCHEME_DEVICE},
     {"file", URI::SCHEME_FILE},
     {"group", URI::SCHEME_GROUP},
-    {"beyond", URI::SCHEME_TCP},
+    {"beyond", URI::SCHEME_BEYOND},
     {"mux", URI::SCHEME_MUX},
     {"mirror", URI::SCHEME_MIRROR},
     {"cast", URI::SCHEME_CAST}
@@ -136,7 +136,7 @@ void URI::_parse(uri_t puri) {
 
         std::string porttext = std::string(uri.portText.first, uri.portText.afterLast - uri.portText.first);
         try {
-            m_port = std::stoi(porttext);
+            m_port = (porttext.size() > 0) ? std::stoi(porttext) : 0;
             if (m_port < 0 || m_port >= 65535) {
                 throw FTL_Error("Port out of range");
             }
