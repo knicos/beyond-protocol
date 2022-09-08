@@ -1,0 +1,16 @@
+{
+    "build": { "dockerfile": "Dockerfile" },
+    "remoteUser": "user",
+    "runArgs": [],
+    "extensions": [
+		"ms-vscode.cpptools",
+		"twxs.cmake",
+		"ms-vscode.cmake-tools",
+		"ms-azuretools.vscode-docker",
+		"jbenden.c-cpp-flylint",
+		"eamodio.gitlens",
+		"Gruntfuggly.todo-tree",
+		"ms-vscode.cpptools-extension-pack",
+		"mine.cpplint"
+	]
+}

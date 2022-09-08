@@ -8,10 +8,13 @@
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/streams.hpp>
 #include <ftl/protocol/self.hpp>
+#include <ftl/protocol/node.hpp>
 #include <ftl/time.hpp>
 #include <ftl/protocol/channels.hpp>
 #include <ftl/protocol/codecs.hpp>
 #include <ftl/lib/loguru.hpp>
+#include <ftl/protocol/muxer.hpp>
+#include <nlohmann/json.hpp>
 
 using ftl::protocol::StreamPacket;
 using ftl::protocol::DataPacket;
@@ -21,18 +24,42 @@ using ftl::protocol::Channel;
 using ftl::protocol::Codec;
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) return -1;
+    if (argc != 3) return -1;
+
+    ftl::getSelf()->onNodeDetails([]() {
+        return nlohmann::json{
+            {"id", ftl::protocol::id.to_string()},
+            {"title", "Test app"},
+            { "gpus", nlohmann::json::array() },
+            { "devices", nlohmann::json::array() }
+        };
+    });
 
     ftl::getSelf()->listen("tcp://localhost:9000");
+    auto node = ftl::connectNode(argv[1]);
+    node->waitConnection();
 
-    auto stream = ftl::createStream(argv[1]);
+    auto muxer = std::make_unique<ftl::protocol::Muxer>();
+    muxer->begin();
 
-    auto h = stream->onError([](ftl::protocol::Error, const std::string &str) {
+    auto stream = ftl::createStream(argv[2]);
+    muxer->add(stream);
+
+    auto h = muxer->onError([](ftl::protocol::Error, const std::string &str) {
         LOG(ERROR) << str;
         return true;
     });
 
+    auto rh = muxer->onRequest([](const ftl::protocol::Request &r) {
+        LOG(INFO) << "Got request " << r.id.frameset() << "," << r.id.source();
+        return true;
+    });
+
+    stream->seen(ftl::protocol::FrameID(0, 0), Channel::kEndFrame);
+
     if (!stream->begin()) return -1;
+
+    sleep_for(milliseconds(100));
 
     int count = 10;
     while (count--) {
@@ -49,7 +76,9 @@ int main(int argc, char *argv[]) {
         sleep_for(milliseconds(100));
     }
 
-    stream->end();
+    LOG(INFO) << "Done";
+
+    muxer->end();
 
     return 0;
 }
