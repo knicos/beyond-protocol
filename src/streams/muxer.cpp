@@ -36,22 +36,26 @@ FrameID Muxer::_mapFromInput(Muxer::StreamEntry *s, FrameID id) {
         // Otherwise allocate something.
         lk.unlock();
         UNIQUE_LOCK(mutex_, ulk);
-
-        FrameID newID;
-        if (s->fixed_fs >= 0) {
-            int source = sourcecount_[s->fixed_fs]++;
-            newID = FrameID(s->fixed_fs, source);
+        auto it2 = imap_.find(iid);
+        if (it2 != imap_.end()) {
+            return it2->second;
         } else {
-            int fsiid = (s->id << 16) | id.frameset();
-            if (fsmap_.count(fsiid) == 0) fsmap_[fsiid] = framesets_++;
-            newID = FrameID(fsmap_[fsiid], id.source());
-        }
+            FrameID newID;
+            if (s->fixed_fs >= 0) {
+                int source = sourcecount_[s->fixed_fs]++;
+                newID = FrameID(s->fixed_fs, source);
+            } else {
+                int fsiid = (s->id << 16) | id.frameset();
+                if (fsmap_.count(fsiid) == 0) fsmap_[fsiid] = framesets_++;
+                newID = FrameID(fsmap_[fsiid], id.source());
+            }
 
-        imap_[iid] = newID;
-        auto &op = omap_[newID];
-        op.first = id;
-        op.second = s;
-        return newID;
+            imap_[iid] = newID;
+            auto &op = omap_[newID];
+            op.first = id;
+            op.second = s;
+            return newID;
+        }
     }
 }
 
