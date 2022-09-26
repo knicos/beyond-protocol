@@ -14,6 +14,7 @@
 #include <ftl/protocol/packet.hpp>
 #include <ftl/protocol/streams.hpp>
 #include <ftl/handle.hpp>
+#include "packetmanager.hpp"
 
 namespace ftl {
 namespace protocol {
@@ -108,7 +109,7 @@ class Net : public Stream {
     bool paused_ = false;
     int frames_to_request_ = kFramesToRequest;
     std::string name_;
-
+    ftl::PacketManager mgr_;
     ftl::Handler<ftl::net::Peer*> connect_cb_;
 
     uint32_t local_fsid_ = 0;
@@ -123,7 +124,7 @@ class Net : public Stream {
     std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClient>> clients_;
 
     bool _enable(FrameID id);
-    bool _processRequest(ftl::net::Peer *p, ftl::protocol::StreamPacket *spkt, const ftl::protocol::DataPacket &pkt);
+    bool _processRequest(ftl::net::Peer *p, const ftl::protocol::StreamPacket *spkt, const ftl::protocol::DataPacket &pkt);
     void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
     void _checkTXRate(size_t tx_size, int64_t tx_latency, int64_t ts);
     bool _sendRequest(

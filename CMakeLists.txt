@@ -192,6 +192,7 @@ add_library(beyond-protocol STATIC
 	src/streams/broadcaster.cpp
 	src/streams/netstream.cpp
 	src/streams/filestream.cpp
+    src/streams/packetmanager.cpp
 	src/node.cpp
 	src/self.cpp
 	src/protocol.cpp

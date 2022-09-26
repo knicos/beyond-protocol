@@ -127,7 +127,7 @@ TEST_CASE("TCP Stream", "[net]") {
         ftl::protocol::DataPacket pkt;
         pkt.bitrate = 10;
         pkt.codec = ftl::protocol::Codec::kJPG;
-        pkt.frame_count = 1;
+        pkt.packet_count = 1;
 
         for (int i=0; i<30 + 20; ++i) {
             spkt.timestamp = i;
@@ -140,6 +140,74 @@ TEST_CASE("TCP Stream", "[net]") {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
         REQUIRE( rcount == 30 );
+    }
+
+    SECTION("handles out-of-order packets") {
+        MUTEX mtx;
+        std::vector<int64_t> times;
+        times.reserve(24);
+
+        auto s1 = ftl::createStream("ftl://mystream");
+        REQUIRE( s1 );
+
+        auto s2 = self->getStream("ftl://mystream");
+        REQUIRE( s2 );
+
+        auto h = s2->onPacket([&mtx, &times](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            UNIQUE_LOCK(mtx, lk);
+            times.push_back(spkt.timestamp);
+            return true;
+        });
+
+        s1->begin();
+        s2->begin();
+
+        REQUIRE(s1->active(FrameID(0, 0)) == false);
+
+        s2->enable(FrameID(0, 0));
+
+        // TODO: Find better option
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        REQUIRE(s1->active(FrameID(0, 0)) == true);
+
+        ftl::protocol::StreamPacket spkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = ftl::protocol::Channel::kEndFrame;
+        ftl::protocol::DataPacket pkt;
+        pkt.bitrate = 10;
+        pkt.codec = ftl::protocol::Codec::kJPG;
+        pkt.packet_count = 1;
+
+        spkt.timestamp = 100;
+        pkt.packet_count = 2;
+        s1->post(spkt, pkt);
+        pkt.packet_count = 1;
+        spkt.timestamp = 120;
+        s1->post(spkt, pkt);
+        spkt.timestamp = 110;
+        pkt.packet_count = 21;
+        s1->post(spkt, pkt);
+        spkt.channel = ftl::protocol::Channel::kColour;
+        for (int i=0; i < 20; ++i) {
+            spkt.timestamp = 110;
+            s1->post(spkt, pkt);
+        }
+        spkt.timestamp = 100;
+        s1->post(spkt, pkt);
+
+        // TODO: Find better option
+        int k = 15;
+        while (--k > 0 && times.size() < 24) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        REQUIRE( times.size() == 24 );
+
+        REQUIRE(times[0] == 100);
+        REQUIRE(times[1] == 100);
+        REQUIRE(times[2] == 110);
+        REQUIRE(times[23] == 120);
     }
 
     p.reset();

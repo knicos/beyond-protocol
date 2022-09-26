@@ -162,3 +162,14 @@ target_link_libraries(datacodec_unit beyond-protocol
 	${URIPARSER_LIBRARIES})
 
 add_test(DataCodecTest datacodec_unit)
+
+### Packet Manager #############################################################
+add_executable(packetmanager_unit
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./packetmanager_unit.cpp)
+target_include_directories(packetmanager_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(packetmanager_unit beyond-protocol
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
+
+add_test(PacketManagerTest packetmanager_unit)

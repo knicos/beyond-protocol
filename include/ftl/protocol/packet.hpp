@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <ftl/protocol/codecs.hpp>
 #include <ftl/protocol/channels.hpp>
 
@@ -101,7 +102,7 @@ struct StreamPacket {
     inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
 
     int64_t localTimestamp;              // Not message packet / saved
-    unsigned int hint_capability;        // Is this a video stream, for example
+    mutable unsigned int hint_capability;        // Is this a video stream, for example
     size_t hint_source_total;            // Number of tracks per frame to expect
     int retry_count = 0;                 // Decode retry count
     unsigned int hint_peerid = 0;
@@ -110,6 +111,8 @@ struct StreamPacket {
 };
 
 struct Packet : public StreamPacket, public DataPacket {};
+
+using PacketPair = std::pair<StreamPacket, DataPacket>;
 
 }  // namespace protocol
 }  // namespace ftl
