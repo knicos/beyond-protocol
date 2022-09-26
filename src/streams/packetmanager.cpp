@@ -61,10 +61,10 @@ void PacketManager::submit(PacketPair &packets, const std::function<void(const P
                     lk.unlock();
                     // Loop over the buffer, checking for anything that can be processed
                     for (size_t i = start; i < stop; ++i) {
-                        if (state.buffer[i].first.channel == Channel::kEndFrame) {
+                        if (state.buffer[i % StreamState::kMaxBuffer].first.channel == Channel::kEndFrame) {
                             --state.bufferedEndFrames;
                         }
-                        submit(state.buffer[i], cb, true);
+                        submit(state.buffer[i % StreamState::kMaxBuffer], cb, true);
                     }
                 } else {
                     state.timestamp = -1;
@@ -74,6 +74,9 @@ void PacketManager::submit(PacketPair &packets, const std::function<void(const P
         }
     } else if (state.timestamp > packets.first.timestamp) {
         LOG(WARNING) << "Old packet received";
+        // Note: not ideal but still better than discarding
+        cb(packets);
+        return;
     } else {
         DLOG(WARNING) << "Buffer packets: " << packets.first.timestamp;
         // Change the current frame
@@ -123,12 +126,12 @@ void PacketManager::submit(PacketPair &packets, const std::function<void(const P
                 lk.unlock();
                 // Loop over the buffer, checking for anything that can be processed
                 for (size_t i = start; i < stop; ++i) {
-                    if (state.buffer[i].first.channel == Channel::kEndFrame) {
+                    if (state.buffer[i % StreamState::kMaxBuffer].first.channel == Channel::kEndFrame) {
                         --state.bufferedEndFrames;
                     }
-                    submit(state.buffer[i], cb, true);
+                    submit(state.buffer[i % StreamState::kMaxBuffer], cb, true);
                     std::vector<uint8_t> temp;
-                    state.buffer[i].second.data.swap(temp);
+                    state.buffer[i % StreamState::kMaxBuffer].second.data.swap(temp);
                 }
             }
         }

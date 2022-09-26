@@ -262,14 +262,19 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
         _processRequest(p, &spkt, pkt);
     }
 
-    pair.second = std::move(pkt);
-    mgr_.submit(pair, [this, now, ttimeoff, p](const ftl::protocol::PacketPair &pair) { 
-        const StreamPacket &spkt = pair.first;
-        const DataPacket &pkt = pair.second;
+    if (!host_) {
+        pair.second = std::move(pkt);
+        mgr_.submit(pair, [this, now, ttimeoff, p](const ftl::protocol::PacketPair &pair) { 
+            const StreamPacket &spkt = pair.first;
+            const DataPacket &pkt = pair.second;
 
+            trigger(spkt, pkt);
+            if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
+        });
+    } else {
         trigger(spkt, pkt);
         if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
-    });
+    }
 }
 
 void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
