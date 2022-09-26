@@ -22,7 +22,7 @@ namespace ftl {
 struct StreamState {
     static constexpr int kMaxBuffer = 100;
 
-    MUTEX mtx;
+    SHARED_MUTEX mtx;
     std::array<ftl::protocol::PacketPair, kMaxBuffer> buffer;
 
     int64_t timestamp = -1;
