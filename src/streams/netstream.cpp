@@ -204,7 +204,9 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
 
     if (!active_) return;
 
-    StreamPacket spkt = spkt_raw;
+    ftl::protocol::PacketPair pair;
+    StreamPacket &spkt = pair.first;
+    spkt = spkt_raw;
     spkt.localTimestamp = now - int64_t(ttimeoff);
     spkt.hint_capability = 0;
     spkt.hint_source_total = 0;
@@ -260,8 +262,14 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
         _processRequest(p, &spkt, pkt);
     }
 
-    trigger(spkt, pkt);
-    if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
+    pair.second = std::move(pkt);
+    mgr_.submit(pair, [this, now, ttimeoff, p](const ftl::protocol::PacketPair &pair) { 
+        const StreamPacket &spkt = pair.first;
+        const DataPacket &pkt = pair.second;
+
+        trigger(spkt, pkt);
+        if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
+    });
 }
 
 void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
@@ -283,8 +291,9 @@ bool Net::begin() {
     net_->bind(base_uri_, [this](
             ftl::net::Peer &p,
             int16_t ttimeoff,
-            const StreamPacketMSGPACK &spkt_raw,
-            const PacketMSGPACK &pkt) {
+            StreamPacketMSGPACK &spkt_raw,
+            PacketMSGPACK &pkt) {
+
         _processPacket(&p, ttimeoff, spkt_raw, pkt);
     });
 
@@ -439,7 +448,7 @@ void Net::_cleanUp() {
  * batches (max 255 unique frames by timestamp). Requests are in the form
  * of packets that match the request except the data component is empty.
  */
-bool Net::_processRequest(ftl::net::Peer *p, StreamPacket *spkt, const DataPacket &pkt) {
+bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, const DataPacket &pkt) {
     bool found = false;
 
     if (spkt->streamID == 255 || spkt->frame_number == 255) {
