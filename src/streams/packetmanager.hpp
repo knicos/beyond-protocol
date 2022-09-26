@@ -26,7 +26,6 @@ struct StreamState {
     std::array<ftl::protocol::PacketPair, kMaxBuffer> buffer;
 
     int64_t timestamp = -1;
-    int64_t minTimestamp = -1;
     int expected = -1;
     std::atomic_int processed = 0;
     size_t readPos = 0;

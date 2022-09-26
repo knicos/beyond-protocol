@@ -180,3 +180,44 @@ TEST_CASE( "Incomplete frames" ) {
 
     REQUIRE(count == 7);
 }
+
+TEST_CASE( "Overflow the buffer" ) {
+	PacketManager mgr;
+
+    int count = 0;
+
+    PacketPair p;
+
+    p = makePair(400, Channel::kEndFrame);
+    p.second.packet_count = 2;
+    mgr.submit(p, [&count](const PacketPair &pp) {
+        ++count;
+    });
+
+    p = makePair(401, Channel::kColour);
+    for (int i = 0; i<95; ++i) {
+        mgr.submit(p, [&count](const PacketPair &pp) {
+            ++count;
+        });
+    }
+
+    p = makePair(400, Channel::kColour);
+    mgr.submit(p, [&count](const PacketPair &pp) {
+        ++count;
+    });
+
+    p = makePair(402, Channel::kColour);
+    for (int i = 0; i<95; ++i) {
+        mgr.submit(p, [&count](const PacketPair &pp) {
+            ++count;
+        });
+    }
+
+    p = makePair(401, Channel::kEndFrame);
+    p.second.packet_count = 96;
+    mgr.submit(p, [&count](const PacketPair &pp) {
+        ++count;
+    });
+
+    REQUIRE(count == 96 + 95 + 2);
+}
