@@ -13,8 +13,16 @@ namespace protocol {
 
 /** Frame channel identifier. */
 enum struct Channel : int {
-    /* Video Channels */
+    /* Meta Channels */
+    kMultiData      = -7,   /// Pack many channels into a single packet
+    kChannelMeta    = -6,   /// Codec information
+    kFrameStart     = -5,   /// Timestamp and frame meta data
+    kFrameEnd       = -4,   /// Expected packet counts, statistics
+    kRequest        = -3,   /// Frame and channel requests
+    kStreamMeta     = -2,   /// Name, description etc.
     kNone           = -1,
+
+    /* Video Channels */
     kColour         = 0,    /// Left-eye colour video
     kLeft           = 0,
     kDepth          = 1,    /// Left-eye depth

@@ -173,3 +173,14 @@ target_link_libraries(packetmanager_unit beyond-protocol
 	${URIPARSER_LIBRARIES})
 
 add_test(PacketManagerTest packetmanager_unit)
+
+### Stream Performance #########################################################
+add_executable(stream_performance
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./stream_performance.cpp
+)
+target_include_directories(stream_performance PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(stream_performance
+	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
+
+# add_test(StreamPerformanceTest stream_performance)

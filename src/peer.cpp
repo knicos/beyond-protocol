@@ -274,7 +274,7 @@ void Peer::_createJob() {
 
     ftl::pool.push([this](int id) {
         try {
-            _data();
+            while (_data());
         } catch (const std::exception &e) {
             net_->_notifyError(this, ftl::protocol::Error::kUnknown, e.what());
         }
@@ -416,7 +416,7 @@ bool Peer::_data() {
                         net_->_notifyError(this, ftl::protocol::Error::kDispatchFailed, e.what());
                     }
 
-                    _createJob();
+                    //_createJob();
                     return true;
                 }
             } catch(...) {
@@ -437,7 +437,7 @@ bool Peer::_data() {
     }
 
     // Process more data...
-    _createJob();
+    //_createJob();
 
     try {
         disp_->dispatch(*this, obj);

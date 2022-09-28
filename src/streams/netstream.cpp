@@ -6,6 +6,8 @@
 
 #include <list>
 #include <string>
+#include <memory>
+#include <utility>
 #include <algorithm>
 #include "netstream.hpp"
 #include <ftl/time.hpp>
@@ -262,7 +264,7 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
         _processRequest(p, &spkt, pkt);
     }
 
-    if (!host_) {
+    /*if (!host_) {
         pair.second = std::move(pkt);
         mgr_.submit(pair, [this, now, ttimeoff, p](const ftl::protocol::PacketPair &pair) { 
             const StreamPacket &spkt = pair.first;
@@ -271,14 +273,28 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
             trigger(spkt, pkt);
             if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
         });
-    } else {
+    } else {*/
         trigger(spkt, pkt);
         if (pkt.data.size() > 0) _checkRXRate(pkt.data.size(), now-(spkt.timestamp+ttimeoff), spkt.timestamp);
-    }
+    //}
 }
 
 void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
     _processPacket(nullptr, 0, spkt, pkt);
+}
+
+Net::FrameState *Net::_getFrameState(FrameID id) {
+    {
+        SHARED_LOCK(statesMtx_, lk);
+        auto it = frameStates_.find(id.id);
+        if (it != frameStates_.end()) return it->second.get();
+    }
+    UNIQUE_LOCK(statesMtx_, lk);
+    auto ptr = std::make_unique<Net::FrameState>();
+    ptr->id = id;
+    auto *p = ptr.get();
+    frameStates_[id.id] = std::move(ptr);
+    return p;
 }
 
 bool Net::begin() {
@@ -299,7 +315,38 @@ bool Net::begin() {
             StreamPacketMSGPACK &spkt_raw,
             PacketMSGPACK &pkt) {
 
-        _processPacket(&p, ttimeoff, spkt_raw, pkt);
+        auto *state = _getFrameState(FrameID(spkt_raw.streamID, spkt_raw.frame_number));
+        {
+            UNIQUE_LOCK(state->mtx, lk);
+            // TODO(Nick): This buffer could be faster?
+            auto &ppair = state->buffer.emplace_back();
+            ppair.first = spkt_raw;
+            ppair.second = std::move(pkt);
+        }
+        if (!state->active.test_and_set()) {
+            auto *pp = &p;
+            ftl::pool.push([this, pp, ttimeoff, state](int p) {
+                while (true) {
+                    StreamPacket *spkt;
+                    DataPacket *pkt;
+                    {
+                        UNIQUE_LOCK(state->mtx, lk);
+                        if (state->buffer.size() == 0) {
+                            state->active.clear();
+                            break;
+                        }
+                        auto &front = state->buffer.front();
+                        spkt = &front.first;
+                        pkt = &front.second;
+                    }
+                    _processPacket(pp, ttimeoff, *spkt, *pkt);
+                    {
+                        UNIQUE_LOCK(state->mtx, lk);
+                        state->buffer.pop_front();
+                    }
+                }
+            });
+        }
     });
 
     if (host_) {

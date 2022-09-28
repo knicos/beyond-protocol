@@ -121,8 +121,19 @@ class Net : public Stream {
     static int64_t last_msg__;
     static MUTEX msg_mtx__;
 
+    struct FrameState {
+        ftl::protocol::FrameID id;
+        std::atomic_flag active;
+        MUTEX mtx;
+        std::list<ftl::protocol::PacketPair> buffer;
+    };
+
+    SHARED_MUTEX statesMtx_;
+    std::unordered_map<uint32_t, std::unique_ptr<FrameState>> frameStates_;
+
     std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClient>> clients_;
 
+    FrameState *_getFrameState(FrameID id);
     bool _enable(FrameID id);
     bool _processRequest(ftl::net::Peer *p, const ftl::protocol::StreamPacket *spkt, const ftl::protocol::DataPacket &pkt);
     void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
