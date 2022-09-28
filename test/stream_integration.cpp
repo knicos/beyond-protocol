@@ -142,7 +142,7 @@ TEST_CASE("TCP Stream", "[net]") {
         REQUIRE( rcount == 30 );
     }
 
-    SECTION("handles out-of-order packets") {
+    /*SECTION("handles out-of-order packets") {
         MUTEX mtx;
         std::vector<int64_t> times;
         times.reserve(24);
@@ -208,7 +208,7 @@ TEST_CASE("TCP Stream", "[net]") {
         REQUIRE(times[1] == 100);
         REQUIRE(times[2] == 110);
         REQUIRE(times[23] == 120);
-    }
+    }*/
 
     p.reset();
     ftl::protocol::reset();
