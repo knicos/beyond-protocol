@@ -122,6 +122,7 @@ class File : public Stream {
 
     bool _open();
     bool _checkFile();
+    bool _validateFilename() const;
 
     /* Apply version patches etc... */
     void _patchPackets(ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket *pkt);

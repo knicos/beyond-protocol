@@ -10,6 +10,7 @@
 #include <utility>
 #include <limits>
 #include <algorithm>
+#include <filesystem>
 #include <thread>
 #include <chrono>
 #include "filestream.hpp"
@@ -478,6 +479,14 @@ bool File::run() {
     return true;
 }
 
+bool File::_validateFilename() const {
+    std::filesystem::path file = std::filesystem::u8path(uri_.toFilePath());
+    if (!std::filesystem::exists(file)) return true;
+    if (std::string(file.extension().u8string().c_str()) == ".ftl") return true;
+    // TODO(Nick): Could also check directory path
+    return false;
+}
+
 bool File::begin() {
     if (active_) return true;
     if (mode_ == Mode::Read) {
@@ -498,6 +507,7 @@ bool File::begin() {
         run();
     } else if (mode_ == Mode::Write) {
         if (!ostream_) ostream_ = new std::ofstream;
+        if (!_validateFilename()) return false;
         ostream_->open(uri_.toFilePath(), std::ifstream::out | std::ifstream::binary);
 
         if (!ostream_->good()) {

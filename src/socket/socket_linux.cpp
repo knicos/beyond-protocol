@@ -205,7 +205,14 @@ Socket ftl::net::internal::create_tcp_socket() {
 
 std::string ftl::net::internal::get_host(const SocketAddress& addr) {
     char hbuf[1024];
-    int err = getnameinfo(reinterpret_cast<const sockaddr*>(&(addr.addr)), addr.len, hbuf, sizeof(hbuf), NULL, 0, NI_NAMEREQD);
+    int err = getnameinfo(
+        reinterpret_cast<const sockaddr*>(&(addr.addr)),
+        addr.len,
+        hbuf,
+        sizeof(hbuf),
+        NULL,
+        0,
+        NI_NAMEREQD);
     if (err == 0) { return std::string(hbuf); }
     else if (err == EAI_NONAME) return ftl::net::internal::get_ip(addr);
     else
