@@ -101,10 +101,10 @@ struct StreamPacket {
     inline int frameNumber() const { return (version >= 4) ? frame_number : streamID; }
     inline size_t frameSetID() const { return (version >= 4) ? streamID : 0; }
 
-    int64_t localTimestamp;              // Not message packet / saved
-    mutable unsigned int hint_capability;        // Is this a video stream, for example
-    size_t hint_source_total;            // Number of tracks per frame to expect
-    int retry_count = 0;                 // Decode retry count
+    int64_t localTimestamp = 0;                 // Not message packet / saved
+    mutable unsigned int hint_capability = 0;   // Is this a video stream, for example
+    size_t hint_source_total = 0;               // Number of tracks per frame to expect
+    int retry_count = 0;                        // Decode retry count
     unsigned int hint_peerid = 0;
 
     operator std::string() const;

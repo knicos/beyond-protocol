@@ -1,5 +1,6 @@
 #include "catch.hpp"
 
+#include <fstream>
 #include <filesystem>
 #include <ftl/protocol/streams.hpp>
 #include <ftl/protocol.hpp>
@@ -123,4 +124,14 @@ TEST_CASE("File write and read", "[stream]") {
         REQUIRE( channels[1] == Channel::kDepth );
         REQUIRE( channels[2] == Channel::kScreen );
     }
+}
+
+TEST_CASE("File write fails for bad filename", "[stream]") {
+    std::string filename = (std::filesystem::temp_directory_path() / "badfile.exe").string();
+    std::ofstream out(filename);
+    out << "something";
+    out.close();
+    auto writer = ftl::createStream(filename);
+
+    REQUIRE(!writer->begin());
 }
