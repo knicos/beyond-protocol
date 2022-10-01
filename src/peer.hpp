@@ -12,6 +12,7 @@
 
 #include <tuple>
 #include <vector>
+#include <future>
 #include <type_traits>
 #include <thread>
 #include <condition_variable>
@@ -44,20 +45,6 @@ namespace ftl {
 namespace net {
 
 class Universe;
-
-struct virtual_caller {
-    virtual void operator()(msgpack::object &o) = 0;
-};
-
-template <typename T>
-struct caller : virtual_caller {
-    explicit caller(const std::function<void(const T&)> &f) : f_(f) {}
-    void operator()(msgpack::object &o) override {
-        T r = o.as<T>();
-        f_(r);
-    }
-    std::function<void(const T&)> f_;
-};
 
 /**
  * To be constructed using the Universe::connect() method and not to be
@@ -155,9 +142,7 @@ class Peer {
      * @return A call id for use with cancelCall() if needed.
      */
     template <typename T, typename... ARGS>
-    int asyncCall(const std::string &name,
-            std::function<void(const T&)> cb,
-            ARGS... args);
+    std::future<T> asyncCall(const std::string &name, ARGS... args);
 
     /**
      * Used to terminate an async call if the response is not required.
@@ -232,8 +217,9 @@ class Peer {
     // close socket without sending disconnect message
     void _close(bool retry = true);
 
-    void _dispatchResponse(uint32_t id, const std::string &name, msgpack::object &obj);
-    void _sendResponse(uint32_t id, const std::string &name, const msgpack::object &obj);
+    void _dispatchResponse(uint32_t id, msgpack::object &err, msgpack::object &res);
+    void _sendResponse(uint32_t id, const msgpack::object &obj);
+    void _sendErrorResponse(uint32_t id, const msgpack::object &obj);
 
     /**
      * Get the internal OS dependent socket.
@@ -287,7 +273,7 @@ class Peer {
 
     std::unique_ptr<internal::SocketConnection> sock_;
     std::unique_ptr<ftl::net::Dispatcher> disp_;    // For RPC call dispatch
-    std::map<int, std::unique_ptr<virtual_caller>> callbacks_;
+    std::map<int, std::function<void(const msgpack::object&, const msgpack::object&)>> callbacks_;
 
     std::atomic_int job_count_ = 0;                 // Ensure threads are done before destructing
     std::atomic_int connection_count_ = 0;          // Number of successful connections total
@@ -325,36 +311,35 @@ void Peer::bind(const std::string &name, F func) {
 
 template <typename R, typename... ARGS>
 R Peer::call(const std::string &name, ARGS... args) {
-    bool hasreturned = false;
-    std::condition_variable cv;
-
-    R result;
-    int id = asyncCall<R>(name, [&](const R &r) {
-        result = r;
-        hasreturned = true;
-        cv.notify_one();
-    }, std::forward<ARGS>(args)...);
-
-    _waitCall(id, cv, hasreturned, name);
-
-    return result;
+    auto f = asyncCall<R>(name, std::forward<ARGS>(args)...);
+    if (f.wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
+        throw FTL_Error("Call timeout: " << name);
+    }
+    return f.get();
 }
 
 template <typename T, typename... ARGS>
-int Peer::asyncCall(
-        const std::string &name,
-        // cppcheck-suppress *
-        std::function<void(const T&)> cb,
-        ARGS... args) {
+std::future<T> Peer::asyncCall(const std::string &name, ARGS... args) {
     auto args_obj = std::make_tuple(args...);
     uint32_t rpcid = 0;
 
+    std::shared_ptr<std::promise<T>> promise = std::make_shared<std::promise<T>>();
+    std::future<T> future = promise->get_future();
+
     {
-        // Could this be the problem????
         UNIQUE_LOCK(cb_mtx_, lk);
-        // Register the CB
         rpcid = rpcid__++;
-        callbacks_[rpcid] = std::make_unique<caller<T>>(cb);
+        callbacks_[rpcid] = [promise](const msgpack::object &res, const msgpack::object &err) {
+            if (err.is_nil()) {
+                T value;
+                res.convert<T>(value);
+                promise->set_value(value);
+            } else {
+                std::string errmsg;
+                err.convert<std::string>(errmsg);
+                promise->set_exception(std::make_exception_ptr(ftl::exception(ftl::Formatter() << errmsg)));
+            }
+        };
     }
 
     auto call_obj = std::make_tuple(0, rpcid, name, args_obj);
@@ -362,7 +347,7 @@ int Peer::asyncCall(
     UNIQUE_LOCK(send_mtx_, lk);
     msgpack::pack(send_buf_, call_obj);
     _send();
-    return rpcid;
+    return future;
 }
 
 using PeerPtr = std::shared_ptr<ftl::net::Peer>;

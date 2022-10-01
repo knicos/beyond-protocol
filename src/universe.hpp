@@ -141,9 +141,7 @@ class Universe {
      * @return A call id for use with cancelCall() if needed.
      */
     template <typename R, typename... ARGS>
-    int asyncCall(const UUID &pid, const std::string &name,
-            std::function<void(const R&)> cb,
-            ARGS... args);
+    std::future<R> asyncCall(const UUID &pid, const std::string &name, ARGS... args);
 
     template <typename... ARGS>
     bool send(const UUID &pid, const std::string &name, ARGS... args);
@@ -261,74 +259,49 @@ void Universe::broadcast(const std::string &name, ARGS... args) {
 
 template <typename R, typename... ARGS>
 std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
-    struct SharedData {
-        std::atomic_bool hasreturned = false;
-        std::mutex m;
-        std::condition_variable cv;
-        std::optional<R> result;
-    };
-
-    auto sdata = std::make_shared<SharedData>();
-
-    auto handler = [sdata](const std::optional<R> &r) {
-        std::unique_lock<std::mutex> lk(sdata->m);
-        if (r && !sdata->hasreturned) {
-            sdata->hasreturned = true;
-            sdata->result = r;
-        }
-        lk.unlock();
-        sdata->cv.notify_one();
-    };
+    std::vector<std::future<std::optional<R>>> futures;
 
     {
         SHARED_LOCK(net_mutex_, lk);
         for (const auto &p : peers_) {
             if (!p || !p->waitConnection()) continue;
-            p->asyncCall<std::optional<R>>(name, handler, args...);
+            futures.push_back(std::move(p->asyncCall<std::optional<R>>(name, args...)));
         }
     }
 
-    // Block thread until async callback notifies us
-    std::unique_lock<std::mutex> llk(sdata->m);
-    sdata->cv.wait_for(llk, std::chrono::seconds(1), [sdata] {
-        return static_cast<bool>(sdata->hasreturned);
-    });
+    for (auto &f : futures) {
+        if (f.wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
+            continue;
+        }
+        return f.get();
+    }
 
-    return sdata->result;
+    return {};
 }
 
 template <typename R, typename... ARGS>
 std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
-    struct SharedData {
-        std::atomic_int returncount = 0;
-        std::atomic_int sentcount = 0;
-        std::mutex m;
-        std::condition_variable cv;
-        std::vector<R> results;
-    };
-
-    auto sdata = std::make_shared<SharedData>();
-
-    auto handler = [sdata](const std::vector<R> &r) {
-        std::unique_lock<std::mutex> lk(sdata->m);
-        ++sdata->returncount;
-        sdata->results.insert(sdata->results.end(), r.begin(), r.end());
-        lk.unlock();
-        sdata->cv.notify_one();
-    };
+    std::vector<std::future<std::vector<R>>> futures;
 
     {
         SHARED_LOCK(net_mutex_, lk);
         for (const auto &p : peers_) {
             if (!p || !p->waitConnection()) continue;
-            ++sdata->sentcount;
-            p->asyncCall<std::vector<R>>(name, handler, args...);
+            futures.push_back(std::move(p->asyncCall<std::vector<R>>(name, args...)));
         }
     }
 
-    std::unique_lock<std::mutex> llk(sdata->m);
-    sdata->cv.wait_for(llk, std::chrono::seconds(1), [sdata]{return sdata->returncount == sdata->sentcount; });
-    return sdata->results;
+    std::vector<R> results;
+
+    for (auto &f : futures) {
+        if (f.wait_for(std::chrono::seconds(1)) != std::future_status::ready) {
+            continue;
+        }
+        auto v = f.get();
+        results.insert(results.end(), v.begin(), v.end());
+    }
+
+    return results;
 }
 
 template <typename R, typename... ARGS>
@@ -343,21 +316,21 @@ R Universe::call(const ftl::UUID &pid, const std::string &name, ARGS... args) {
 }
 
 template <typename R, typename... ARGS>
-int Universe::asyncCall(const ftl::UUID &pid, const std::string &name, std::function<void(const R&)> cb, ARGS... args) {
+std::future<R> Universe::asyncCall(const ftl::UUID &pid, const std::string &name, ARGS... args) {
     PeerPtr p = getPeer(pid);
     if (p == nullptr || !p->isConnected()) {
         if (p == nullptr) throw FTL_Error("Attempting to call an unknown peer : " << pid.to_string());
         else
             throw FTL_Error("Attempting to call an disconnected peer : " << pid.to_string());
     }
-    return p->asyncCall(name, cb, args...);
+    return p->asyncCall(name, args...);
 }
 
 template <typename... ARGS>
 bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args) {
     PeerPtr p = getPeer(pid);
     if (p == nullptr) {
-        LOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
+        DLOG(WARNING) << "Attempting to call an unknown peer : " << pid.to_string();
         return false;
     }
 

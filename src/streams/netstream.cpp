@@ -559,7 +559,7 @@ bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, const Dat
         try {
             connect_cb_.trigger(p);
         } catch (const ftl::exception &e) {
-            LOG(ERROR) << "Exception in stream connect callback: " << e.what();
+            DLOG(ERROR) << "Exception in stream connect callback: " << e.what();
         }
     }
 

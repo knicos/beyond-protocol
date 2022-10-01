@@ -97,7 +97,7 @@ bool Connection_TLS::connect(const std::string& hostname, int port, int timeout)
 
     check_gnutls_error_(gnutls_handshake(session_));
 
-    LOG(INFO) << "TLS connection established: "
+    DLOG(INFO) << "TLS connection established: "
               << gnutls_session_get_desc(session_) << "; "
               << get_cert_info(session_);
 
@@ -117,7 +117,7 @@ bool Connection_TLS::close() {
 ssize_t Connection_TLS::recv(char *buffer, size_t len) {
     auto recvd = gnutls_record_recv(session_, buffer, len);
     if (recvd == 0) {
-        LOG(1) << "recv returned 0 (buffer size " << len << "), closing connection";
+        DLOG(1) << "recv returned 0 (buffer size " << len << "), closing connection";
         close();
     }
 

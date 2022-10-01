@@ -193,7 +193,7 @@ bool File::readPacket(Packet &data) {
                 obj.convert(pack);
             }
         } catch (std::exception &e) {
-            LOG(INFO) << "Corrupt message: " << buffer_in_.nonparsed_size() << " - " << e.what();
+            DLOG(INFO) << "Corrupt message: " << buffer_in_.nonparsed_size() << " - " << e.what();
             // active_ = false;
             return false;
         }
@@ -232,7 +232,7 @@ void File::_patchPackets(StreamPacket *spkt, DataPacket *pkt) {
 bool File::tick(int64_t ts) {
     if (!active_) return false;
     if (mode_ != Mode::Read) {
-        LOG(ERROR) << "Cannot read from a write only file";
+        DLOG(ERROR) << "Cannot read from a write only file";
         return false;
     }
 
@@ -371,7 +371,7 @@ bool File::tick(int64_t ts) {
         auto &fsdata = framesets_[data.streamID];
 
         if (fsdata.first_ts < 0) {
-            LOG(WARNING) << "Bad first timestamp " << fsdata.first_ts << ", " << data.timestamp;
+            DLOG(WARNING) << "Bad first timestamp " << fsdata.first_ts << ", " << data.timestamp;
         }
 
         // Adjust timestamp
@@ -438,7 +438,7 @@ bool File::_open() {
         istream_->open(uri_.toFilePath(), std::ifstream::in | std::ifstream::binary);
 
         if (!istream_->good()) {
-            LOG(ERROR) << "Could not open file: " << uri_.toFilePath();
+            DLOG(ERROR) << "Could not open file: " << uri_.toFilePath();
             return false;
         }
     }
@@ -492,7 +492,7 @@ bool File::begin() {
     if (mode_ == Mode::Read) {
         if (!checked_) {
             if (!_checkFile()) {
-                LOG(ERROR) << "Could not open file: " << uri_.toFilePath();
+                DLOG(ERROR) << "Could not open file: " << uri_.toFilePath();
                 return false;
             }
         }
@@ -511,7 +511,7 @@ bool File::begin() {
         ostream_->open(uri_.toFilePath(), std::ifstream::out | std::ifstream::binary);
 
         if (!ostream_->good()) {
-            LOG(ERROR) << "Could not open file: '" << uri_.toFilePath() << "'";
+            DLOG(ERROR) << "Could not open file: '" << uri_.toFilePath() << "'";
             return false;
         }
 

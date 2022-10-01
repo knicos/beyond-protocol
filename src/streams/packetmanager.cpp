@@ -73,7 +73,7 @@ void PacketManager::submit(PacketPair &packets, const std::function<void(const P
             }
         }
     } else if (state.timestamp > packets.first.timestamp) {
-        LOG(WARNING) << "Old packet received";
+        DLOG(WARNING) << "Old packet received";
         // Note: not ideal but still better than discarding
         cb(packets);
         return;
@@ -104,7 +104,7 @@ void PacketManager::submit(PacketPair &packets, const std::function<void(const P
         }
 
         if (state.bufferedEndFrames > 4) {
-            LOG(WARNING) << "Discarding incomplete frame: " << state.timestamp;
+            DLOG(WARNING) << "Discarding incomplete frame: " << state.timestamp;
             UNIQUE_LOCK(state.mtx, lk);
             if (state.bufferedEndFrames > 4) {
                 state.processed = 0;
