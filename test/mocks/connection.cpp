@@ -99,7 +99,7 @@ void provideResponses(const ftl::net::PeerPtr &p, int c, const std::vector<std::
 
         if (name != expname) return;
         if (!notif) {
-            auto res_obj = std::make_tuple(1,id,name, resdata);
+            auto res_obj = std::make_tuple(1,id,msgpack::object(), resdata);
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();

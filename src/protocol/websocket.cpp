@@ -225,7 +225,7 @@ void WebSocketBase<SocketT>::connect(const ftl::URI& uri, int timeout) {
         http += base64_encode(uri.getUserInfo()) + "\r\n";
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization
         if (uri.getProtocol() != URI::scheme_t::SCHEME_WSS) {
-            LOG(WARNING) << "HTTP Basic Auth is being sent without TLS";
+            DLOG(WARNING) << "HTTP Basic Auth is being sent without TLS";
         }
     }
 

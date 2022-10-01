@@ -96,9 +96,9 @@ exception::exception(const ftl::Formatter &msg) : msg_(msg.str()), processed_(fa
 
 exception::~exception() {
     if (!processed_) {  // what() or ignore() have not been called.
-        LOG(ERROR) << "Unhandled exception: " << what();
+        DLOG(ERROR) << "Unhandled exception: " << what();
         #ifdef __GNUC__
-        LOG(ERROR) << "Trace:\n" << decode_backtrace();
+        DLOG(ERROR) << "Trace:\n" << decode_backtrace();
         #endif
     }
 }

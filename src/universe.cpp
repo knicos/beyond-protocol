@@ -672,7 +672,7 @@ void Universe::_notifyDisconnect(Peer *p) {
 }
 
 void Universe::_notifyError(Peer *p, ftl::protocol::Error e, const std::string &errstr) {
-    LOG(ERROR) << "Net Error (" << int(e) << "): " << errstr;
+    DLOG(ERROR) << "Net Error (" << int(e) << "): " << errstr;
     const auto ptr = (p) ? _findPeer(p) : nullptr;
 
     on_error_.triggerAsync(ptr, e, errstr);

@@ -9,6 +9,7 @@
 #include "dispatcher.hpp"
 #include "peer.hpp"
 #include <ftl/exception.hpp>
+#include <msgpack.hpp>
 
 using ftl::net::Peer;
 using ftl::net::Dispatcher;
@@ -48,7 +49,23 @@ void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
         dispatch_notification(s, msg);
         break;
     case 4:
-        dispatch_call(s, msg);
+        if (msg.via.array.ptr[0].via.i64 == 1) {
+            response_t response;
+            try {
+                msg.convert(response);
+            } catch(...) {
+                throw FTL_Error("Bad response format");
+            }
+            auto &&err = std::get<2>(response);
+            auto &&args = std::get<3>(response);
+
+            s._dispatchResponse(
+                std::get<1>(response),
+                err,
+                args);
+        } else {
+            dispatch_call(s, msg);
+        }
         break;
     default:
         throw FTL_Error("Unrecognised msgpack : " << msg.via.array.size);
@@ -71,9 +88,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     auto &&args = std::get<3>(the_call);
     // assert(type == 0);
 
-    if (type == 1) {
-        s._dispatchResponse(id, name, args);
-    } else if (type == 0) {
+    if (type == 0) {
         DLOG(2) << "RPC " << name << "() <- " << s.getURI();
 
         auto func = _locateHandler(name);
@@ -81,10 +96,9 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
         if (func) {
             try {
                 auto result = (*func)(s, args);
-                s._sendResponse(id, name, result->get());
+                s._sendResponse(id, result->get());
             } catch (const std::exception &e) {
-                throw FTL_Error("Exception when attempting to call RPC " << name << " (" << e.what() << ")");
-                // FIXME: Send the error in the response.
+                s._sendErrorResponse(id, msgpack::object(e.what()));
             }
         } else {
             throw FTL_Error("No binding found for " << name);

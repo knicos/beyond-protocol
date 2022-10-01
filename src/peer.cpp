@@ -92,7 +92,7 @@ void Peer::_process_handshake(uint64_t magic, uint32_t version, const UUID &pid)
         net_->_notifyError(this, ftl::protocol::Error::kBadHandshake, "invalid magic during handshake");
         _close(reconnect_on_protocol_error_);
     } else {
-        if (version != ftl::net::kVersion) LOG(WARNING) << "net protocol using different versions!";
+        if (version != ftl::net::kVersion) DLOG(WARNING) << "net protocol using different versions!";
 
         DLOG(INFO) << "(" << (outgoing_ ? "connecting" : "listening")
                   << " peer) handshake received from remote for " << pid.to_string();
@@ -451,7 +451,7 @@ bool Peer::_data() {
     return true;
 }
 
-void Peer::_dispatchResponse(uint32_t id, const std::string &name, msgpack::object &res) {
+void Peer::_dispatchResponse(uint32_t id, msgpack::object &err, msgpack::object &res) {
     UNIQUE_LOCK(cb_mtx_, lk);
     if (callbacks_.count(id) > 0) {
         // Allow for unlock before callback
@@ -461,12 +461,12 @@ void Peer::_dispatchResponse(uint32_t id, const std::string &name, msgpack::obje
 
         // Call the callback with unpacked return value
         try {
-            (*cb)(res);
+            cb(res, err);
         } catch(std::exception &e) {
             net_->_notifyError(this, Error::kRPCResponse, e.what());
         }
     } else {
-        net_->_notifyError(this, Error::kRPCResponse, "Missing RPC callback for result - discarding: " + name);
+        net_->_notifyError(this, Error::kRPCResponse, "Missing RPC callback for result - discarding");
     }
 }
 
@@ -477,8 +477,15 @@ void Peer::cancelCall(int id) {
     }
 }
 
-void Peer::_sendResponse(uint32_t id, const std::string &name, const msgpack::object &res) {
-    Dispatcher::response_t res_obj = std::make_tuple(1, id, name, res);
+void Peer::_sendResponse(uint32_t id, const msgpack::object &res) {
+    Dispatcher::response_t res_obj = std::make_tuple(1, id, msgpack::object(), res);
+    UNIQUE_LOCK(send_mtx_, lk);
+    msgpack::pack(send_buf_, res_obj);
+    _send();
+}
+
+void Peer::_sendErrorResponse(uint32_t id, const msgpack::object &res) {
+    Dispatcher::response_t res_obj = std::make_tuple(1, id, res, msgpack::object());
     UNIQUE_LOCK(send_mtx_, lk);
     msgpack::pack(send_buf_, res_obj);
     _send();

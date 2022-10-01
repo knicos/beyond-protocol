@@ -54,7 +54,7 @@ void SocketConnection::connect(const SocketAddress &address, int timeout) {
 ssize_t SocketConnection::recv(char *buffer, size_t len) {
     auto recvd = sock_.recv(buffer, len, 0);
     if (recvd == 0) {
-        LOG(3) << "recv(): read size 0";
+        DLOG(3) << "recv(): read size 0";
         return -1;  // -1 means close, 0 means retry
     }
     if (recvd < 0) {
@@ -75,7 +75,7 @@ ssize_t SocketConnection::writev(const struct iovec *iov, int iovcnt) {
     for (int i = 0; i < iovcnt; i++) { requested += iov[i].iov_len; }
 
     if (sent < 0) {
-        LOG(ERROR) << "writev(): " << sock_.get_error_string();
+        DLOG(ERROR) << "writev(): " << sock_.get_error_string();
         if (sock_.is_fatal()) {
             return sent;
         }
@@ -109,7 +109,7 @@ ssize_t SocketConnection::writev(const struct iovec *iov, int iovcnt) {
         writev_calls++;
 
         if (sent < 0) {
-            LOG(ERROR) << "writev(): " << sock_.get_error_string();
+            DLOG(ERROR) << "writev(): " << sock_.get_error_string();
             if (sock_.is_fatal()) {
                 return sent;
             }
@@ -119,25 +119,25 @@ ssize_t SocketConnection::writev(const struct iovec *iov, int iovcnt) {
         sent_total += sent;
     }
 
-    LOG(2) << "message required " << writev_calls << " writev() calls";
+    DLOG(2) << "message required " << writev_calls << " writev() calls";
 
     if (can_increase_sock_buffer_) {
         auto send_buf_size = sock_.get_send_buffer_size();
         auto send_buf_size_new = size_t(sock_.get_send_buffer_size() * 1.5);
 
-        LOG(WARNING) << "Send buffer size "
+        DLOG(WARNING) << "Send buffer size "
                      << (send_buf_size >> 10) << " KiB. "
                      << "Increasing socket buffer size to "
                      << (send_buf_size_new >> 10) << "KiB.";
 
         if (!sock_.set_send_buffer_size(send_buf_size_new)) {
-            LOG(ERROR) << "could not increase send buffer size, "
+            DLOG(ERROR) << "could not increase send buffer size, "
                     << "set_send_buffer_size() failed";
             can_increase_sock_buffer_ = false;
         } else {
             send_buf_size = sock_.get_send_buffer_size();
             bool error = send_buf_size < send_buf_size_new;
-            LOG_IF(WARNING, error)
+            DLOG_IF(WARNING, error)
                 << "could not increase send buffer size "
                 << "(buffer size: " << send_buf_size << ")";
             can_increase_sock_buffer_ &= !error;
@@ -156,7 +156,7 @@ std::string SocketConnection::host() {
 }
 
 int SocketConnection::port() {
-    LOG(ERROR) << "port() not implemented";
+    DLOG(ERROR) << "port() not implemented";
     return -1;
 }
 
@@ -164,11 +164,11 @@ bool SocketConnection::set_recv_buffer_size(size_t sz) {
     auto old = get_recv_buffer_size();
     auto ok = sock_.set_recv_buffer_size(sz);
     if (!ok) {
-        LOG(ERROR) << "setting socket send buffer size failed:"
+        DLOG(ERROR) << "setting socket send buffer size failed:"
                    << sock_.get_error_string();
     }
     if (get_recv_buffer_size() == old) {
-        LOG(ERROR) << "recv buffer size was not changed";
+        DLOG(ERROR) << "recv buffer size was not changed";
     }
     return ok;
 }
@@ -177,11 +177,11 @@ bool SocketConnection::set_send_buffer_size(size_t sz) {
     auto old = get_send_buffer_size();
     auto ok = sock_.set_send_buffer_size(sz);
     if (!ok) {
-        LOG(ERROR) << "setting socket send buffer size failed:"
+        DLOG(ERROR) << "setting socket send buffer size failed:"
                    << sock_.get_error_string();
     }
     if (get_send_buffer_size() == old) {
-        LOG(ERROR) << "send buffer size was not changed";
+        DLOG(ERROR) << "send buffer size was not changed";
     }
 
     return ok;

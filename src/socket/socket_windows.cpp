@@ -131,7 +131,7 @@ Socket Socket::accept(SocketAddress& addr) {
         socket.family_ = family_;
     } else {
         err_ = WSAGetLastError();
-        LOG(ERROR) << "accept returned error: " << get_error_string();
+        DLOG(ERROR) << "accept returned error: " << get_error_string();
         socket.status_ = STATUS::INVALID;
     }
     return socket;
@@ -188,7 +188,7 @@ int Socket::getsockopt(int level, int optname, void* optval, socklen_t* optlen) 
 }
 
 void Socket::set_blocking(bool val) {
-    LOG(ERROR) << "TODO: set blocking/non-blocking";
+    DLOG(ERROR) << "TODO: set blocking/non-blocking";
 }
 
 std::string Socket::get_error_string(int code) {

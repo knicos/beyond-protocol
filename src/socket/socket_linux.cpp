@@ -52,7 +52,7 @@ Socket::Socket(int domain, int type, int protocol) :
     if (retval > 0) {
         fd_ = retval;
     } else {
-        LOG(ERROR) << ("socket() failed");
+        DLOG(ERROR) << ("socket() failed");
         throw FTL_Error("socket: " + get_error_string());
     }
 }
@@ -92,7 +92,7 @@ Socket Socket::accept(SocketAddress &addr) {
         socket.fd_ = retval;
         socket.family_ = family_;
     } else {
-        LOG(ERROR) << "accept returned error: " << strerror(errno);
+        DLOG(ERROR) << "accept returned error: " << strerror(errno);
         socket.status_ = STATUS::INVALID;
     }
     return socket;
@@ -152,7 +152,7 @@ int Socket::connect(const SocketAddress &address, int timeout) {
     if (rc < 0) {
         ::close(fd_);
         status_ = STATUS::CLOSED;
-        LOG(ERROR) << "socket error: " << strerror(errno);
+        DLOG(ERROR) << "socket error: " << strerror(errno);
         return rc;
     }
 
@@ -165,7 +165,7 @@ bool Socket::close() {
         status_ = STATUS::CLOSED;
         return ::close(fd_) == 0;
     } else if (status_ != STATUS::CLOSED) {
-        LOG(INFO) << "close() on non-valid socket";
+        DLOG(INFO) << "close() on non-valid socket";
     }
     return false;
 }
@@ -216,7 +216,7 @@ std::string ftl::net::internal::get_host(const SocketAddress& addr) {
     if (err == 0) { return std::string(hbuf); }
     else if (err == EAI_NONAME) return ftl::net::internal::get_ip(addr);
     else
-        LOG(WARNING) << "getnameinfo(): " << gai_strerror(err) << " (" << err << ")";
+        DLOG(WARNING) << "getnameinfo(): " << gai_strerror(err) << " (" << err << ")";
     return "unknown";
 }
 

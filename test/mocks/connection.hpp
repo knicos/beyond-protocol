@@ -60,7 +60,7 @@ std::tuple<uint8_t, std::string, T>  readNotifFull(int s) {
 template <typename T>
 T readRPCReturn(int s) {
 	msgpack::object_handle msg = msgpack::unpack(fakedata[s].data(), fakedata[s].size());
-	std::tuple<uint8_t, uint32_t, std::string, T> req;
+	std::tuple<uint8_t, uint32_t, msgpack::object, T> req;
 	msg.get().convert(req);
 	return std::get<3>(req);
 }

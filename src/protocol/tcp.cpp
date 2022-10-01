@@ -20,13 +20,13 @@ using ftl::net::internal::Socket;
 
 Connection_TCP::Connection_TCP(Socket sock, SocketAddress addr) : SocketConnection(sock, addr) {
     if (!sock_.set_nodelay(true) || !sock_.get_nodelay()) {
-        LOG(ERROR) << "Could not set TCP_NODELAY";
+        DLOG(ERROR) << "Could not set TCP_NODELAY";
     }
 }
 
 Connection_TCP::Connection_TCP() : SocketConnection(create_tcp_socket(), {}) {
     if (!sock_.set_nodelay(true) || !sock_.get_nodelay()) {
-        LOG(ERROR) << "Could not set TCP_NODELAY";
+        DLOG(ERROR) << "Could not set TCP_NODELAY";
     }
 }
 
@@ -59,7 +59,7 @@ Server_TCP::Server_TCP(const std::string &hostname, int port) :
 
     int enable = 1;
     if (sock_.setsockopt(SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<char*>(&enable), sizeof(int)) < 0) {
-        LOG(ERROR) << "Setting SO_REUSEADDR failed";
+        DLOG(ERROR) << "Setting SO_REUSEADDR failed";
     }
 }
 

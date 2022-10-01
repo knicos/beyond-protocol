@@ -114,7 +114,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             while (fakedata[c].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
             
             auto [id,value] = readRPC<tuple<int>>(c);
-            auto res_obj = std::make_tuple(1,id,"__return__",get<0>(value)+22);
+            auto res_obj = std::make_tuple(1,id,msgpack::object(),get<0>(value)+22);
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
@@ -137,7 +137,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             while (fakedata[c].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
             
             auto res = readRPC<tuple<>>(c);
-            auto res_obj = std::make_tuple(1,std::get<0>(res),"__return__",77);
+            auto res_obj = std::make_tuple(1,std::get<0>(res),msgpack::object(),77);
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
@@ -152,6 +152,38 @@ TEST_CASE("Peer::call()", "[rpc]") {
         REQUIRE( (res == 77) );
     }
 
+    SECTION("exception call") {
+        REQUIRE( s->isConnected() );
+        
+        fakedata[c] = "";
+        
+        // Thread to provide response to otherwise blocking call
+        std::thread thr([&s, c]() {
+            while (fakedata[c].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            
+            auto res = readRPC<tuple<>>(c);
+            auto res_obj = std::make_tuple(1,std::get<0>(res),"some error",msgpack::object());
+            std::stringstream buf;
+            msgpack::pack(buf, res_obj);
+            fakedata[c] = buf.str();
+            s->data();
+            sleep_for(milliseconds(50));
+        });
+
+        bool hadException = false;
+        
+        try {
+            s->call<int>("test1");
+        } catch(const std::exception &e) {
+            LOG(INFO) << "Expected exception: " << e.what();
+            hadException = true;
+        }
+        
+        thr.join();
+        
+        REQUIRE(hadException);
+    }
+
     SECTION("vector return from call") {
         REQUIRE( s->isConnected() );
         
@@ -163,7 +195,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             
             auto res = readRPC<tuple<>>(c);
             vector<int> data = {44,55,66};
-            auto res_obj = std::make_tuple(1,std::get<0>(res),"__return__",data);
+            auto res_obj = std::make_tuple(1,std::get<0>(res),msgpack::object(),data);
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
@@ -241,7 +273,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
             return a;
         });
         
-        s->asyncCall<int>("hello", [](int a){}, 55);
+        s->asyncCall<int>("hello", 55);
         s->data(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
@@ -258,7 +290,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
             return b;
         });
         
-        s->asyncCall<int>("hello", [](int a){}, 55);
+        s->asyncCall<int>("hello", 55);
         s->data(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         

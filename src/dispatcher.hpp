@@ -293,7 +293,7 @@ class Dispatcher {
     using notification_t = std::tuple<int8_t, std::string, msgpack::object>;
 
     using response_t =
-        std::tuple<uint32_t, uint32_t, std::string, msgpack::object>;
+        std::tuple<uint32_t, uint32_t, msgpack::object, msgpack::object>;
 
  private:
     Dispatcher *parent_;
