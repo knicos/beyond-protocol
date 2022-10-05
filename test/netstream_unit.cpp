@@ -201,6 +201,9 @@ TEST_CASE("Net stream can see received data") {
         spkt.channel = Channel::kColour;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
+        spkt.channel = Channel::kEndFrame;
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        p->data();
 
         sleep_for(milliseconds(50));
         REQUIRE( seenReq );

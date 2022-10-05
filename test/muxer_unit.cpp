@@ -478,21 +478,34 @@ TEST_CASE("Muxer available", "[stream]") {
         REQUIRE( mux->available(id2) );
     }
 
-    SECTION("available channel when seen") {
+    SECTION("available (persistent) channel when seen") {
+        FrameID id1(0, 1);
+        REQUIRE( !s1->available(id1, Channel::kPose) );
+        REQUIRE( !mux->available(id1, Channel::kPose) );
+        s1->forceSeen(id1, Channel::kPose);
+        REQUIRE( s1->available(id1, Channel::kPose) );
+        REQUIRE( mux->available(id1, Channel::kPose) );
+    }
+
+    SECTION("available (temp) channel when seen") {
         FrameID id1(0, 1);
         REQUIRE( !s1->available(id1, Channel::kColour) );
         REQUIRE( !mux->available(id1, Channel::kColour) );
         s1->forceSeen(id1, Channel::kColour);
+        s1->forceSeen(id1, Channel::kEndFrame);
         REQUIRE( s1->available(id1, Channel::kColour) );
         REQUIRE( mux->available(id1, Channel::kColour) );
+        s1->forceSeen(id1, Channel::kEndFrame);
+        REQUIRE( !s1->available(id1, Channel::kColour) );
+        REQUIRE( !mux->available(id1, Channel::kColour) );
     }
 
     SECTION("not available when wrong channel seen") {
         FrameID id1(0, 1);
-        s1->forceSeen(id1, Channel::kDepth);
+        s1->forceSeen(id1, Channel::kCalibration2);
         REQUIRE( mux->available(id1) );
-        REQUIRE( !s1->available(id1, Channel::kColour) );
-        REQUIRE( !mux->available(id1, Channel::kColour) );
+        REQUIRE( !s1->available(id1, Channel::kPose) );
+        REQUIRE( !mux->available(id1, Channel::kPose) );
     }
 
     SECTION("available channel set when seen all") {
@@ -502,6 +515,7 @@ TEST_CASE("Muxer available", "[stream]") {
         REQUIRE( !mux->available(id1, set) );
         s1->forceSeen(id1, Channel::kColour);
         s1->forceSeen(id1, Channel::kDepth);
+        s1->forceSeen(id1, Channel::kEndFrame);
         REQUIRE( s1->available(id1, set) );
         REQUIRE( mux->available(id1, set) );
     }
@@ -512,6 +526,7 @@ TEST_CASE("Muxer available", "[stream]") {
         REQUIRE( !s1->available(id1, set) );
         REQUIRE( !mux->available(id1, set) );
         s1->forceSeen(id1, Channel::kDepth);
+        s1->forceSeen(id1, Channel::kEndFrame);
         REQUIRE( !s1->available(id1, set) );
         REQUIRE( !mux->available(id1, set) );
     }
@@ -625,6 +640,7 @@ TEST_CASE("Muxer channels", "[stream]") {
 
         s1->forceSeen(id1, Channel::kColour);
         s1->forceSeen(id1, Channel::kDepth);
+        s1->forceSeen(id1, Channel::kEndFrame);
 
         auto set = mux->channels(id1);
         REQUIRE( set.size() == 2 );
@@ -656,9 +672,11 @@ TEST_CASE("Muxer enabledChannels", "[stream]") {
 
         s1->forceSeen(id1, Channel::kColour);
         s1->forceSeen(id1, Channel::kDepth);
+        s1->forceSeen(id1, Channel::kPose);
+        s1->forceSeen(id1, Channel::kEndFrame);
 
         auto set = mux->channels(id1);
-        REQUIRE( set.size() == 2 );
+        REQUIRE( set.size() == 3 );
         
         REQUIRE( mux->enable(id1, set) );
 

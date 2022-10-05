@@ -12,9 +12,10 @@
 namespace ftl {
 namespace protocol {
 
-inline bool isVideo(Channel c) { return static_cast<int>(c) < 32; }
-inline bool isAudio(Channel c) { return static_cast<int>(c) >= 32 && static_cast<int>(c) < 64; }
-inline bool isData(Channel c) { return static_cast<int>(c) >= 64; }
+constexpr bool isVideo(Channel c) { return static_cast<int>(c) < 32; }
+constexpr bool isAudio(Channel c) { return static_cast<int>(c) >= 32 && static_cast<int>(c) < 64; }
+constexpr bool isData(Channel c) { return static_cast<int>(c) >= 64; }
+constexpr bool isPersistent(Channel c) { return static_cast<int>(c) >= 64; }
 
 /** Obtain a string name for channel. */
 std::string name(Channel c);
@@ -31,7 +32,7 @@ Channel fromName(const std::string &name);
 int type(Channel c);
 
 /** @deprecated */
-inline bool isFloatChannel(ftl::protocol::Channel chan) {
+constexpr bool isFloatChannel(ftl::protocol::Channel chan) {
     switch (chan) {
     case Channel::kGroundTruth  :
     case Channel::kDepth        :

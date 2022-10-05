@@ -382,7 +382,9 @@ class Stream {
     struct FSState {
         bool enabled = false;
         ftl::protocol::ChannelSet selected;
-        ftl::protocol::ChannelSet available;
+        ftl::protocol::ChannelSet availablePersistent;
+        std::atomic_uint64_t availableLast = 0;
+        std::atomic_uint64_t availableNext = 0;
         // TODO(Nick): Add a name and metadata
     };
 
@@ -390,7 +392,10 @@ class Stream {
     ftl::Handler<const Request &> request_cb_;
     ftl::Handler<FrameID, ftl::protocol::Channel> avail_cb_;
     ftl::Handler<ftl::protocol::Error, const std::string&> error_cb_;
-    std::unordered_map<int, FSState> state_;
+    std::unordered_map<int, std::shared_ptr<FSState>> state_;
+
+    std::shared_ptr<FSState> _getState(FrameID id);
+    std::shared_ptr<FSState> _getState(FrameID id) const;
 };
 
 using StreamPtr = std::shared_ptr<Stream>;
