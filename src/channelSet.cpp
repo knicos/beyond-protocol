@@ -16,6 +16,13 @@ ChannelSet operator&(const ChannelSet &a, const ChannelSet &b) {
     return result;
 }
 
+ChannelSet operator|(const ChannelSet &a, const ChannelSet &b) {
+    ChannelSet result;
+    result.insert(a.begin(), a.end());
+    result.insert(b.begin(), b.end());
+    return result;
+}
+
 ChannelSet operator-(const ChannelSet &a, const ChannelSet &b) {
     ChannelSet result;
     for (auto &i : a) {

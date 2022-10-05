@@ -21,6 +21,8 @@ using ChannelSet = std::unordered_set<ftl::protocol::Channel>;
 
 ftl::protocol::ChannelSet operator&(const ftl::protocol::ChannelSet &a, const ftl::protocol::ChannelSet &b);
 
+ftl::protocol::ChannelSet operator|(const ftl::protocol::ChannelSet &a, const ftl::protocol::ChannelSet &b);
+
 ftl::protocol::ChannelSet operator-(const ftl::protocol::ChannelSet &a, const ftl::protocol::ChannelSet &b);
 
 inline ftl::protocol::ChannelSet &operator+=(ftl::protocol::ChannelSet &t, ftl::protocol::Channel c) {
