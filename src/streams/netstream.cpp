@@ -201,7 +201,7 @@ bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
     return true;
 }
 
-void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, const DataPacket &pkt) {
+void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt) {
     int64_t now = time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count();
 
     if (!active_) return;
@@ -279,7 +279,7 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     //}
 }
 
-void Net::inject(const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+void Net::inject(const ftl::protocol::StreamPacket &spkt, ftl::protocol::DataPacket &pkt) {
     _processPacket(nullptr, 0, spkt, pkt);
 }
 
@@ -500,7 +500,7 @@ void Net::_cleanUp() {
  * batches (max 255 unique frames by timestamp). Requests are in the form
  * of packets that match the request except the data component is empty.
  */
-bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, const DataPacket &pkt) {
+bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, DataPacket &pkt) {
     bool found = false;
 
     if (spkt->streamID == 255 || spkt->frame_number == 255) {
@@ -561,6 +561,10 @@ bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, const Dat
         } catch (const ftl::exception &e) {
             DLOG(ERROR) << "Exception in stream connect callback: " << e.what();
         }
+    }
+
+    if (static_cast<int>(spkt->channel) < 32) {
+        pkt.bitrate = std::min(pkt.bitrate, bitrate_);
     }
 
     ftl::protocol::Request req;

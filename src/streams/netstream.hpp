@@ -82,7 +82,7 @@ class Net : public Stream {
 
     // Unit test support
     virtual void hasPosted(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) {}
-    void inject(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &);
+    void inject(const ftl::protocol::StreamPacket &, ftl::protocol::DataPacket &);
 
  private:
     SHARED_MUTEX mutex_;
@@ -100,7 +100,7 @@ class Net : public Stream {
     int tally_ = 0;
     std::array<std::atomic<int>, 32> reqtally_ = {0};
     ftl::protocol::ChannelSet last_selected_;
-    uint8_t bitrate_ = 200;
+    uint8_t bitrate_ = 255;
     std::atomic_int64_t bytes_received_ = 0;
     int64_t last_completion_ = 0;
     int64_t time_at_last_ = 0;
@@ -135,7 +135,7 @@ class Net : public Stream {
 
     FrameState *_getFrameState(FrameID id);
     bool _enable(FrameID id);
-    bool _processRequest(ftl::net::Peer *p, const ftl::protocol::StreamPacket *spkt, const ftl::protocol::DataPacket &pkt);
+    bool _processRequest(ftl::net::Peer *p, const ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket &pkt);
     void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
     void _checkTXRate(size_t tx_size, int64_t tx_latency, int64_t ts);
     bool _sendRequest(
@@ -146,7 +146,7 @@ class Net : public Stream {
         uint8_t bitrate,
         bool doreset = false);
     void _cleanUp();
-    void _processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, const DataPacket &pkt);
+    void _processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
 };
 
 }  // namespace protocol
