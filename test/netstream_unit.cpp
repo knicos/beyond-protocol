@@ -145,6 +145,40 @@ TEST_CASE("Net stream sending requests") {
         REQUIRE( seenReq );
     }
 
+    SECTION("adjusts request bitrate") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
+        
+        REQUIRE( s1->begin() );
+
+        int bitrate = 255;
+
+        auto h = s1->onRequest([&bitrate](const ftl::protocol::Request &req) {
+            bitrate = req.bitrate;
+            return true;
+        });
+
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 1;
+        spkt.frame_number = 1;
+        spkt.channel = Channel::kColour;
+        spkt.flags = ftl::protocol::kFlagRequest;
+        pkt.bitrate = 255;
+        s1->setProperty(ftl::protocol::StreamProperty::kBitrate, 100);
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        p->data();
+
+        sleep_for(milliseconds(50));
+        REQUIRE( bitrate == 100 );
+
+        s1->setProperty(ftl::protocol::StreamProperty::kBitrate, 200);
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        p->data();
+
+        sleep_for(milliseconds(50));
+        REQUIRE( bitrate == 200 );
+    }
+
     SECTION("responds to 255 requests") {
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
         
