@@ -120,6 +120,89 @@ TEST_CASE("Net stream sending requests") {
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
     }
 
+    SECTION("sends repeat requests - single frame") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+        
+        // Thread to provide response to otherwise blocking call
+        std::thread thr([&p]() {
+            auto z = std::make_unique<msgpack::zone>();
+            provideResponses(p, 0, {
+                {false, "find_stream", packResponse(*z, ftl::UUIDMSGPACK(p->id()))},
+                {true, "enable_stream", {}},
+            });
+        });
+
+        s1->setProperty(StreamProperty::kRequestSize, 10);
+
+        REQUIRE( s1->begin() );
+
+        s1->forceSeen(FrameID(0, 0), Channel::kColour);
+        REQUIRE( s1->enable(FrameID(0, 0), Channel::kColour));
+
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = Channel::kEndFrame;
+
+        thr.join();
+
+        s1->lastSpkt.channel = Channel::kNone;
+
+        for (int i=0; i<20; ++i) {
+            spkt.timestamp = i;
+            writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+            p->data();
+            sleep_for(milliseconds(50));
+        }
+
+        REQUIRE( s1->lastSpkt.channel == Channel::kColour );
+        REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
+    }
+
+    SECTION("sends repeat requests - multi frame") {
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+        
+        // Thread to provide response to otherwise blocking call
+        std::thread thr([&p]() {
+            auto z = std::make_unique<msgpack::zone>();
+            provideResponses(p, 0, {
+                {false, "find_stream", packResponse(*z, ftl::UUIDMSGPACK(p->id()))},
+                {true, "enable_stream", {}},
+            });
+        });
+
+        s1->setProperty(StreamProperty::kRequestSize, 10);
+
+        REQUIRE( s1->begin() );
+
+        s1->forceSeen(FrameID(0, 0), Channel::kColour);
+        s1->forceSeen(FrameID(0, 1), Channel::kColour);
+        REQUIRE( s1->enable(FrameID(0, 0), Channel::kColour));
+        REQUIRE( s1->enable(FrameID(0, 1), Channel::kColour));
+
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = Channel::kEndFrame;
+
+        thr.join();
+
+        s1->lastSpkt.channel = Channel::kNone;
+
+        for (int i=0; i<30; ++i) {
+            spkt.frame_number = i & 0x1;
+            spkt.timestamp = i >> 1;
+            writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+            p->data();
+            sleep_for(milliseconds(50));
+        }
+
+        REQUIRE( s1->lastSpkt.channel == Channel::kColour );
+        REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
+    }
+
     SECTION("responds to requests") {
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
         

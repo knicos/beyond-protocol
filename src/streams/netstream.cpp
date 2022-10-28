@@ -87,7 +87,7 @@ void Net::installRPC(ftl::net::Universe *net) {
 }
 
 Net::Net(const std::string &uri, ftl::net::Universe *net, bool host) :
-        net_(net), time_peer_(ftl::UUID(0)), uri_(uri), host_(host) {
+        net_(net), uri_(uri), host_(host) {
     ftl::URI u(uri_);
     if (!u.isValid() || !(u.getScheme() == ftl::URI::SCHEME_FTL)) {
         error(Error::kBadURI, uri_);
@@ -226,36 +226,26 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     if (paused_) return;
 
     // Manage recuring requests
-    if (!host_ && last_frame_ != spkt.timestamp) {
-        UNIQUE_LOCK(mutex_, lk);
-        if (last_frame_ != spkt.timestamp) {
-            // int tc = now - last_completion_;          // Milliseconds since last frame completed
-            frame_time_ = spkt.timestamp - last_frame_;  // Milliseconds per frame
-            last_completion_ = now;
-            bytes_received_ = 0;
-            last_frame_ = spkt.timestamp;
+    if (!host_ && spkt.channel == Channel::kEndFrame && localFrame.frameset() < tally_.size()) {
+        frame_time_ = spkt.timestamp - last_frame_;  // Milliseconds per frame
+        last_frame_ = spkt.timestamp;
 
-            lk.unlock();
-
-            // Are we close to reaching the end of our frames request?
-            if (tally_ <= 5) {
-                // Yes, so send new requests
-                // FIXME: Do this for all frames, or use tally be frame
-                // for (size_t i = 0; i < size(); ++i) {
-                    const auto &sel = enabledChannels(localFrame);
-                    for (auto c : sel) {
-                        _sendRequest(c, localFrame.frameset(), localFrame.source(), frames_to_request_, 255);
-                    }
-                //}
-                tally_ = frames_to_request_;
-            } else {
-                --tally_;
+        // Are we close to reaching the end of our frames request?
+        if (tally_[localFrame.frameset()] <= 5) {
+            // Yes, so send new requests
+            for (const auto f : enabled(localFrame.frameset())) {
+                const auto &sel = enabledChannels(f);
+                for (auto c : sel) {
+                    _sendRequest(c, f.frameset(), f.source(), frames_to_request_, 255);
+                }
             }
+            tally_[localFrame.frameset()] = frames_to_request_;
+        } else {
+            --tally_[localFrame.frameset()];
         }
     }
 
     bytes_received_ += pkt.data.size();
-    // time_at_last_ = now;
 
     // If hosting and no data then it is a request for data
     // Note: a non host can receive empty data, meaning data is available
@@ -362,7 +352,7 @@ bool Net::begin() {
         net_->broadcast("add_stream", uri_);
 
     } else {
-        tally_ = frames_to_request_;
+        for (size_t i = 0; i < tally_.size(); ++i) tally_[i] = frames_to_request_;
         active_ = true;
     }
 
@@ -381,7 +371,8 @@ void Net::refresh() {
             _sendRequest(c, i.frameset(), i.source(), frames_to_request_, 255, true);
         }
     }
-    tally_ = frames_to_request_;
+
+    for (size_t i = 0; i < tally_.size(); ++i) tally_[i] = frames_to_request_;
 }
 
 void Net::reset() {
@@ -390,6 +381,7 @@ void Net::reset() {
 
 bool Net::_enable(FrameID id) {
     if (host_) { return false; }
+    if (peer_) return true;
     if (enabled(id)) return true;
 
     // not hosting, try to find peer now
@@ -418,7 +410,7 @@ bool Net::enable(FrameID id) {
     if (host_) { return false; }
     if (!_enable(id)) return false;
     if (!Stream::enable(id)) return false;
-    _sendRequest(Channel::kColour, id.frameset(), id.source(), kFramesToRequest, 255, true);
+    _sendRequest(Channel::kColour, id.frameset(), id.source(), frames_to_request_, 255, true);
 
     return true;
 }
@@ -427,7 +419,7 @@ bool Net::enable(FrameID id, Channel c) {
     if (host_) { return false; }
     if (!_enable(id)) return false;
     if (!Stream::enable(id, c)) return false;
-    _sendRequest(c, id.frameset(), id.source(), kFramesToRequest, 255, true);
+    _sendRequest(c, id.frameset(), id.source(), frames_to_request_, 255, true);
     return true;
 }
 
@@ -436,7 +428,7 @@ bool Net::enable(FrameID id, const ChannelSet &channels) {
     if (!_enable(id)) return false;
     if (!Stream::enable(id, channels)) return false;
     for (auto c : channels) {
-        _sendRequest(c, id.frameset(), id.source(), kFramesToRequest, 255, true);
+        _sendRequest(c, id.frameset(), id.source(), frames_to_request_, 255, true);
     }
     return true;
 }
@@ -479,9 +471,6 @@ void Net::_cleanUp() {
         for (auto j = clients.begin(); j != clients.end();) {
             auto &client = *j;
             if (client.txcount <= 0) {
-                if (client.peerid == time_peer_) {
-                    time_peer_ = ftl::UUID(0);
-                }
                 DLOG(INFO) << "Remove peer: " << client.peerid.to_string();
                 j = clients.erase(j);
             } else {
@@ -507,6 +496,8 @@ bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, DataPacke
         // Generate a batch of requests
         ftl::protocol::StreamPacket spkt2 = *spkt;
         for (const auto &i : frames()) {
+            if (spkt->streamID != 255 && i.frameset() != spkt->streamID) continue;
+            if (spkt->frame_number != 255 && i.source() != spkt->frame_number) continue;
             spkt2.streamID = i.frameset();
             spkt2.frame_number = i.source();
             _processRequest(p, &spkt2, pkt);
@@ -630,6 +621,7 @@ void Net::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     case StreamProperty::kMaxBitrate    :  bitrate_ = std::any_cast<int>(value); break;
     case StreamProperty::kPaused        :  paused_ = std::any_cast<bool>(value); break;
     case StreamProperty::kName          :  name_ = std::any_cast<std::string>(value); break;
+    case StreamProperty::kRequestSize   :  frames_to_request_ = std::any_cast<int>(value); break;
     case StreamProperty::kObservers     :
     case StreamProperty::kBytesSent     :
     case StreamProperty::kBytesReceived :
@@ -652,6 +644,7 @@ std::any Net::getProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kFrameRate     :  return (frame_time_ > 0) ? 1000 / frame_time_ : 0;
     case StreamProperty::kLatency       :  return 0;
     case StreamProperty::kName          :  return name_;
+    case StreamProperty::kRequestSize   :  return frames_to_request_;
     default                             :  throw FTL_Error("Unsupported property");
     }
 }
@@ -667,6 +660,7 @@ bool Net::supportsProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kLatency       :
     case StreamProperty::kFrameRate     :
     case StreamProperty::kName          :
+    case StreamProperty::kRequestSize   :
     case StreamProperty::kURI           :  return true;
     default                             :  return false;
     }

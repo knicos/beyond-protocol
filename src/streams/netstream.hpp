@@ -8,6 +8,7 @@
 
 #include <string>
 #include <list>
+#include <atomic>
 #include <unordered_map>
 #include "../universe.hpp"
 #include <ftl/threads.hpp>
@@ -88,31 +89,20 @@ class Net : public Stream {
     SHARED_MUTEX mutex_;
     bool active_ = false;
     ftl::net::Universe *net_;
-    int64_t clock_adjust_ = 0;
-    ftl::UUID time_peer_;
     std::optional<ftl::UUID> peer_;
     int64_t last_frame_ = 0;
-    int64_t last_ping_ = 0;
     int64_t frame_time_ = 0;
     std::string uri_;
     std::string base_uri_;
     const bool host_;
-    int tally_ = 0;
-    std::array<std::atomic<int>, 32> reqtally_ = {0};
-    ftl::protocol::ChannelSet last_selected_;
+    std::array<std::atomic_int, 5> tally_ = {};
     uint8_t bitrate_ = 255;
     std::atomic_int64_t bytes_received_ = 0;
-    int64_t last_completion_ = 0;
-    int64_t time_at_last_ = 0;
-    float required_bps_ = 0.0f;
-    float actual_bps_ = 0.0f;
     bool paused_ = false;
     int frames_to_request_ = kFramesToRequest;
     std::string name_;
     ftl::PacketManager mgr_;
     ftl::Handler<ftl::net::Peer*> connect_cb_;
-
-    uint32_t local_fsid_ = 0;
 
     static std::atomic_size_t req_bitrate__;
     static std::atomic_size_t tx_bitrate__;

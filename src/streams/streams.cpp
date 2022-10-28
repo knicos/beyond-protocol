@@ -87,6 +87,18 @@ std::unordered_set<FrameID> Stream::enabled() const {
     return result;
 }
 
+std::unordered_set<FrameID> Stream::enabled(unsigned int fs) const {
+    SHARED_LOCK(mtx_, lk);
+    std::unordered_set<FrameID> result;
+    for (const auto &s : state_) {
+        if (!s.second) continue;
+        if (s.second->enabled && FrameID(s.first).frameset() == fs) {
+            result.emplace(s.first);
+        }
+    }
+    return result;
+}
+
 bool Stream::enabled(FrameID id) const {
     auto state = _getState(id);
     if (!state) return false;
