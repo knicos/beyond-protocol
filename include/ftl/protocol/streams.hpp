@@ -62,7 +62,8 @@ enum struct StreamProperty {
     kName,
     kDescription,
     kTags,
-    kUser
+    kUser,
+    kRequestSize
 };
 
 /**
@@ -232,6 +233,13 @@ class Stream {
      * @return Set of frame IDs
      */
     std::unordered_set<FrameID> enabled() const;
+
+    /**
+     * @brief Get all enabled frames in a frameset.
+     * 
+     * @return Set of frame IDs
+     */
+    std::unordered_set<FrameID> enabled(unsigned int) const;
 
     /**
      * @brief Check if a frame is enabled.
