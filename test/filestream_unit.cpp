@@ -61,12 +61,16 @@ TEST_CASE("File write and read", "[stream]") {
 
         auto reader = ftl::getStream(filename);
 
-        StreamPacket tspkt = {5,0,0,1, Channel::kColour};
+        StreamPacket tspkt[3] = {
+            {5,0,0,1, Channel::kColour},
+            {5,0,0,1, Channel::kColour},
+            {5,0,0,1, Channel::kColour}
+        };
         std::atomic_int count = 0;
         
         auto h = reader->onPacket([&tspkt,&count](const StreamPacket &spkt, const DataPacket &pkt) {
             if (spkt.channel == Channel::kEndFrame) return true;
-            tspkt = spkt;
+            tspkt[spkt.streamID] = spkt;
             ++count;
             return true;
         });
@@ -77,9 +81,15 @@ TEST_CASE("File write and read", "[stream]") {
         reader->end();
 
         REQUIRE( count == 3 );
-        REQUIRE( tspkt.timestamp > 0 );
-        REQUIRE( tspkt.streamID == 2 );
-        REQUIRE( tspkt.channel == Channel::kScreen );
+        REQUIRE( tspkt[2].timestamp > 0);
+        REQUIRE( tspkt[2].streamID == 2);
+        REQUIRE( tspkt[2].channel == Channel::kScreen);
+        REQUIRE(tspkt[1].timestamp > 0);
+        REQUIRE(tspkt[1].streamID == 1);
+        REQUIRE(tspkt[1].channel == Channel::kDepth);
+        REQUIRE(tspkt[0].timestamp > 0);
+        REQUIRE(tspkt[0].streamID == 0);
+        REQUIRE(tspkt[0].channel == Channel::kConfidence);
     }
 
     SECTION("write read multiple packets at different timestamps") {

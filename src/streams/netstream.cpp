@@ -9,6 +9,8 @@
 #include <memory>
 #include <utility>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 #include "netstream.hpp"
 #include <ftl/time.hpp>
 #include "../uuidMSGPACK.hpp"
@@ -20,6 +22,9 @@
 #ifndef WIN32
 #include <unistd.h>
 #include <limits.h>
+#else
+#include <timeapi.h>
+#pragma comment(lib, "Winmm")
 #endif
 
 using ftl::protocol::Net;
@@ -37,6 +42,7 @@ using std::string;
 using std::optional;
 using std::chrono::time_point_cast;
 using std::chrono::milliseconds;
+using std::this_thread::sleep_for;
 using std::chrono::high_resolution_clock;
 
 std::atomic_size_t Net::req_bitrate__ = 0;
@@ -227,9 +233,6 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
 
     // Manage recuring requests
     if (!host_ && spkt.channel == Channel::kEndFrame && localFrame.frameset() < tally_.size()) {
-        frame_time_ = spkt.timestamp - last_frame_;  // Milliseconds per frame
-        last_frame_ = spkt.timestamp;
-
         // Are we close to reaching the end of our frames request?
         if (tally_[localFrame.frameset()] <= 5) {
             // Yes, so send new requests
@@ -287,6 +290,99 @@ Net::FrameState *Net::_getFrameState(FrameID id) {
     return p;
 }
 
+void Net::_run() {
+    thread_ = std::thread([this]() {
+#ifdef WIN32
+        timeBeginPeriod(5);
+#endif
+        while (active_) {
+            auto now = ftl::time::get_time();
+            int64_t nextTs = now + 20;
+
+            // For every state
+            SHARED_LOCK(statesMtx_, lk);
+            for (auto &s : frameStates_) {
+                auto *state = s.second.get();
+
+                //if (state->base_local_ts_ == 0) continue;
+
+                int64_t cts = now - state->base_local_ts_;
+
+                bool hasNext = false;
+
+                // If there are any packets that should be dispatched
+                // Then create a thread for each and do it.
+                if (state->active == 0) {
+                    auto current = state->buffer.begin();
+                    while (current != state->buffer.end()) {
+                        if (!current->done) {
+                            if (state->base_local_ts_ == 0) {
+                                state->base_local_ts_ = now;
+                                state->base_pkt_ts_ = current->packets.first.timestamp;
+                                cts = 0;
+                            }
+
+                            int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
+
+                            // Should the packet be dispatched yet
+                            if (pts <= cts) {
+                                cts = pts;  // Prevent multi frames.
+
+                                StreamPacket *spkt;
+                                DataPacket *pkt;
+            
+                                spkt = &current->packets.first;
+                                pkt = &current->packets.second;
+
+                                ++state->active;
+                                ftl::pool.push([this, buf = &*current, spkt, pkt, state](int ix) {
+                                    _processPacket(buf->peer, 0, *spkt, *pkt);
+                                    buf->done = true;
+                                    --state->active;
+                                });
+                            } else {
+                                int64_t next = pts + state->base_local_ts_;
+                                nextTs = std::min(nextTs, next);
+                                hasNext = true;
+                                break;
+                            }
+                        }
+
+                        ++current;
+                    }
+                } else {
+                    LOG(WARNING) << "Already active";
+                }
+
+                if (!hasNext) {
+                    nextTs = std::min(nextTs, now + 10);
+                    // TODO: Also, increase buffering
+                }
+
+                // Remove consumed packets.
+                UNIQUE_LOCK(state->mtx, lk2);
+                state->buffer.remove_if([](const PacketBuffer &i) { return static_cast<bool>(i.done); });
+            }
+            lk.unlock();
+
+            auto used = ftl::time::get_time();
+            int64_t spare = nextTs - used;
+            sleep_for(milliseconds(std::max(int64_t(1), spare)));
+        }
+#ifdef WIN32
+        timeEndPeriod(5);
+#endif
+    });
+
+#ifndef WIN32
+    sched_param p;
+    p.sched_priority = sched_get_priority_max(SCHED_RR);
+    pthread_setschedparam(thread_.native_handle(), SCHED_RR, &p);
+#else
+    SetThreadPriority(thread_.native_handle(), THREAD_PRIORITY_TIME_CRITICAL);
+#endif
+}
+
 bool Net::begin() {
     if (active_) return true;
 
@@ -306,36 +402,15 @@ bool Net::begin() {
             PacketMSGPACK &pkt) {
 
         auto *state = _getFrameState(FrameID(spkt_raw.streamID, spkt_raw.frame_number));
-        {
+        if (!host_) {
             UNIQUE_LOCK(state->mtx, lk);
             // TODO(Nick): This buffer could be faster?
-            auto &ppair = state->buffer.emplace_back();
-            ppair.first = spkt_raw;
-            ppair.second = std::move(pkt);
-        }
-        if (!state->active.test_and_set()) {
-            auto *pp = &p;
-            ftl::pool.push([this, pp, ttimeoff, state](int p) {
-                while (true) {
-                    StreamPacket *spkt;
-                    DataPacket *pkt;
-                    {
-                        UNIQUE_LOCK(state->mtx, lk);
-                        if (state->buffer.size() == 0) {
-                            state->active.clear();
-                            break;
-                        }
-                        auto &front = state->buffer.front();
-                        spkt = &front.first;
-                        pkt = &front.second;
-                    }
-                    _processPacket(pp, ttimeoff, *spkt, *pkt);
-                    {
-                        UNIQUE_LOCK(state->mtx, lk);
-                        state->buffer.pop_front();
-                    }
-                }
-            });
+            auto &buf = state->buffer.emplace_back();
+            buf.packets.first = spkt_raw;
+            buf.packets.second = std::move(pkt);
+            buf.peer = &p;
+        } else {
+            _processPacket(&p, ttimeoff, spkt_raw, pkt);
         }
     });
 
@@ -355,6 +430,8 @@ bool Net::begin() {
         for (size_t i = 0; i < tally_.size(); ++i) tally_[i] = frames_to_request_;
         active_ = true;
     }
+
+    if (!host_) _run();
 
     return true;
 }
@@ -603,6 +680,7 @@ bool Net::end() {
 
     active_ = false;
     net_->unbind(base_uri_);
+    if (thread_.joinable()) thread_.join();
     return true;
 }
 
@@ -622,6 +700,7 @@ void Net::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     case StreamProperty::kPaused        :  paused_ = std::any_cast<bool>(value); break;
     case StreamProperty::kName          :  name_ = std::any_cast<std::string>(value); break;
     case StreamProperty::kRequestSize   :  frames_to_request_ = std::any_cast<int>(value); break;
+    case StreamProperty::kBuffering     :  buffering_ = static_cast<int64_t>(std::any_cast<float>(value) * 1000.0f); break;
     case StreamProperty::kObservers     :
     case StreamProperty::kBytesSent     :
     case StreamProperty::kBytesReceived :
@@ -641,9 +720,10 @@ std::any Net::getProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kPaused        :  return paused_;
     case StreamProperty::kBytesSent     :  return 0;
     case StreamProperty::kBytesReceived :  return int64_t(bytes_received_);
-    case StreamProperty::kFrameRate     :  return (frame_time_ > 0) ? 1000 / frame_time_ : 0;
+    case StreamProperty::kFrameRate     :  return 0;
     case StreamProperty::kLatency       :  return 0;
     case StreamProperty::kName          :  return name_;
+    case StreamProperty::kBuffering     :  return static_cast<float>(buffering_) / 1000.0f;
     case StreamProperty::kRequestSize   :  return frames_to_request_;
     default                             :  throw FTL_Error("Unsupported property");
     }
@@ -661,6 +741,7 @@ bool Net::supportsProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kFrameRate     :
     case StreamProperty::kName          :
     case StreamProperty::kRequestSize   :
+    case StreamProperty::kBuffering     :
     case StreamProperty::kURI           :  return true;
     default                             :  return false;
     }

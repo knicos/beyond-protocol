@@ -5,6 +5,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/exception.hpp>
 #include <ftl/protocol/node.hpp>
+#include <ftl/time.hpp>
 #include <thread>
 #include <chrono>
 
@@ -29,6 +30,7 @@ class MockNetStream : public ftl::protocol::Net {
 
     void hasPosted(const StreamPacket &spkt, const DataPacket &pkt) override {
         lastSpkt = spkt;
+        ++postCount;
     }
 
     void forceSeen(FrameID id, Channel channel) {
@@ -36,6 +38,7 @@ class MockNetStream : public ftl::protocol::Net {
     }
 
     StreamPacket lastSpkt;
+    std::atomic_int postCount = 0;
 };
 
 // --- Tests -------------------------------------------------------------------
@@ -78,6 +81,57 @@ TEST_CASE("Net stream options") {
         REQUIRE( s1->post(spkt, pkt) );
         REQUIRE( s1->lastSpkt.timestamp == 100 );
         REQUIRE( std::any_cast<bool>(s1->getProperty(StreamProperty::kPaused)) );
+    }
+
+    SECTION("can increase buffering") {
+        auto p = createMockPeer(0);
+        fakedata[0] = "";
+        send_handshake(*p.get());
+        p->data();
+        sleep_for(milliseconds(50));
+
+        auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+        
+        int64_t seenTs = 0;
+        int64_t delta = 0;
+        std::atomic_int count = 0;
+
+        auto h = s1->onPacket([&seenTs, &count, &delta](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            int64_t now = ftl::time::get_time();
+            delta = now - seenTs;
+            seenTs = now;
+            ++count;
+            return true;
+        });
+        
+        REQUIRE( s1->begin() );
+
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.timestamp = 100;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = Channel::kColour;
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        p->data();
+
+        while (count < 1) {
+            sleep_for(milliseconds(10));
+        }
+
+        spkt.timestamp = 130;
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+
+        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 0.1f);
+
+        p->data();
+
+        while (count < 2) {
+            sleep_for(milliseconds(10));
+        }
+
+        REQUIRE(delta > 110);
+        REQUIRE(delta < 140);
     }
 }
 
@@ -153,8 +207,9 @@ TEST_CASE("Net stream sending requests") {
             spkt.timestamp = i;
             writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
             p->data();
-            sleep_for(milliseconds(50));
         }
+
+        while (s1->postCount < 2) sleep_for(milliseconds(10));
 
         REQUIRE( s1->lastSpkt.channel == Channel::kColour );
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
@@ -196,8 +251,9 @@ TEST_CASE("Net stream sending requests") {
             spkt.timestamp = i >> 1;
             writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
             p->data();
-            sleep_for(milliseconds(50));
         }
+
+        while (s1->postCount < 3) sleep_for(milliseconds(10));
 
         REQUIRE( s1->lastSpkt.channel == Channel::kColour );
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
@@ -217,6 +273,7 @@ TEST_CASE("Net stream sending requests") {
 
         ftl::protocol::StreamPacketMSGPACK spkt;
         ftl::protocol::PacketMSGPACK pkt;
+        spkt.timestamp = 0;
         spkt.streamID = 1;
         spkt.frame_number = 1;
         spkt.channel = Channel::kColour;
