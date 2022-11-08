@@ -119,7 +119,7 @@ class Net : public Stream {
     struct FrameState {
         ftl::protocol::FrameID id;
         std::atomic_int active = 0;
-        MUTEX mtx;
+        SHARED_MUTEX mtx;
         std::list<PacketBuffer> buffer;
         int64_t base_pkt_ts_ = 0;
         int64_t base_local_ts_ = 0;
