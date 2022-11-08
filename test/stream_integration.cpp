@@ -5,6 +5,7 @@
 #include <ftl/uri.hpp>
 #include <ftl/exception.hpp>
 #include <ftl/protocol/node.hpp>
+#include <ftl/time.hpp>
 
 using ftl::protocol::FrameID;
 using ftl::protocol::StreamProperty;
@@ -77,6 +78,7 @@ TEST_CASE("TCP Stream", "[net]") {
         REQUIRE( seenReq );
 
         ftl::protocol::StreamPacket spkt;
+        spkt.timestamp = 0;
         spkt.streamID = 0;
         spkt.frame_number = 0;
         spkt.channel = ftl::protocol::Channel::kColour;
@@ -121,6 +123,7 @@ TEST_CASE("TCP Stream", "[net]") {
         REQUIRE(s1->active(FrameID(0, 0)) == true);
 
         ftl::protocol::StreamPacket spkt;
+        spkt.timestamp = 0;
         spkt.streamID = 0;
         spkt.frame_number = 0;
         spkt.channel = ftl::protocol::Channel::kEndFrame;
@@ -135,11 +138,72 @@ TEST_CASE("TCP Stream", "[net]") {
         }
 
         // TODO: Find better option
-        int k = 10;
+        int k = 20;
         while (--k > 0 && rcount < 30) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
         REQUIRE( rcount == 30 );
+    }
+
+    SECTION("receives at correct rate") {
+        std::atomic_int rcount = 0;
+        std::atomic_int avgDelay = 0;
+        int64_t lastTS = 0;
+        auto s1 = ftl::createStream("ftl://mystream");
+        REQUIRE( s1 );
+
+        auto s2 = self->getStream("ftl://mystream");
+        REQUIRE( s2 );
+
+        auto h = s2->onPacket([&rcount, &lastTS, &avgDelay](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            if (lastTS == 0) {
+                lastTS = ftl::time::get_time();
+            } else {
+                int64_t now = ftl::time::get_time();
+                int64_t delta = now - lastTS;
+                lastTS = now;
+                avgDelay += delta;
+                ++rcount;
+            }
+            return true;
+        });
+
+        s1->begin();
+        s2->begin();
+
+        REQUIRE(s1->active(FrameID(0, 0)) == false);
+
+        s2->enable(FrameID(0, 0));
+
+        // TODO: Find better option
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        REQUIRE(s1->active(FrameID(0, 0)) == true);
+
+        ftl::protocol::StreamPacket spkt;
+        spkt.timestamp = 0;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = ftl::protocol::Channel::kEndFrame;
+        ftl::protocol::DataPacket pkt;
+        pkt.bitrate = 10;
+        pkt.codec = ftl::protocol::Codec::kJPG;
+        pkt.packet_count = 1;
+
+        for (int i=0; i<10; ++i) {
+            spkt.timestamp = i * 10;
+            s1->post(spkt, pkt);
+        }
+
+        // TODO: Find better option
+        int k = 10;
+        while (--k > 0 && rcount < 9) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        const float delay = static_cast<float>(avgDelay) / static_cast<float>(rcount);
+        LOG(INFO) << "AVG DELAY = " << delay << ", " << rcount;
+        REQUIRE(delay > 8.0f);
+        REQUIRE(delay < 20.0f);
     }
 
     /*SECTION("handles out-of-order packets") {

@@ -280,6 +280,10 @@ void Peer::_createJob() {
         }
         --job_count_;
     });
+
+    if (ftl::pool.size() == 0) {
+        --job_count_;
+    }
 }
 
 void Peer::data() {

@@ -90,8 +90,6 @@ class Net : public Stream {
     bool active_ = false;
     ftl::net::Universe *net_;
     std::optional<ftl::UUID> peer_;
-    int64_t last_frame_ = 0;
-    int64_t frame_time_ = 0;
     std::string uri_;
     std::string base_uri_;
     const bool host_;
@@ -103,6 +101,7 @@ class Net : public Stream {
     std::string name_;
     ftl::PacketManager mgr_;
     ftl::Handler<ftl::net::Peer*> connect_cb_;
+    int64_t buffering_ = 0;
 
     static std::atomic_size_t req_bitrate__;
     static std::atomic_size_t tx_bitrate__;
@@ -111,17 +110,26 @@ class Net : public Stream {
     static int64_t last_msg__;
     static MUTEX msg_mtx__;
 
+    struct PacketBuffer {
+        ftl::protocol::PacketPair packets;
+        ftl::net::Peer *peer = nullptr;
+        std::atomic_bool done = false;
+    };
+
     struct FrameState {
         ftl::protocol::FrameID id;
-        std::atomic_flag active;
+        std::atomic_int active = 0;
         MUTEX mtx;
-        std::list<ftl::protocol::PacketPair> buffer;
+        std::list<PacketBuffer> buffer;
+        int64_t base_pkt_ts_ = 0;
+        int64_t base_local_ts_ = 0;
     };
 
     SHARED_MUTEX statesMtx_;
     std::unordered_map<uint32_t, std::unique_ptr<FrameState>> frameStates_;
 
     std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClient>> clients_;
+    std::thread thread_;
 
     FrameState *_getFrameState(FrameID id);
     bool _enable(FrameID id);
@@ -137,6 +145,7 @@ class Net : public Stream {
         bool doreset = false);
     void _cleanUp();
     void _processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
+    void _run();
 };
 
 }  // namespace protocol
