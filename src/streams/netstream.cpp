@@ -297,8 +297,9 @@ void Net::_run() {
 #endif
         while (active_) {
             auto now = ftl::time::get_time();
-            int64_t nextTs = now + 20;
+            int64_t nextTs = now + 200;
             int activeStates = 0;
+            bool hasNext = false;
 
             // For every state
             SHARED_LOCK(statesMtx_, lk);
@@ -316,10 +317,10 @@ void Net::_run() {
 
                 int64_t cts = now - state->base_local_ts_;
 
-                bool hasNext = false;
+                bool hasLocalNext = false;
 
                 {
-                    UNIQUE_LOCK(state->mtx, lk);
+                    UNIQUE_LOCK(state->mtx, lk2);
                     auto it = state->buffer.begin();
                     while (it != state->buffer.end()) {
                         if (it->done) {
@@ -356,9 +357,13 @@ void Net::_run() {
                         }
                     }
 
+                    if (ats == 0) {
+                        LOG(WARNING) << "No packets to present: " << cts;
+                    }
+
                     auto current = state->buffer.begin();
                     while (current != state->buffer.end()) {
-                        lk2.unlock();
+                        // lk2.unlock();
                         
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
 
@@ -380,25 +385,26 @@ void Net::_run() {
                         } else {
                             int64_t next = pts + state->base_local_ts_;
                             nextTs = std::min(nextTs, next);
+                            hasLocalNext = true;
                             hasNext = true;
                             break;
                         }
 
-                        lk2.lock();
+                        // lk2.lock();
                         ++current;
                     }
                 }
 
-                if (!hasNext) {
-                    nextTs = std::min(nextTs, now + 10);
+                if (!hasLocalNext) {
+                    // nextTs = std::min(nextTs, now + 10);
                     // TODO: Also, increase buffering
-                    LOG(WARNING) << "Buffer underun " << nextTs;
+                    LOG(WARNING) << "Buffer underun " << now;
                 }
             }
             lk.unlock();
 
             auto used = ftl::time::get_time();
-            int64_t spare = nextTs - used;
+            int64_t spare = (hasNext) ? nextTs - used : 10;
             if (activeStates > 0) LOG(INFO) << "Sleeping for " << spare;
             sleep_for(milliseconds(std::max(int64_t(1), spare)));
         }
