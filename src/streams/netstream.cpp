@@ -339,7 +339,10 @@ void Net::_run() {
 
                     int64_t ats = 0;
 
-                    if (state->buffer.size() > 0) {
+                    size_t size = state->buffer.size();
+                    lk2.unlock();
+
+                    if (size > 0) {
                         // LOG(INFO) << "Buffer size = " << state->buffer.size();
                         auto &front = state->buffer.front();
 
@@ -354,15 +357,18 @@ void Net::_run() {
                         if (pts <= cts) {
                             LOG(INFO) << "Presentation error = " << (cts - pts);
                             ats = pts;
+                        } else {
+                            LOG(INFO) << "Next presentation in: " << (pts - cts);
                         }
                     }
 
-                    if (ats == 0) {
+                    if (size == 0) {
                         LOG(WARNING) << "No packets to present: " << cts;
+                        continue;
                     }
 
                     auto current = state->buffer.begin();
-                    while (current != state->buffer.end()) {
+                    for (size_t i = 0; i < size; ++i) {
                         // lk2.unlock();
                         
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
@@ -448,6 +454,7 @@ bool Net::begin() {
             buf.packets.first = spkt_raw;
             buf.packets.second = std::move(pkt);
             buf.peer = &p;
+            buf.done = false;
         } else {
             _processPacket(&p, ttimeoff, spkt_raw, pkt);
         }
