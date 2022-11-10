@@ -368,6 +368,7 @@ void Net::_run() {
                     }
 
                     auto current = state->buffer.begin();
+                    bool seenEnd = false;
                     for (size_t i = 0; i < size; ++i) {
                         // lk2.unlock();
                         
@@ -375,12 +376,15 @@ void Net::_run() {
 
                         // Should the packet be dispatched yet
                         if (pts == ats) {
-
                             StreamPacket *spkt;
                             DataPacket *pkt;
-        
+
                             spkt = &current->packets.first;
                             pkt = &current->packets.second;
+
+                            if (spkt->channel == Channel::kEndFrame) {
+                                seenEnd = true;
+                            }
 
                             ++state->active;
                             ftl::pool.push([this, buf = &*current, spkt, pkt, state](int ix) {
@@ -393,7 +397,9 @@ void Net::_run() {
                             nextTs = std::min(nextTs, next);
                             hasLocalNext = true;
                             hasNext = true;
-                            break;
+                            if (seenEnd) {
+                                break;
+                            }
                         }
 
                         // lk2.lock();
