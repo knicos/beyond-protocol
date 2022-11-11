@@ -64,7 +64,9 @@ enum struct StreamProperty {
     kTags,
     kUser,
     kRequestSize,
-    kBuffering
+    kBuffering,
+    kUnderunCount,
+    kDropCount
 };
 
 /**

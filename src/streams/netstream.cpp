@@ -342,12 +342,12 @@ void Net::_run() {
 
                     // Not ready to display this one yet.
                     if (ats > cts) {
-                        LOG(INFO) << "Next presentation in: " << (ats - cts);
+                        if (ats - cts > 100) {
+                            ++drops_;
+                        }
                         nextTs = std::min(nextTs, ats + state->base_local_ts_);
                         hasNext = true;
                         continue;
-                    } else {
-                        LOG(INFO) << "Presentation error = " << (cts - ats);
                     }
 
                     auto current = state->buffer.begin();
@@ -390,6 +390,7 @@ void Net::_run() {
                         hasNext = true;
                     } else {
                         LOG(WARNING) << "Buffer underun " << now;
+                        ++underuns_;
                     }
 
                     auto it = state->buffer.begin();
@@ -406,7 +407,6 @@ void Net::_run() {
 
             auto used = ftl::time::get_time();
             int64_t spare = (hasNext) ? nextTs - used : 10;
-            if (activeStates > 0) LOG(INFO) << "Sleeping for " << spare;
             sleep_for(milliseconds(std::max(int64_t(1), spare)));
         }
 #ifdef WIN32
@@ -748,6 +748,8 @@ void Net::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     case StreamProperty::kBytesReceived :
     case StreamProperty::kLatency       :
     case StreamProperty::kFrameRate     :
+    case StreamProperty::kUnderunCount  :
+    case StreamProperty::kDropCount     :
     case StreamProperty::kURI           :  throw FTL_Error("Readonly property");
     default                             :  throw FTL_Error("Unsupported property");
     }
@@ -767,6 +769,8 @@ std::any Net::getProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kName          :  return name_;
     case StreamProperty::kBuffering     :  return static_cast<float>(buffering_) / 1000.0f;
     case StreamProperty::kRequestSize   :  return frames_to_request_;
+    case StreamProperty::kUnderunCount  :  return static_cast<int>(underuns_);
+    case StreamProperty::kDropCount     :  return static_cast<int>(drops_);
     default                             :  throw FTL_Error("Unsupported property");
     }
 }
@@ -784,6 +788,8 @@ bool Net::supportsProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kName          :
     case StreamProperty::kRequestSize   :
     case StreamProperty::kBuffering     :
+    case StreamProperty::kUnderunCount  :
+    case StreamProperty::kDropCount     :
     case StreamProperty::kURI           :  return true;
     default                             :  return false;
     }
