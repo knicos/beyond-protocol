@@ -313,23 +313,7 @@ void Net::_run() {
                     continue;
                 }
 
-                //if (state->base_local_ts_ == 0) continue;
-
                 int64_t cts = now - state->base_local_ts_;
-
-                bool hasLocalNext = false;
-
-                {
-                    UNIQUE_LOCK(state->mtx, lk2);
-                    auto it = state->buffer.begin();
-                    while (it != state->buffer.end()) {
-                        if (it->done) {
-                            it = state->buffer.erase(it);
-                        } else {
-                            break;
-                        }
-                    }
-                }
 
                 // If there are any packets that should be dispatched
                 // Then create a thread for each and do it.
@@ -337,41 +321,38 @@ void Net::_run() {
                 {
                     SHARED_LOCK(state->mtx, lk2);
 
-                    int64_t ats = 0;
-
-                    size_t size = state->buffer.size();
-                    lk2.unlock();
-
-                    if (size > 0) {
-                        // LOG(INFO) << "Buffer size = " << state->buffer.size();
-                        auto &front = state->buffer.front();
+                    int64_t ats = -1;
+                    if (state->timestamps.size() > 0) {
+                        int64_t raw_ats = *state->timestamps.begin();
+                        // state->timestamps.erase(state->timestamps.begin());
 
                         if (state->base_local_ts_ == 0) {
                             state->base_local_ts_ = now;
-                            state->base_pkt_ts_ = front.packets.first.timestamp;
+                            state->base_pkt_ts_ = raw_ats;
                             cts = 0;
                         }
-
-                        int64_t pts = front.packets.first.timestamp - state->base_pkt_ts_ + buffering_;
-
-                        if (pts <= cts) {
-                            LOG(INFO) << "Presentation error = " << (cts - pts);
-                            ats = pts;
-                        } else {
-                            LOG(INFO) << "Next presentation in: " << (pts - cts);
-                        }
-                    }
-
-                    if (size == 0) {
+                        ats = raw_ats - state->base_pkt_ts_ + buffering_; 
+                    } else {
                         LOG(WARNING) << "No packets to present: " << cts;
                         continue;
                     }
 
+                    size_t size = state->buffer.size();
+                    lk2.unlock();
+
+                    // Not ready to display this one yet.
+                    if (ats > cts) {
+                        LOG(INFO) << "Next presentation in: " << (ats - cts);
+                        nextTs = std::min(nextTs, ats + state->base_local_ts_);
+                        hasNext = true;
+                        continue;
+                    } else {
+                        LOG(INFO) << "Presentation error = " << (cts - ats);
+                    }
+
                     auto current = state->buffer.begin();
-                    bool seenEnd = false;
+
                     for (size_t i = 0; i < size; ++i) {
-                        // lk2.unlock();
-                        
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
 
                         // Should the packet be dispatched yet
@@ -382,35 +363,43 @@ void Net::_run() {
                             spkt = &current->packets.first;
                             pkt = &current->packets.second;
 
-                            if (spkt->channel == Channel::kEndFrame) {
-                                seenEnd = true;
-                            }
-
                             ++state->active;
                             ftl::pool.push([this, buf = &*current, spkt, pkt, state](int ix) {
                                 _processPacket(buf->peer, 0, *spkt, *pkt);
                                 buf->done = true;
                                 --state->active;
                             });
-                        } else {
-                            int64_t next = pts + state->base_local_ts_;
-                            nextTs = std::min(nextTs, next);
-                            hasLocalNext = true;
-                            hasNext = true;
-                            if (seenEnd) {
+
+                            if (spkt->channel == Channel::kEndFrame) {
                                 break;
                             }
                         }
 
-                        // lk2.lock();
                         ++current;
                     }
                 }
 
-                if (!hasLocalNext) {
-                    // nextTs = std::min(nextTs, now + 10);
-                    // TODO: Also, increase buffering
-                    LOG(WARNING) << "Buffer underun " << now;
+                {
+                    UNIQUE_LOCK(state->mtx, lk2);
+                    state->timestamps.erase(state->timestamps.begin());
+
+                    if (state->timestamps.size() > 0) {
+                        int64_t nts = *state->timestamps.begin();
+                        nts = nts - state->base_pkt_ts_ + buffering_ + state->base_local_ts_;
+                        nextTs = std::min(nextTs, nts);
+                        hasNext = true;
+                    } else {
+                        LOG(WARNING) << "Buffer underun " << now;
+                    }
+
+                    auto it = state->buffer.begin();
+                    while (it != state->buffer.end()) {
+                        if (it->done) {
+                            it = state->buffer.erase(it);
+                        } else {
+                            break;
+                        }
+                    }
                 }
             }
             lk.unlock();
@@ -455,6 +444,7 @@ bool Net::begin() {
         auto *state = _getFrameState(FrameID(spkt_raw.streamID, spkt_raw.frame_number));
         if (!host_) {
             UNIQUE_LOCK(state->mtx, lk);
+            state->timestamps.insert(spkt_raw.timestamp);
             // TODO(Nick): This buffer could be faster?
             auto &buf = state->buffer.emplace_back();
             buf.packets.first = spkt_raw;
