@@ -149,6 +149,7 @@ class Net : public Stream {
         bool doreset = false);
     void _cleanUp();
     void _processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
+    void _earlyProcessPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
     void _run();
 };
 
