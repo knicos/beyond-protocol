@@ -26,7 +26,7 @@ struct BaseHandler {
     inline Handle make_handle(BaseHandler*, int);
 
  protected:
-    std::mutex mutex_;
+    std::shared_mutex mutex_;
     int id_ = 0;
 };
 
@@ -110,7 +110,7 @@ struct Handler : BaseHandler {
      * remain in scope, the destructor of the `Handle` will remove the callback.
      */
     Handle on(const std::function<bool(ARGS...)> &f) {
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         int id = id_++;
         callbacks_[id] = f;
         return make_handle(this, id);
@@ -125,7 +125,7 @@ struct Handler : BaseHandler {
     void trigger(ARGS ...args) {
         bool hadFault = false;
         std::string faultMsg;
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::shared_lock<std::shared_mutex> lk(mutex_);
         for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
             bool keep = true;
             try {
@@ -134,9 +134,12 @@ struct Handler : BaseHandler {
                 hadFault = true;
                 faultMsg = e.what();
             }
-            if (!keep) i = callbacks_.erase(i);
-            else
+            if (!keep) {
+                // i = callbacks_.erase(i);
+                throw FTL_Error("Return value callback removal not implemented");
+            } else {
                 ++i;
+            }
         }
         if (hadFault) throw FTL_Error("Callback exception: " << faultMsg);
     }
@@ -150,7 +153,7 @@ struct Handler : BaseHandler {
         ftl::pool.push([this, args...](int id) {
             bool hadFault = false;
             std::string faultMsg;
-            std::unique_lock<std::mutex> lk(mutex_);
+            std::unique_lock<std::shared_mutex> lk(mutex_);
             for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
                 bool keep = true;
                 try {
@@ -174,7 +177,7 @@ struct Handler : BaseHandler {
      * removal via the return value.
      */
     void triggerParallel(ARGS ...args) {
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         jobs_ += callbacks_.size();
         for (auto i = callbacks_.begin(); i != callbacks_.end(); ++i) {
             ftl::pool.push([this, f = i->second, args...](int id) {
@@ -195,7 +198,7 @@ struct Handler : BaseHandler {
      */
     void remove(const Handle &h) override {
         {
-            std::unique_lock<std::mutex> lk(mutex_);
+            std::unique_lock<std::shared_mutex> lk(mutex_);
             callbacks_.erase(h.id());
         }
         // Make sure any possible call to removed callback has finished.
@@ -230,7 +233,7 @@ struct SingletonHandler : BaseHandler {
      * remain in scope, the destructor of the `Handle` will remove the callback.
      */
     [[nodiscard]] Handle on(const std::function<bool(ARGS...)> &f) {
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         if (callback_) throw FTL_Error("Callback already bound");
         callback_ = f;
         return make_handle(this, id_++);
@@ -243,7 +246,7 @@ struct SingletonHandler : BaseHandler {
      * return true.
      */
     bool trigger(ARGS ...args) {
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         if (callback_) {
             bool keep = callback_(std::forward<ARGS>(args)...);
             if (!keep) callback_ = nullptr;
@@ -259,7 +262,7 @@ struct SingletonHandler : BaseHandler {
      * currently bound callback then the callback is not removed.
      */
     void remove(const Handle &h) override {
-        std::unique_lock<std::mutex> lk(mutex_);
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         if (h.id() == id_-1) callback_ = nullptr;
     }
 
