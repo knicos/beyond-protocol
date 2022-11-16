@@ -30,7 +30,8 @@ enum struct Error {
     kURIAlreadyExists,
     kURIDoesNotExist,
     kBadURI,
-    kBadVersion
+    kBadVersion,
+    kBandwidth          // Send was delayed
 };
 
 }  // namespace protocol
