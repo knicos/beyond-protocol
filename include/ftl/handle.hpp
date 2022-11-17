@@ -125,7 +125,8 @@ struct Handler : BaseHandler {
     void trigger(ARGS ...args) {
         bool hadFault = false;
         std::string faultMsg;
-        std::shared_lock<std::shared_mutex> lk(mutex_);
+        // FIXME: This should be a shared_lock but there is a race condition elsewhere.
+        std::unique_lock<std::shared_mutex> lk(mutex_);
         for (auto i = callbacks_.begin(); i != callbacks_.end(); ) {
             bool keep = true;
             try {
