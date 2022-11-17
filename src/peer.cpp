@@ -65,11 +65,18 @@ void Peer::_set_socket_options() {
     CHECK(net_);
     CHECK(sock_);
 
-    // error printed by set methods (return value ignored)
-    sock_->set_send_buffer_size(net_->getSendBufferSize(sock_->scheme()));
-    sock_->set_recv_buffer_size(net_->getRecvBufferSize(sock_->scheme()));
+    const size_t desiredSend = net_->getSendBufferSize(sock_->scheme());
+    const size_t desiredRecv = net_->getRecvBufferSize(sock_->scheme());
 
-    DLOG(1) << "send buffer size: " << (sock_->get_send_buffer_size() >> 10) << "KiB, "
+    // error printed by set methods (return value ignored)
+    if (desiredSend > 0) {
+        sock_->set_send_buffer_size(desiredSend);
+    }
+    if (desiredRecv > 0) {
+        sock_->set_recv_buffer_size(desiredRecv);
+    }
+
+    DLOG(INFO) << "send buffer size: " << (sock_->get_send_buffer_size() >> 10) << "KiB, "
             << "recv buffer size: " << (sock_->get_recv_buffer_size() >> 10) << "KiB";
 }
 
