@@ -15,6 +15,7 @@
 #include <chrono>
 #include "filestream.hpp"
 #include <ftl/time.hpp>
+#include <ftl/counter.hpp>
 #include "packetMsgpack.hpp"
 
 #define LOGURU_REPLACE_GLOG 1
@@ -271,8 +272,6 @@ bool File::tick(int64_t ts) {
         if (i->timestamp <= fsdata.timestamp) {
             StreamPacket &spkt = *i;
 
-            ++jobs_;
-
             if (spkt.channel == Channel::kEndFrame) {
                 fsdata.needs_endframe = false;
             }
@@ -298,7 +297,7 @@ bool File::tick(int64_t ts) {
             ++i;
 
             // TODO(Nick): Probably better not to do a thread per packet
-            ftl::pool.push([this, i = j](int id) {
+            ftl::pool.push([this, c = std::move(ftl::Counter(&jobs_)), i = j](int id) {
                 StreamPacket &spkt = *i;
                 Packet &pkt = *i;
 
@@ -308,7 +307,6 @@ bool File::tick(int64_t ts) {
 
                 UNIQUE_LOCK(data_mutex_, dlk);
                 data_.erase(i);
-                --jobs_;
             });
         } else {
             ++complete_count;

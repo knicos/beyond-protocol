@@ -13,6 +13,7 @@
 #include <chrono>
 #include "netstream.hpp"
 #include <ftl/time.hpp>
+#include <ftl/counter.hpp>
 #include "../uuidMSGPACK.hpp"
 #include "packetMsgpack.hpp"
 
@@ -359,15 +360,13 @@ void Net::_run() {
                             spkt = &current->packets.first;
                             pkt = &current->packets.second;
 
-                            ++state->active;
-                            ftl::pool.push([this, buf = &*current, spkt, pkt, state](int ix) {
+                            ftl::pool.push([this, c = std::move(ftl::Counter(&state->active)), buf = &*current, spkt, pkt, state](int ix) {
                                 try {
                                     _processPacket(buf->peer, 0, *spkt, *pkt);
                                 } catch (const std::exception &e) {
                                     LOG(ERROR) << "Packet processing error: " << e.what();
                                 }
                                 buf->done = true;
-                                --state->active;
                             });
 
                             if (spkt->channel == Channel::kEndFrame) {
