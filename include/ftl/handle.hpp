@@ -12,6 +12,7 @@
 #include <string>
 #include <ftl/threads.hpp>
 #include <ftl/exception.hpp>
+#include <ftl/counter.hpp>
 
 namespace ftl {
 
@@ -150,8 +151,7 @@ struct Handler : BaseHandler {
      * single thread, not in parallel.
      */
     void triggerAsync(ARGS ...args) {
-        ++jobs_;
-        ftl::pool.push([this, args...](int id) {
+        ftl::pool.push([this, c = std::move(ftl::Counter(&jobs_)), args...](int id) {
             bool hadFault = false;
             std::string faultMsg;
             std::unique_lock<std::shared_mutex> lk(mutex_);
@@ -167,7 +167,6 @@ struct Handler : BaseHandler {
                 else
                     ++i;
             }
-            --jobs_;
             if (hadFault) throw FTL_Error("Callback exception: " << faultMsg);
         });
     }
@@ -179,16 +178,13 @@ struct Handler : BaseHandler {
      */
     void triggerParallel(ARGS ...args) {
         std::unique_lock<std::shared_mutex> lk(mutex_);
-        jobs_ += callbacks_.size();
         for (auto i = callbacks_.begin(); i != callbacks_.end(); ++i) {
-            ftl::pool.push([this, f = i->second, args...](int id) {
+            ftl::pool.push([this, c = std::move(ftl::Counter(&jobs_)), f = i->second, args...](int id) {
                 try {
                     f(args...);
                 } catch (const ftl::exception &e) {
-                    --jobs_;
                     throw e;
                 }
-                --jobs_;
             });
         }
     }

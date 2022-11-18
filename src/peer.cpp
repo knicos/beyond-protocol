@@ -15,6 +15,7 @@
 
 #include <ftl/lib/loguru.hpp>
 #include <ftl/lib/ctpl_stl.hpp>
+#include <ftl/counter.hpp>
 
 #include "common.hpp"
 
@@ -277,20 +278,13 @@ NodeType Peer::getType() const {
 }
 
 void Peer::_createJob() {
-    ++job_count_;
-
-    ftl::pool.push([this](int id) {
+    ftl::pool.push([this, c = std::move(ftl::Counter(&job_count_))](int id) {
         try {
             while (_data());
         } catch (const std::exception &e) {
             net_->_notifyError(this, ftl::protocol::Error::kUnknown, e.what());
         }
-        --job_count_;
     });
-
-    if (ftl::pool.size() == 0) {
-        --job_count_;
-    }
 }
 
 void Peer::data() {
