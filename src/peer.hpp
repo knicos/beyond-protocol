@@ -197,6 +197,8 @@ class Peer {
      */
     void data();
 
+    int jobs() const { return job_count_; }
+
  public:
     static const int kMaxMessage = 4*1024*1024;      // 4Mb currently
     static const int kDefaultMessage = 512*1024;     // 0.5Mb currently

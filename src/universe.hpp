@@ -241,7 +241,7 @@ class Universe {
 
 template <typename F>
 void Universe::bind(const std::string &name, F func) {
-    UNIQUE_LOCK(net_mutex_, lk);
+    // UNIQUE_LOCK(net_mutex_, lk);
     disp_.bind(name, func,
         typename ftl::internal::func_kind_info<F>::result_kind(),
         typename ftl::internal::func_kind_info<F>::args_kind(),

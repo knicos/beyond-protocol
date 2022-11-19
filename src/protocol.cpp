@@ -6,15 +6,18 @@
 
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/self.hpp>
+#include <ftl/threads.hpp>
 #include "universe.hpp"
 #include "rpc.hpp"
 
 static std::shared_ptr<ftl::net::Universe> universe;
+static std::mutex globalmtx;
 
 // ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
 ctpl::thread_pool ftl::pool(4);
 
 void ftl::protocol::reset() {
+    UNIQUE_LOCK(globalmtx, lk);
     universe.reset();
 }
 
@@ -22,8 +25,11 @@ ftl::UUID ftl::protocol::id;
 
 std::shared_ptr<ftl::protocol::Self> ftl::getSelf() {
     if (!universe) {
-        universe = std::make_shared<ftl::net::Universe>();
-        ftl::rpc::install(universe.get());
+        UNIQUE_LOCK(globalmtx, lk);
+        if (!universe) {
+            universe = std::make_shared<ftl::net::Universe>();
+            ftl::rpc::install(universe.get());
+        }
     }
     return std::make_shared<ftl::protocol::Self>(universe);
 }

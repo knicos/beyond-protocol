@@ -88,7 +88,7 @@ TEST_CASE("Net stream options") {
         fakedata[0] = "";
         send_handshake(*p.get());
         p->data();
-        sleep_for(milliseconds(50));
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
 
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
         
@@ -114,6 +114,7 @@ TEST_CASE("Net stream options") {
         spkt.channel = Channel::kColour;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
 
         while (count < 1) {
             sleep_for(milliseconds(10));
@@ -125,6 +126,7 @@ TEST_CASE("Net stream options") {
         s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 0.1f);
 
         p->data();
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
 
         while (count < 2) {
             sleep_for(milliseconds(10));
@@ -140,7 +142,7 @@ TEST_CASE("Net stream sending requests") {
     fakedata[0] = "";
     send_handshake(*p.get());
     p->data();
-    sleep_for(milliseconds(50));
+    while (p->jobs() > 0) sleep_for(milliseconds(1));
 
     SECTION("cannot enable if not seen") {
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
@@ -207,9 +209,10 @@ TEST_CASE("Net stream sending requests") {
             spkt.timestamp = i;
             writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
             p->data();
+            while (p->jobs() > 0) sleep_for(milliseconds(1));
         }
 
-        while (s1->postCount < 2) sleep_for(milliseconds(10));
+        while (s1->postCount < 4) sleep_for(milliseconds(10));
 
         REQUIRE( s1->lastSpkt.channel == Channel::kColour );
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
@@ -251,12 +254,14 @@ TEST_CASE("Net stream sending requests") {
             spkt.timestamp = i >> 1;
             writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
             p->data();
+            while (p->jobs() > 0) sleep_for(milliseconds(1));
         }
 
         while (s1->postCount < 3) sleep_for(milliseconds(10));
 
         REQUIRE( s1->lastSpkt.channel == Channel::kColour );
         REQUIRE( (s1->lastSpkt.flags & ftl::protocol::kFlagRequest) > 0 );
+        s1->end();
     }
 
     SECTION("responds to requests") {
@@ -280,8 +285,8 @@ TEST_CASE("Net stream sending requests") {
         spkt.flags = ftl::protocol::kFlagRequest;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
 
-        sleep_for(milliseconds(50));
         REQUIRE( seenReq );
     }
 
@@ -308,14 +313,14 @@ TEST_CASE("Net stream sending requests") {
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
 
-        sleep_for(milliseconds(50));
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
         REQUIRE( bitrate == 100 );
 
         s1->setProperty(ftl::protocol::StreamProperty::kBitrate, 200);
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
 
-        sleep_for(milliseconds(50));
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
         REQUIRE( bitrate == 200 );
     }
 
@@ -341,7 +346,7 @@ TEST_CASE("Net stream sending requests") {
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
 
-        sleep_for(milliseconds(50));
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
         REQUIRE( seenReq );
     }
 
@@ -354,7 +359,7 @@ TEST_CASE("Net stream can see received data") {
     fakedata[0] = "";
     send_handshake(*p.get());
     p->data();
-    sleep_for(milliseconds(50));
+    while (p->jobs() > 0) sleep_for(milliseconds(1));
 
     SECTION("available if packet is seen") {
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), true);
@@ -375,11 +380,12 @@ TEST_CASE("Net stream can see received data") {
         spkt.channel = Channel::kColour;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
         spkt.channel = Channel::kEndFrame;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
         p->data();
 
-        sleep_for(milliseconds(50));
+        while (p->jobs() > 0) sleep_for(milliseconds(1));
         REQUIRE( seenReq );
         REQUIRE( s1->available(FrameID(1, 1), Channel::kColour) );
     }
