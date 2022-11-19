@@ -34,6 +34,11 @@ std::string object_type_to_string(const msgpack::type::object_type t) {
     return "UNKNOWN";
 }
 
+Dispatcher::~Dispatcher() {
+    UNIQUE_LOCK(mutex_, lk);
+    funcs_.clear();
+}
+
 vector<string> Dispatcher::getBindings() const {
     SHARED_LOCK(mutex_, lk);
     vector<string> res;
@@ -43,7 +48,22 @@ vector<string> Dispatcher::getBindings() const {
     return res;
 }
 
+void Dispatcher::unbind(const std::string &name) {
+    UNIQUE_LOCK(mutex_, lk);
+    auto i = funcs_.find(name);
+    if (i != funcs_.end()) {
+        funcs_.erase(i);
+    }
+}
+
 void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
+    SHARED_LOCK(mutex_, lk);
+    std::shared_lock<std::shared_mutex> lk2;
+
+    if (parent_) {
+        lk2 = std::move(std::shared_lock<std::shared_mutex>(parent_->mutex_));
+    }
+
     switch (msg.via.array.size) {
     case 3:
         dispatch_notification(s, msg);
@@ -109,7 +129,7 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
 }
 
 optional<Dispatcher::adaptor_type> ftl::net::Dispatcher::_locateHandler(const std::string &name) const {
-    SHARED_LOCK(mutex_, lk);
+    //SHARED_LOCK(mutex_, lk);
     auto it_func = funcs_.find(name);
     if (it_func == funcs_.end()) {
         if (parent_ != nullptr) {

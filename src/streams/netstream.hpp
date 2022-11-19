@@ -105,6 +105,7 @@ class Net : public Stream {
     int64_t buffering_ = 0;
     std::atomic_int underuns_ = 0;
     std::atomic_int drops_ = 0;
+    std::atomic_int jobs_ = 0;
 
     static std::atomic_size_t req_bitrate__;
     static std::atomic_size_t tx_bitrate__;

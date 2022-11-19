@@ -349,33 +349,43 @@ void Net::_run() {
 
                     auto current = state->buffer.begin();
 
+                    std::list<PacketBuffer*> framePackets;
+
                     for (size_t i = 0; i < size; ++i) {
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
 
                         // Should the packet be dispatched yet
                         if (pts == ats) {
-                            StreamPacket *spkt;
-                            DataPacket *pkt;
+                            framePackets.push_back(&(*current));
 
-                            spkt = &current->packets.first;
-                            pkt = &current->packets.second;
-
-                            ftl::pool.push([this, c = std::move(ftl::Counter(&state->active)), buf = &*current, spkt, pkt, state](int ix) {
-                                try {
-                                    _processPacket(buf->peer, 0, *spkt, *pkt);
-                                } catch (const std::exception &e) {
-                                    LOG(ERROR) << "Packet processing error: " << e.what();
-                                }
-                                buf->done = true;
-                            });
-
-                            if (spkt->channel == Channel::kEndFrame) {
+                            if (current->packets.first.channel == Channel::kEndFrame) {
                                 break;
                             }
                         }
 
                         ++current;
                     }
+
+                    ftl::pool.push([
+                            this,
+                            c = std::move(ftl::Counter(&state->active)),
+                            c2 = std::move(ftl::Counter(&jobs_)),
+                            framePackets](int ix) {
+                        for (auto buf : framePackets) {
+                            StreamPacket *spkt;
+                            DataPacket *pkt;
+
+                            spkt = &buf->packets.first;
+                            pkt = &buf->packets.second;
+
+                            try {
+                                _processPacket(buf->peer, 0, *spkt, *pkt);
+                            } catch (const std::exception &e) {
+                                LOG(ERROR) << "Packet processing error: " << e.what();
+                            }
+                            buf->done = true;
+                        }
+                    });
                 }
 
                 {
@@ -722,8 +732,14 @@ bool Net::end() {
     }
 
     active_ = false;
+
     net_->unbind(base_uri_);
     if (thread_.joinable()) thread_.join();
+
+    while (jobs_ > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
     return true;
 }
 

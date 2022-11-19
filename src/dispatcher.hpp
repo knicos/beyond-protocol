@@ -73,6 +73,7 @@ namespace net {
 class Dispatcher {
  public:
     explicit Dispatcher(Dispatcher *parent = nullptr) : parent_(parent) {}
+    ~Dispatcher();
 
     /**
      * Primary method by which a peer dispatches a msgpack object that this
@@ -261,13 +262,7 @@ class Dispatcher {
     /**
      * Remove a previous bound function by name.
      */
-    void unbind(const std::string &name) {
-        UNIQUE_LOCK(mutex_, lk);
-        auto i = funcs_.find(name);
-        if (i != funcs_.end()) {
-            funcs_.erase(i);
-        }
-    }
+    void unbind(const std::string &name);
 
     /**
      * @return All bound function names.
