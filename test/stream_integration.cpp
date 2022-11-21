@@ -110,6 +110,8 @@ TEST_CASE("TCP Stream", "[net]") {
             return true;
         });
 
+        s2->setProperty(ftl::protocol::StreamProperty::kRequestSize, 30);
+
         s1->begin();
         s2->begin();
 
