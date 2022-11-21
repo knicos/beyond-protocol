@@ -224,7 +224,7 @@ void Net::_earlyProcessPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamP
     // Manage recuring requests
     if (!host_ && spkt.channel == Channel::kEndFrame && localFrame.frameset() < tally_.size()) {
         // Are we close to reaching the end of our frames request?
-        if (tally_[localFrame.frameset()] <= 5) {
+        if (tally_[localFrame.frameset()] <= frames_to_request_ / 2) {
             // Yes, so send new requests
             for (const auto f : enabled(localFrame.frameset())) {
                 const auto &sel = enabledChannels(f);
@@ -251,7 +251,6 @@ void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket
     spkt.hint_capability = 0;
     spkt.hint_source_total = 0;
     spkt.version = 4;
-    if (p) spkt.hint_peerid = p->localID();
 
     bool isRequest = host_ && pkt.data.size() == 0 && (spkt.flags & ftl::protocol::kFlagRequest);
 
@@ -355,7 +354,7 @@ void Net::_run() {
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
 
                         // Should the packet be dispatched yet
-                        if (pts == ats) {
+                        if (pts == ats && !current->done) {
                             framePackets.push_back(&(*current));
 
                             if (current->packets.first.channel == Channel::kEndFrame) {
@@ -459,8 +458,9 @@ bool Net::begin() {
             // TODO(Nick): This buffer could be faster?
             auto &buf = state->buffer.emplace_back();
             buf.packets.first = spkt_raw;
+            buf.packets.first.hint_peerid = p.localID();
             buf.packets.second = std::move(pkt);
-            buf.peer = &p;
+            buf.peer = nullptr;
             buf.done = false;
         } else {
             _processPacket(&p, ttimeoff, spkt_raw, pkt);

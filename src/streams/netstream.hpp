@@ -80,7 +80,7 @@ class Net : public Stream {
 
     static void installRPC(ftl::net::Universe *net);
 
-    static constexpr int kFramesToRequest = 30;
+    static constexpr int kFramesToRequest = 80;
 
     // Unit test support
     virtual void hasPosted(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) {}
