@@ -218,10 +218,16 @@ void Peer::_updateURI() {
 }
 
 void Peer::rawClose() {
-    UNIQUE_LOCK(send_mtx_, lk_send);
     // UNIQUE_LOCK(recv_mtx_, lk_recv);
-    sock_->close();
     status_ = NodeStatus::kDisconnected;
+
+    // Must make sure no jobs are active
+    while (job_count_ > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    UNIQUE_LOCK(send_mtx_, lk_send);
+    sock_->close();
 }
 
 void Peer::close(bool retry) {
@@ -288,7 +294,9 @@ void Peer::_createJob() {
 }
 
 void Peer::data() {
+    ftl::Counter counter(&job_count_);
     if (!sock_->is_valid()) { return; }
+    if (status_ == NodeStatus::kDisconnected) return;
 
     int rc = 0;
 
