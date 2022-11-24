@@ -188,6 +188,11 @@ class Self {
     // Used for testing
     ftl::net::Universe *getUniverse() const { return universe_.get(); }
 
+    // === Statistics methods ===
+
+    float getKBitsPerSecondTX() const;
+    float getKBitsPerSecondRX() const;
+
     // === The RPC methods ===
 
     /**

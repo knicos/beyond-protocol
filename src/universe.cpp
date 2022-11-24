@@ -16,6 +16,8 @@
 #define LOGURU_REPLACE_GLOG 1
 #include <ftl/lib/loguru.hpp>
 
+#include <ftl/time.hpp>
+
 #include <nlohmann/json.hpp>
 
 #include "protocol/connection.hpp"
@@ -425,6 +427,15 @@ std::list<PeerPtr> Universe::getPeers() const {
 }
 
 void Universe::_periodic() {
+    // Update stats
+    int64_t now = ftl::time::get_time();
+    float seconds = static_cast<float>(now - stats_lastTS_) / 1000.0f;
+    stats_rxkbps_ = static_cast<float>(rxBytes_) / seconds / 1024.0f;
+    rxBytes_ = 0;
+    stats_txkbps_ = static_cast<float>(txBytes_) / seconds / 1024.0f;
+    txBytes_ = 0;
+    stats_lastTS_ = now;
+
     auto i = reconnects_.begin();
     while (i != reconnects_.end()) {
         std::string addr = i->peer->getURI();

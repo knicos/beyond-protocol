@@ -338,6 +338,8 @@ void Peer::data() {
         return;
     }
 
+    net_->rxBytes_ += rc;
+
     // May possibly need locking
     recv_buf_.buffer_consumed(rc);
 
@@ -576,6 +578,7 @@ int Peer::_send() {
         _close(reconnect_on_socket_error_);
     }
 
+    net_->txBytes_ += c;
     return c;
 }
 
