@@ -81,6 +81,14 @@ bool Self::isConnected(const std::string &s) {
     return universe_->isConnected(s);
 }
 
+float Self::getKBitsPerSecondTX() const {
+    return universe_->getKBitsPerSecondTX();
+}
+
+float Self::getKBitsPerSecondRX() const {
+    return universe_->getKBitsPerSecondRX();
+}
+
 size_t Self::numberOfNodes() const {
     return universe_->numberOfPeers();
 }

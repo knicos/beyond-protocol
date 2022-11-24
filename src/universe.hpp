@@ -170,6 +170,9 @@ class Universe {
     void setSendBufferSize(ftl::URI::scheme_t s, size_t size);
     void setRecvBufferSize(ftl::URI::scheme_t s, size_t size);
 
+    float getKBitsPerSecondTX() const { return stats_txkbps_ * 8.0f; }
+    float getKBitsPerSecondRX() const { return stats_rxkbps_ * 8.0f; }
+
     static inline std::shared_ptr<Universe> getInstance() { return instance_; }
 
     void setMaxConnections(size_t m);
@@ -202,6 +205,13 @@ class Universe {
     std::condition_variable_any socket_cv_;
 
     std::unique_ptr<NetImplDetail> impl_;
+
+    // Statistics data.
+    float stats_txkbps_ = 0.0f;
+    float stats_rxkbps_ = 0.0f;
+    std::atomic_size_t txBytes_ = 0;
+    std::atomic_size_t rxBytes_ = 0;
+    int64_t stats_lastTS_ = 0;
 
     std::vector<std::unique_ptr<ftl::net::internal::SocketServer>> listeners_;
     std::vector<ftl::net::PeerPtr> peers_;
