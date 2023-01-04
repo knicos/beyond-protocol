@@ -30,6 +30,7 @@ class Socket {
 
  public:
     Socket(int domain, int type, int protocol);
+    ~Socket();
 
     bool is_valid();
     bool is_open();
