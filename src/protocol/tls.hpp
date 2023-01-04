@@ -23,6 +23,7 @@ typedef SSIZE_T ssize_t;
 
 namespace ftl {
 namespace net {
+
 namespace internal {
 
 class Connection_TLS : public Connection_TCP {

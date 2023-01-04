@@ -14,6 +14,11 @@
 #include "socket_linux.cpp"
 #endif
 
+Socket::~Socket() {
+    LOG_IF(ERROR, !(is_valid() || is_closed())) << "socket wrapper destroyed before socket is closed";
+    DCHECK(is_valid() || is_closed());
+}
+
 bool Socket::is_open() { return status_ == STATUS::OPEN; }
 
 bool Socket::is_closed() { return status_ == STATUS::CLOSED; }

@@ -19,7 +19,9 @@ using ftl::URI;
 // SocketConnection ////////////////////////////////////////////////////////////
 
 SocketConnection::~SocketConnection() {
-    sock_.close();
+    if (sock_.is_valid()) {
+        sock_.close();
+    }
 }
 
 socket_t SocketConnection::fd() { return sock_.fd(); }

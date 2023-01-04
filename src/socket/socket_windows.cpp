@@ -14,7 +14,6 @@
 #include <ftl/exception.hpp>
 #include <ftl/lib/loguru.hpp>
 
-
 #pragma comment(lib, "Ws2_32.lib")
 
 // winsock2 documentation
@@ -41,28 +40,67 @@ bool ftl::net::internal::resolve_inet_address(const std::string& hostname, int p
 
 class WinSock {
  public:
+
     WinSock() {
+        CHECK(!winsock_initialized_);
         if (WSAStartup(MAKEWORD(1, 1), &wsaData_) != 0) {
-            LOG(FATAL) << "could not initialize sockets";
+            LOG(FATAL) << "WSAStartup() failed";
             // is it possible to retry/recover?
         }
+        winsock_initialized_  = true;
+        LOG(INFO) << "WSAStartup() done";
+    }
+
+    ~WinSock() {
+        // is this safe in DLL? Documentation warns of deadlock if called from
+        // DllMain() (not clear if static initialization ok or not). 
+        CHECK(winsock_initialized_);
+        if (WSACleanup() != 0) {
+            LOG(FATAL) << "WSACleanup() failed: " << getErrorMsg(WSAGetLastError());
+        }
+        winsock_initialized_ = false;
+        LOG(INFO) << "WSACleanup() done";
+    }
+
+    static bool isInitialized() { return winsock_initialized_ ; }
+
+    static std::string getErrorMsg(int code) {
+        wchar_t* s = NULL;
+
+        FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            NULL, code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
+
+        if (!s) {
+            return "Unknown";
+        }
+
+        std::wstring ws(s);
+        std::string msg(ws.begin(), ws.end());
+        LocalFree(s);
+        return msg;
     }
 
  private:
+    static bool winsock_initialized_;
     WSAData wsaData_;
 };
 
-// Do WSAStartup as static initialisation so no threads active.
+bool WinSock::winsock_initialized_ = false;
+
+// Do WSAStartup as sttic initialisation so no threads active.
 static WinSock winSock;
 
 Socket::Socket(int domain, int type, int protocol) :
-    status_(STATUS::UNCONNECTED), fd_(-1), family_(domain) {
+    status_(STATUS::INVALID), fd_(INVALID_SOCKET), family_(domain) {
+
+    CHECK(WinSock::isInitialized());
 
     fd_ = ::socket(domain, type, protocol);
     if (fd_ == INVALID_SOCKET) {
         err_ = WSAGetLastError();
         throw FTL_Error("socket() failed" + get_error_string());
     }
+    status_ = STATUS::UNCONNECTED;
 }
 
 bool Socket::is_valid() {
@@ -70,16 +108,19 @@ bool Socket::is_valid() {
 }
 
 ssize_t Socket::recv(char* buffer, size_t len, int flags) {
+    CHECK(WinSock::isInitialized());
     auto err = ::recv(fd_, buffer, len, flags);
     if (err < 0) { err_ = WSAGetLastError(); }
     return err;
 }
 
 ssize_t Socket::send(const char* buffer, size_t len, int flags) {
+    CHECK(WinSock::isInitialized());
     return ::send(fd_, buffer, len, flags);
 }
 
 ssize_t Socket::writev(const struct iovec* iov, int iovcnt) {
+    CHECK(WinSock::isInitialized());
     std::vector<WSABUF> wsabuf(iovcnt);
 
     for (int i = 0; i < iovcnt; i++) {
@@ -94,6 +135,9 @@ ssize_t Socket::writev(const struct iovec* iov, int iovcnt) {
 }
 
 int Socket::bind(const SocketAddress& addr) {
+    CHECK(WinSock::isInitialized());
+    CHECK(status_ == STATUS::UNCONNECTED);
+
     int retval = ::bind(fd_, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr));
     if (retval == 0) {
         status_ = STATUS::OPEN;
@@ -108,6 +152,7 @@ int Socket::bind(const SocketAddress& addr) {
 }
 
 int Socket::listen(int backlog) {
+    CHECK(WinSock::isInitialized());
     int retval = ::listen(fd_, backlog);
     if (retval == 0) {
         return 0;
@@ -121,6 +166,9 @@ int Socket::listen(int backlog) {
 }
 
 Socket Socket::accept(SocketAddress& addr) {
+    CHECK(WinSock::isInitialized());
+    CHECK(status_ == STATUS::OPEN);
+
     Socket socket;
     int addrlen = sizeof(addr);
     int retval = ::accept(fd_, reinterpret_cast<sockaddr*>(&addr), &addrlen);
@@ -138,6 +186,7 @@ Socket Socket::accept(SocketAddress& addr) {
 }
 
 int Socket::connect(const SocketAddress& address) {
+    CHECK(WinSock::isInitialized());
     int err = 0;
     if (status_ != STATUS::UNCONNECTED) {
         return -1;
@@ -163,19 +212,35 @@ int Socket::connect(const SocketAddress& address) {
 }
 
 int Socket::connect(const SocketAddress& address, int timeout) {
+    CHECK(WinSock::isInitialized());
     // connect() blocks on Windows
     return connect(address);
 }
 
 bool Socket::close() {
-    bool retval = true;
-    if (is_valid() && status_ != STATUS::CLOSED) {
-        status_ = STATUS::CLOSED;
-        retval = closesocket(fd_) == 0;
-        err_ = errno;
-    }
+    CHECK(status_ != STATUS::CLOSED) << "socket status_: " << status_;
+    CHECK(fd_ != INVALID_SOCKET) << "not a valid socket";
+
+    auto fd = fd_;
+    status_ = STATUS::CLOSED;
     fd_ = INVALID_SOCKET;
-    return retval;
+
+    if (!WinSock::isInitialized()) {
+        // Constructor would fail if WinSock was not started. It is possible
+        // that ~WinSock() is called before all connections are closed at
+        // program exit.
+        LOG(ERROR) << "WinSock stopped before socket was closed";
+        return false;
+    }
+
+    auto retval = closesocket(fd);
+
+    if (retval != 0) {
+        err_ = WSAGetLastError();
+        LOG(ERROR) << "closesocket() returned " << retval << ": " << WinSock::getErrorMsg(err_);
+    }
+
+    return (retval == 0);
 }
 
 
@@ -192,16 +257,7 @@ void Socket::set_blocking(bool val) {
 }
 
 std::string Socket::get_error_string(int code) {
-    wchar_t* s = NULL;
-    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, (code != 0) ? code : err_, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&s, 0, NULL);
-    if (!s) {
-        return "Unknown";
-    }
-    std::wstring ws(s);
-    std::string msg(ws.begin(), ws.end());
-    LocalFree(s);
-    return msg;
+    return WinSock::getErrorMsg((code == 0) ? err_ : code);
 }
 
 bool Socket::is_fatal(int code) {

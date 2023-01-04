@@ -12,11 +12,33 @@
 #include <iomanip>
 #include <string>
 
+#include <thread>
+#include <chrono>
+
 #include <ftl/exception.hpp>
 #include <ftl/lib/loguru.hpp>
 
 using ftl::net::internal::Connection_TLS;
 using uchar = unsigned char;
+
+void log_gnutls(int level, const char* msg) {
+    // msg contains newline
+    auto str = std::string(msg);
+    str.pop_back();
+    LOG(INFO) << "gnutls: %s" << str;
+}
+
+/*
+static bool gnutls_debug_logging_enabled = false;
+
+void ftl::net::enableTlsDebugLogging(int level)
+{
+    gnutls_global_set_log_level(level);
+    if (gnutls_debug_logging_enabled) { return; }
+    gnutls_debug_logging_enabled = true;
+    gnutls_global_set_log_function(&log_gnutls);
+}
+*/
 
 /** get basic certificate info: Distinguished Name (DN), issuer DN,
  *  certificate fingerprint */
@@ -115,13 +137,26 @@ bool Connection_TLS::close() {
 }
 
 ssize_t Connection_TLS::recv(char *buffer, size_t len) {
-    auto recvd = gnutls_record_recv(session_, buffer, len);
-    if (recvd == 0) {
-        DLOG(1) << "recv returned 0 (buffer size " << len << "), closing connection";
-        close();
+    int tries = 30;
+    while (tries-- > 0) {
+        ssize_t recvd = gnutls_record_recv(session_, buffer, len);
+        if (recvd == 0) {
+            DLOG(1) << "recv returned 0 (buffer size " << len << "), closing connection";
+            close();
+        }
+
+        if (recvd > 0) {
+            return recvd;
+        }
+        if (recvd == GNUTLS_E_AGAIN) {
+            std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+            continue;
+        }
+        
+        return check_gnutls_error_(recvd);
     }
 
-    return check_gnutls_error_(recvd);
+    return -1;
 }
 
 ssize_t Connection_TLS::send(const char* buffer, size_t len) {
