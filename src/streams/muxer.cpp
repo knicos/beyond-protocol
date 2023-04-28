@@ -132,7 +132,7 @@ FrameID Muxer::findLocal(const std::string &uri, FrameID remote) const {
                 break;
             }
         }
-    }
+    } 
 
     if (entry) {
         return _mapFromInput(entry, remote);
@@ -161,6 +161,28 @@ FrameID Muxer::findLocal(const std::shared_ptr<Stream> &stream, FrameID remote) 
     }
 }
 
+
+FrameID Muxer::findOrCreateLocal(const std::shared_ptr<Stream> &stream, FrameID remote) {
+    StreamEntry *entry = nullptr;
+
+    {
+        SHARED_LOCK(mutex_, lk);
+        for (auto &e : streams_) {
+            if (e.stream == stream) {
+                entry = &e;
+                break;
+            }
+        }
+    }
+
+    if (entry) {
+        return _mapFromInput(entry, remote);
+    } else {
+        throw FTL_Error("No stream");
+    }
+}
+
+
 FrameID Muxer::findRemote(FrameID local) const {
     auto m = _mapToOutput(local);
     if (m.second == nullptr) {
@@ -181,10 +203,13 @@ std::list<std::shared_ptr<Stream>> Muxer::streams() const {
 void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
     UNIQUE_LOCK(mutex_, lk);
 
+    // TODO: should this check if stream already exists?
+
     auto &se = streams_.emplace_back();
     se.id = stream_ids_++;
     se.stream = s;
     se.fixed_fs = fsid;
+
     Muxer::StreamEntry *ptr = &se;
 
     se.handle = std::move(s->onPacket([this, ptr](const StreamPacket &spkt, const DataPacket &pkt) {
@@ -228,6 +253,7 @@ void Muxer::add(const std::shared_ptr<Stream> &s, int fsid) {
         error(err, str);
         return true;
     }));
+
 }
 
 void Muxer::remove(const std::shared_ptr<Stream> &s) {

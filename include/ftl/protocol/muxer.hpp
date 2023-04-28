@@ -65,16 +65,16 @@ class Muxer : public Stream {
 
     void reset() override;
 
+    /** enable(): frameset id 255 to apply for all available framesets, source id 255 for all available frames.
+     *  If both 255: enable all frames on all framesets.
+     */
     bool enable(FrameID id) override;
-
     bool enable(FrameID id, ftl::protocol::Channel channel) override;
-
     bool enable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
+    /** fsid 255/sid 255 trick does not apply for disable() (TODO?) */
     void disable(FrameID id) override;
-
     void disable(FrameID id, ftl::protocol::Channel channel) override;
-
     void disable(FrameID id, const ftl::protocol::ChannelSet &channels) override;
 
     void setProperty(ftl::protocol::StreamProperty opt, std::any value) override;
@@ -134,6 +134,17 @@ class Muxer : public Stream {
     FrameID findLocal(const std::shared_ptr<Stream> &stream, FrameID remote) const;
 
     /**
+     * @brief Find the system local ID for a stream specific ID, pre-allocate one if doesn't exist.
+     * 
+     * Remote framesets for given remote FrameID will have the returned local FrameID.
+     * 
+     * @param stream 
+     * @param remote 
+     * @return FrameID 
+     */
+    FrameID findOrCreateLocal(const std::shared_ptr<Stream>& stream, FrameID remote);
+
+    /**
      * @brief Given a local frame ID, get the stream specific ID.
      * 
      * @see originStream
@@ -161,10 +172,17 @@ class Muxer : public Stream {
         int fixed_fs = -1;
     };
 
+    /** map between local and remote framsets, first 16 bits for stream id, second 16 bits for frameset */
     std::unordered_map<int, int> fsmap_;
     std::unordered_map<int, int> sourcecount_;
+
+    /* map between stream specific ids to local ids
+    *  packs stream id and frame id in uint64_t (first 32 bits for stream id, last for frameid) */
     std::unordered_map<int64_t, FrameID> imap_;
+
+    /** map between local FrameID and remote (FrameID, StreamEntry) pair */
     std::unordered_map<FrameID, std::pair<FrameID, Muxer::StreamEntry*>> omap_;
+
     std::list<StreamEntry> streams_;
     mutable SHARED_MUTEX mutex_;
     std::atomic_int stream_ids_ = 0;
