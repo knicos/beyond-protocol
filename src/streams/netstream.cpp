@@ -14,6 +14,7 @@
 #include "netstream.hpp"
 #include <ftl/time.hpp>
 #include <ftl/counter.hpp>
+#include <ftl/profiler.hpp>
 #include "../uuidMSGPACK.hpp"
 #include "packetMsgpack.hpp"
 
@@ -327,7 +328,7 @@ void Net::_run() {
                             state->base_pkt_ts_ = raw_ats;
                             cts = 0;
                         }
-                        ats = raw_ats - state->base_pkt_ts_ + buffering_; 
+                        ats = raw_ats - state->base_pkt_ts_ + buffering_;
                     } else {
                         // LOG(WARNING) << "No packets to present: " << cts;
                         continue;
@@ -366,10 +367,12 @@ void Net::_run() {
                     }
 
                     ftl::pool.push([
-                            this,
+                        this,
                             c = std::move(ftl::Counter(&state->active)),
                             c2 = std::move(ftl::Counter(&jobs_)),
                             framePackets](int ix) {
+
+                        FTL_PROFILE_SCOPE("ProcessFramePackets");
                         for (auto buf : framePackets) {
                             StreamPacket *spkt;
                             DataPacket *pkt;
