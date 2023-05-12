@@ -1,6 +1,7 @@
 #ifdef WIN32
 #include <Ws2tcpip.h>
 #include <windows.h>
+#include <string>
 #endif
 
 #include <ftl/lib/ctpl_stl.hpp>

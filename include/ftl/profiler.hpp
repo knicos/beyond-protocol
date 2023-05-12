@@ -38,3 +38,9 @@
 #define FTL_Profile(LABEL, LIMIT) {}
 
 #endif
+
+inline void FTL_PROFILE_LOG(const std::string& message) {
+#ifdef TRACY_ENABLE
+	TracyMessage(message.c_str(), message.size());
+#endif
+}
