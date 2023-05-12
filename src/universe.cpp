@@ -75,6 +75,7 @@ struct NetImplDetail {
 
 // TODO(Seb): move to ServerSocket and ClientSocket
 // Defaults, should be changed in config
+
 #define TCP_SEND_BUFFER_SIZE    (32*1024*1024)
 #define TCP_RECEIVE_BUFFER_SIZE (32*1024*1024)  // Perhaps try 24K?
 #define WS_SEND_BUFFER_SIZE     (32*1024*1024)

@@ -10,3 +10,4 @@ docs/html
 /build*
 /.vs
 /CMakeSettings.json
+.vscode/*

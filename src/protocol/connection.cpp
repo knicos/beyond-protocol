@@ -111,7 +111,7 @@ ssize_t SocketConnection::writev(const struct iovec *iov, int iovcnt) {
         writev_calls++;
 
         if (sent < 0) {
-            DLOG(ERROR) << "writev(): " << sock_.get_error_string();
+            LOG(2) << "writev(): " << sock_.get_error_string();
             if (sock_.is_fatal()) {
                 return sent;
             }
@@ -121,7 +121,7 @@ ssize_t SocketConnection::writev(const struct iovec *iov, int iovcnt) {
         sent_total += sent;
     }
 
-    DLOG(2) << "message required " << writev_calls << " writev() calls";
+    LOG(2) << "message required " << writev_calls << " writev() calls";
 
     /*if (can_increase_sock_buffer_) {
         auto send_buf_size = sock_.get_send_buffer_size();

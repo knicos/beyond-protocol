@@ -5,9 +5,20 @@
 
 #include <ftl/lib/ctpl_stl.hpp>
 
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#endif
+
 void ctpl::thread_pool::set_thread(int i) {
     std::shared_ptr<std::atomic<bool>> flag(this->flags[i]);  // a copy of the shared ptr to the flag
     auto f = [this, i, flag/* a copy of the shared ptr to the flag */]() {
+        #if TRACY_ENABLE
+        {
+            const auto thread_name = "thread_pool/" + std::to_string(i);
+            tracy::SetThreadName(thread_name.c_str());
+        }
+        #endif
+        
         std::atomic<bool> & _flag = *flag;
         std::function<void(int id)> * _f;
         bool isPop = this->q.pop(_f);
