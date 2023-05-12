@@ -5,12 +5,16 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "g++ - Debug Node",
+            "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
+            "environment": [
+                {"name" : "ASAN_OPTIONS", "value" : "abort_on_error=1,protect_shadow_gap=0"}
+            ],
             "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
@@ -18,15 +22,44 @@
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
                 }
             ],
-            "miDebuggerPath": "/usr/bin/gdb",
             "sourceFileMap": {
                 "${workspaceFolder}": {	
                     "editorPath": "${workspaceFolder}",
                     "useForBreakpoints": "true"
                 }
-            }            
+            }
+        },
+        {
+            "name": "(gdb) Attach",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "${command:cmake.launchTargetPath}",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ],
+            "sourceFileMap": {
+                "${workspaceFolder}": {
+                    "editorPath": "${workspaceFolder}",
+                    "useForBreakpoints": "true"
+                }
+            }
         }
     ]
 }

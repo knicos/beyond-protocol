@@ -260,9 +260,8 @@ class Peer {
 
     // Send buffers
     msgpack::vrefbuffer send_buf_;
-    RECURSIVE_MUTEX send_mtx_;
-
-    RECURSIVE_MUTEX cb_mtx_;
+    DECLARE_RECURSIVE_MUTEX(send_mtx_);
+    DECLARE_RECURSIVE_MUTEX(cb_mtx_);
 
     const bool outgoing_;
     unsigned int local_id_;

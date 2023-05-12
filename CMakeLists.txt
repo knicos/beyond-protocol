@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.18.0)
 include (CheckIncludeFile)
 include (CheckIncludeFileCXX)
 include (CheckFunctionExists)
+include (FetchContent)
 
 if (NOT FTL_VERSION)
 	set(FTL_VERSION 0.0.1)
@@ -18,6 +19,8 @@ option(WITH_GNUTLS "Enable TLS support" ON)
 option(USE_CPPCHECK "Apply cppcheck during build" ON)
 option(BUILD_TESTS "Compile all unit and integration tests" ON)
 option(BUILD_EXAMPLES "Compile the examples" ON)
+option(ENABLE_PROFILER "Enable builtin performance profiling" OFF)
+option(DEBUG_LOCKS "Enable lock profiling (requires ENABLE_PROFILER)" OFF)
 
 if (NOT WIN32)
 	option(WITH_PYTHON "Enable python support" ON)
@@ -98,6 +101,7 @@ if (USE_CPPCHECK)
 	endif()
 endif()
 
+include(ftl_tracy)
 include(git_version)
 include(ftl_paths)
 
@@ -177,10 +181,12 @@ target_include_directories(beyond-common PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>)
 
+target_link_libraries(beyond-common PUBLIC Tracy)
+
 add_library(beyond-protocol STATIC
 	$<TARGET_OBJECTS:beyond-common>
-    src/peer.cpp
-    src/universe.cpp
+	src/peer.cpp
+	src/universe.cpp
 	src/socket/socket.cpp
 	src/protocol/connection.cpp
 	src/protocol/factory.cpp
@@ -207,7 +213,7 @@ add_library(beyond-protocol STATIC
 target_include_directories(beyond-protocol PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 	$<INSTALL_INTERFACE:include>)
-target_link_libraries(beyond-protocol Threads::Threads ${UUID_LIBRARIES})
+target_link_libraries(beyond-protocol Threads::Threads ${UUID_LIBRARIES} Tracy)
 
 if (WITH_GNUTLS)
 	target_link_libraries(beyond-protocol GnuTLS::GnuTLS)
@@ -224,5 +230,5 @@ if (BUILD_TESTS)
 endif()
 
 if (BUILD_EXAMPLES)
-    add_subdirectory(examples)
+	add_subdirectory(examples)
 endif()

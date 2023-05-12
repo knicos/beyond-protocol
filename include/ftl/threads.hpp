@@ -12,29 +12,55 @@
 
 #define POOL_SIZE 10
 
-// #define DEBUG_MUTEX
-#define MUTEX_TIMEOUT 2
-
-#if defined DEBUG_MUTEX
-#include <ftl/lib/loguru.hpp>
-#include <chrono>
-#include <type_traits>
-
-#define MUTEX std::timed_mutex
-#define RECURSIVE_MUTEX std::recursive_timed_mutex
-#define SHARED_MUTEX std::shared_timed_mutex
-
-#define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M, std::chrono::milliseconds(MUTEX_TIMEOUT)); while (!L) { LOG(ERROR) << "Mutex timeout"; L.try_lock_for(std::chrono::milliseconds(MUTEX_TIMEOUT)); };
-#define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M, std::chrono::milliseconds(MUTEX_TIMEOUT)); while (!L) { LOG(ERROR) << "Mutex timeout"; L.try_lock_for(std::chrono::milliseconds(MUTEX_TIMEOUT)); };
-
-#else
+/// consider using DECLARE_MUTEX(name) which allows (optional) profiling
 #define MUTEX std::mutex
+/// consider using DECLARE_RECURSIVE_MUTEX(name) which allows (optional) profiling
 #define RECURSIVE_MUTEX std::recursive_mutex
+/// consider using DECLARE_SHARED_MUTEX(name) which allows (optional) profiling
 #define SHARED_MUTEX std::shared_mutex
 
-#define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M);
-#define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M);
-#endif  // DEBUG_MUTEX
+#if defined(TRACY_ENABLE)
+
+#include <type_traits>
+#include <tracy/Tracy.hpp>
+
+#define DECLARE_MUTEX(varname) TracyLockable(MUTEX, varname)
+#define DECLARE_RECURSIVE_MUTEX(varname) TracyLockable(RECURSIVE_MUTEX, varname)
+#define DECLARE_SHARED_MUTEX(varname) TracySharedLockable(SHARED_MUTEX, varname)
+
+#define DECLARE_MUTEX_N(varname, name) TracyLockableN(MUTEX, varname, name)
+#define DECLARE_RECURSIVE_MUTEX_N(varname, name) TracyLockableN(RECURSIVE_MUTEX, varname, name)
+#define DECLARE_SHARED_MUTEX_N(varname, name) TracySharedLockableN(SHARED_MUTEX, varname, name)
+
+/// mark lock acquired (mutex M);
+#define MARK_LOCK_AQUIRED(M) LockMark(M)
+// TODO: should automatic, but requires mutexes to be declared with DECLARE_..._MUTEX macros
+
+#define T_UNIQUE_LOCK(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
+#define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M)
+
+#else
+
+/// mutex with optional profiling (and debugging) when built with PROFILE_MUTEX.
+#define DECLARE_MUTEX(varname) MUTEX varname
+/// recursive mutex with optional profiling (and debugging) when built with PROFILE_MUTEX
+#define DECLARE_RECURSIVE_MUTEX(varname) RECURSIVE_MUTEX varname
+/// shared mutex with optional profiling (and debugging) when built with PROFILE_MUTEX
+#define DECLARE_SHARED_MUTEX(varname) SHARED_MUTEX varname
+
+#define DECLARE_MUTEX_N(varname, name) MUTEX varname
+#define DECLARE_RECURSIVE_MUTEX_N(varname, name) RECURSIVE_MUTEX varname
+#define DECLARE_SHARED_MUTEX_N(varname, name) SHARED_MUTEX varname
+
+/// mark lock acquired (mutex M)
+#define MARK_LOCK(M) {}
+
+#define T_UNIQUE_LOCK(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
+#define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M)
+
+#endif  // TRACY_ENABLE
 
 #define SHARED_LOCK_TYPE(M) std::shared_lock<M>
 
