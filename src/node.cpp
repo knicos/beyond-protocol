@@ -30,7 +30,9 @@ bool Node::waitConnection(int s) {
 }
 
 bool Node::reconnect() {
-    return peer_->reconnect();
+    // FIXME
+    return false;
+    // return peer_->reconnect();
 }
 
 bool Node::isOutgoing() const {
@@ -62,7 +64,8 @@ std::string Node::to_string() const {
 }
 
 void Node::noReconnect() {
-    peer_->noReconnect();
+    // FIXME
+    // peer_->noReconnect();
 }
 
 unsigned int Node::localID() {
@@ -70,7 +73,8 @@ unsigned int Node::localID() {
 }
 
 int Node::connectionCount() const {
-    return peer_->connectionCount();
+    return 0;
+    //return peer_->connectionCount();
 }
 
 void Node::restart() {

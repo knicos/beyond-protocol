@@ -28,7 +28,7 @@ static void recv_data(const std::vector<DTYPE> &data) {
 	t_last_recv_ = std::chrono::steady_clock::now();
 }
 
-static float peer_send(ftl::net::Peer* p, const std::vector<DTYPE>& data, int cnt) {
+static float peer_send(ftl::net::PeerBase* p, const std::vector<DTYPE>& data, int cnt) {
 	auto t_start = std::chrono::steady_clock::now();
 	decltype(t_start) t_stop;
 
@@ -65,6 +65,10 @@ static float peer_send(ftl::net::Peer* p, const std::vector<DTYPE>& data, int cn
 }
 
 ftl::URI uri("");
+
+/* 
+ * About 10800 MBit/s (i5-9600K), with ASAN 
+ */
 
 TEST_CASE("throughput", "[net]") {
 	auto net_server = std::make_unique<Universe>();

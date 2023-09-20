@@ -5,7 +5,7 @@
 if(WIN32)
 find_path(URIP_DIR NAMES include/uriparser/Uri.h PATHS "C:/Program Files/uriparser" "C:/Program Files (x86)/uriparser")
 else()
-set(URIP_DIR "")
+    set(URIP_DIR "")
 endif()
 
 # Find lib

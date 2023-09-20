@@ -25,7 +25,7 @@
 namespace ftl {
 
 namespace net {
-class Peer;
+class PeerBase;
 }
 
 namespace internal {
@@ -43,7 +43,7 @@ namespace internal {
     }
 
     template <typename Functor, typename... Args, std::size_t... I>
-    decltype(auto) call_helper(Functor func, ftl::net::Peer &p, std::tuple<Args...> &&params,
+    decltype(auto) call_helper(Functor func, ftl::net::PeerBase &p, std::tuple<Args...> &&params,
                                std::index_sequence<I...>) {
         return func(p, std::get<I>(params)...);
     }
@@ -57,7 +57,7 @@ namespace internal {
 
     //! \brief Calls a functor with arguments provided as a tuple
     template <typename Functor, typename... Args>
-    decltype(auto) call(Functor f, ftl::net::Peer &p, std::tuple<Args...> &args) {
+    decltype(auto) call(Functor f, ftl::net::PeerBase &p, std::tuple<Args...> &args) {
         return call_helper(f, p, std::forward<std::tuple<Args...>>(args),
                            std::index_sequence_for<Args...>{});
     }
@@ -79,7 +79,7 @@ class Dispatcher {
      * Primary method by which a peer dispatches a msgpack object that this
      * class then decodes to find correct handler and types.
      */
-    void dispatch(ftl::net::Peer &, const msgpack::object &msg);
+    void dispatch(ftl::net::PeerBase &, const msgpack::object &msg);
 
     // Without peer object =====================================================
 
@@ -96,7 +96,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
-            std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+            std::make_pair(name, [func, name](ftl::net::PeerBase &p, msgpack::object const &args) {
                 enforce_arg_count(name, 0, args.via.array.size);
                 func();
                 return std::make_unique<msgpack::object_handle>();
@@ -119,7 +119,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
-            std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+            std::make_pair(name, [func, name](ftl::net::PeerBase &p, msgpack::object const &args) {
                 constexpr int args_count = std::tuple_size<args_type>::value;
                 enforce_arg_count(name, args_count, args.via.array.size);
                 args_type args_real;
@@ -144,7 +144,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
-                                            name](ftl::net::Peer &p, msgpack::object const &args) {
+                                            name](ftl::net::PeerBase &p, msgpack::object const &args) {
             enforce_arg_count(name, 0, args.via.array.size);
             auto z = std::make_unique<msgpack::zone>();
             auto result = msgpack::object(func(), *z);
@@ -168,7 +168,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
-                                            name](ftl::net::Peer &p, msgpack::object const &args) {
+                                            name](ftl::net::PeerBase &p, msgpack::object const &args) {
             constexpr int args_count = std::tuple_size<args_type>::value;
             enforce_arg_count(name, args_count, args.via.array.size);
             args_type args_real;
@@ -189,7 +189,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
-            std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+            std::make_pair(name, [func, name](ftl::net::PeerBase &p, msgpack::object const &args) {
                 enforce_arg_count(name, 0, args.via.array.size);
                 func(p);
                 return std::make_unique<msgpack::object_handle>();
@@ -207,7 +207,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(
-            std::make_pair(name, [func, name](ftl::net::Peer &p, msgpack::object const &args) {
+            std::make_pair(name, [func, name](ftl::net::PeerBase &p, msgpack::object const &args) {
                 constexpr int args_count = std::tuple_size<args_type>::value;
                 enforce_arg_count(name, args_count, args.via.array.size);
                 args_type args_real;
@@ -227,7 +227,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
-                                            name](ftl::net::Peer &p, msgpack::object const &args) {
+                                            name](ftl::net::PeerBase &p, msgpack::object const &args) {
             enforce_arg_count(name, 0, args.via.array.size);
             auto z = std::make_unique<msgpack::zone>();
             auto result = msgpack::object(func(p), *z);
@@ -246,7 +246,7 @@ class Dispatcher {
         enforce_unique_name(name);
         UNIQUE_LOCK(mutex_, lk);
         funcs_.insert(std::make_pair(name, [func,
-                                            name](ftl::net::Peer &p, msgpack::object const &args) {
+                                            name](ftl::net::PeerBase &p, msgpack::object const &args) {
             constexpr int args_count = std::tuple_size<args_type>::value;
             enforce_arg_count(name, args_count, args.via.array.size);
             args_type args_real;
@@ -279,7 +279,7 @@ class Dispatcher {
     //==== Types ===============================================================
 
     using adaptor_type = std::function<std::unique_ptr<msgpack::object_handle>(
-        ftl::net::Peer &, msgpack::object const &)>;
+        ftl::net::PeerBase &, msgpack::object const &)>;
 
     //! \brief This is the type of messages as per the msgpack-rpc spec.
     using call_t = std::tuple<int8_t, uint32_t, std::string, msgpack::object>;
@@ -302,8 +302,8 @@ class Dispatcher {
 
     void enforce_unique_name(std::string const &func);
 
-    void dispatch_call(ftl::net::Peer &, const msgpack::object &msg);
-    void dispatch_notification(ftl::net::Peer &, msgpack::object const &msg);
+    void dispatch_call(ftl::net::PeerBase &, const msgpack::object &msg);
+    void dispatch_notification(ftl::net::PeerBase &, msgpack::object const &msg);
 };
 
 }  // namespace net

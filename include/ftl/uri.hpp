@@ -60,6 +60,7 @@ class URI {
         SCHEME_TCP,
         SCHEME_UDP,
         SCHEME_FTL,      // Future Tech Lab
+        SCHEME_FTL_QUIC, // FTL over QUIC
         SCHEME_HTTP,
         SCHEME_WS,
         SCHEME_WSS,

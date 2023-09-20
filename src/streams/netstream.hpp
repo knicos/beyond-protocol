@@ -47,6 +47,8 @@ class Net : public Stream {
 
     bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) override;
 
+    int postQueueSize(FrameID frame_id, Channel channel) const override;
+
     bool begin() override;
     bool end() override;
     bool active() override;
@@ -70,7 +72,7 @@ class Net : public Stream {
         return *peer_;
     }
 
-    inline ftl::Handle onClientConnect(const std::function<bool(ftl::net::Peer*)> &cb) { return connect_cb_.on(cb); }
+    inline ftl::Handle onClientConnect(const std::function<bool(ftl::net::PeerBase*)> &cb) { return connect_cb_.on(cb); }
 
     /**
      * Return the average bitrate of all streams since the last call to this
@@ -87,6 +89,8 @@ class Net : public Stream {
     void inject(const ftl::protocol::StreamPacket &, ftl::protocol::DataPacket &);
 
  private:
+    bool send(const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&);
+
     SHARED_MUTEX mutex_;
     bool active_ = false;
     ftl::net::Universe *net_;
@@ -101,7 +105,7 @@ class Net : public Stream {
     int frames_to_request_ = kFramesToRequest;
     std::string name_;
     ftl::PacketManager mgr_;
-    ftl::Handler<ftl::net::Peer*> connect_cb_;
+    ftl::Handler<ftl::net::PeerBase*> connect_cb_;
     int64_t buffering_ = 0;
     std::atomic_int underuns_ = 0;
     std::atomic_int drops_ = 0;
@@ -116,7 +120,7 @@ class Net : public Stream {
 
     struct PacketBuffer {
         ftl::protocol::PacketPair packets;
-        ftl::net::Peer *peer = nullptr;
+        ftl::net::PeerBase *peer = nullptr;
         std::atomic_bool done = false;
     };
 
@@ -138,7 +142,7 @@ class Net : public Stream {
 
     FrameState *_getFrameState(FrameID id);
     bool _enable(FrameID id);
-    bool _processRequest(ftl::net::Peer *p, const ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket &pkt);
+    bool _processRequest(ftl::net::PeerBase *p, const ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket &pkt);
     void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
     void _checkTXRate(size_t tx_size, int64_t tx_latency, int64_t ts);
     bool _sendRequest(
@@ -149,8 +153,10 @@ class Net : public Stream {
         uint8_t bitrate,
         bool doreset = false);
     void _cleanUp();
-    void _processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
-    void _earlyProcessPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
+    void _processPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
+    void _earlyProcessPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
+
+    // processing loop for non-hosted netstreams (runs in dedicated thread)
     void _run();
 };
 

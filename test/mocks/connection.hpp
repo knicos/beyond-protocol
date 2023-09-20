@@ -2,13 +2,13 @@
 
 #include <map>
 #include <string>
-#include "../../src/peer.hpp"
+#include "../../src/peer_tcp.hpp"
 
-ftl::net::PeerPtr createMockPeer(int c);
+ftl::net::PeerTcpPtr createMockPeer(int c);
 
 extern std::map<int, std::string> fakedata;
 
-void send_handshake(ftl::net::Peer &p);
+void send_handshake(ftl::net::PeerTcp &p);
 
 template <typename ARG>
 msgpack::object packResponse(msgpack::zone &z, const ARG &arg) {
@@ -45,6 +45,7 @@ template <typename T>
 std::tuple<uint8_t, uint32_t, std::string, T>  readRPCFull(int s) {
 	msgpack::object_handle msg = msgpack::unpack(fakedata[s].data(), fakedata[s].size());
 	std::tuple<uint8_t, uint32_t, std::string, T> req;
+	LOG(INFO) << *msg;
 	msg.get().convert(req);
 	return req;
 }
@@ -64,4 +65,3 @@ T readRPCReturn(int s) {
 	msg.get().convert(req);
 	return std::get<3>(req);
 }
-

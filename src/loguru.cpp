@@ -1299,6 +1299,7 @@ namespace loguru
 				// Make sure we don't catch our own abort:
 				signal(SIGABRT, SIG_DFL);
 #endif
+
 				abort();
 			}
 		}
