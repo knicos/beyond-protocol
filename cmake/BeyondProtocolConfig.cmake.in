@@ -8,4 +8,19 @@ find_dependency(MsQuic)
 
 include("${CMAKE_CURRENT_LIST_DIR}/BeyondProtocolTargets.cmake")
 
+if (@WITH_OPENSSL@)
+	set(OPENSSL_USE_STATIC_LIBS TRUE)
+	if(WIN32)
+		# On Windows also checks if OpenSSL binaries are available with MsQuic 
+		if(NOT DEFINED OPENSSL_ROOT_DIR)
+			set(OPENSSL_ROOT_DIR "${MsQuic_DIR}/../..")
+			find_package(OpenSSL)
+		endif()
+	endif()
+	if (NOT OPENSSL_FOUND)
+		find_package(OpenSSL REQUIRED)
+	endif()
+	set(HAVE_OPENSSL TRUE)
+endif()
+
 check_required_components(BeyondProtocol)
