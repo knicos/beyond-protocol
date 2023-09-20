@@ -18,6 +18,8 @@
 #include "../uuidMSGPACK.hpp"
 #include "packetMsgpack.hpp"
 
+#include <ftl/profiler.hpp>
+
 #define LOGURU_REPLACE_GLOG 1
 #include <ftl/lib/loguru.hpp>
 
@@ -103,6 +105,8 @@ Net::Net(const std::string &uri, ftl::net::Universe *net, bool host) :
     }
     base_uri_ = u.getBaseURI();
 
+    // callbacks for processing bound in begin()
+
     if (host_) {
         // Automatically set name
         name_.resize(1024);
@@ -125,9 +129,14 @@ Net::~Net() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
 }
 
-bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
+int Net::postQueueSize(FrameID frame_id, Channel channel) const {
+    return 0;
+}
+
+bool Net::send(const StreamPacket &spkt, const DataPacket &pkt) {
     if (!active_) return false;
     if (paused_) return true;
+
     bool hasStale = false;
 
     // Cast to include msgpack methods
@@ -161,7 +170,9 @@ bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
                     // TODO(Nick): msgpack only once and broadcast.
                     // TODO(Nick): send in parallel and then wait on all futures?
                     // Or send non-blocking and wait
-                    if (!net_->send(client.peerid,
+                    auto peer = net_->getPeer(client.peerid);
+                    
+                    if (!peer || !peer->send(
                             base_uri_,
                             pre_transmit_latency,  // Time since timestamp for tx
                             spkt_net,
@@ -209,7 +220,16 @@ bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
     return true;
 }
 
-void Net::_earlyProcessPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt, DataPacket &pkt) {
+bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
+    send(spkt, pkt);
+    /*ftl::pool.push([this, spkt=std::move(spkt), std::move(pkt)](int) {
+        send(spkt, pkt);
+        return true;
+    });*/
+    return true;
+}
+
+void Net::_earlyProcessPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt, DataPacket &pkt) {
     if (!active_) return;
 
     bool isRequest = host_ && pkt.data.size() == 0 && (spkt.flags & ftl::protocol::kFlagRequest);
@@ -240,7 +260,7 @@ void Net::_earlyProcessPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamP
     }
 }
 
-void Net::_processPacket(ftl::net::Peer *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt) {
+void Net::_processPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt) {
     int64_t now = time_point_cast<milliseconds>(high_resolution_clock::now()).time_since_epoch().count();
 
     if (!active_) return;
@@ -286,6 +306,13 @@ Net::FrameState *Net::_getFrameState(FrameID id) {
     return p;
 }
 
+// TODO: Net::_run should be split to smaller functions and this wait code added at the end of the loop.
+void waitUntilNext(bool hasNext, int64_t nextTs) {
+    auto used = ftl::time::get_time();
+    int64_t spare = (hasNext) ? nextTs - used : 10;
+    sleep_for(milliseconds(std::max(int64_t(1), spare)));
+}
+
 void Net::_run() {
     thread_ = std::thread([this]() {
 #ifdef WIN32
@@ -293,28 +320,27 @@ void Net::_run() {
 #endif
         while (active_) {
             auto now = ftl::time::get_time();
-            int64_t nextTs = now + 200;
-            int activeStates = 0;
+            int64_t nextTs = now + 200; // FIXME: hardcoded value
             bool hasNext = false;
 
-            // For every state
+            // For every state (frame in framset)
             SHARED_LOCK(statesMtx_, lk);
             for (auto &s : frameStates_) {
                 auto *state = s.second.get();
-                ++activeStates;
 
                 if (state->active > 0) {
-                    LOG(WARNING) << "Previous frame still processing: " << nextTs;
-                    nextTs = now + 1;
-                    hasNext = true;
-                    continue;
+                    // Previous task in thread pool still running; not a problem depending on cause
+                    //LOG(WARNING) << "Previous frame still processing: " << nextTs;
+                    nextTs = now + 3;
+
+                    waitUntilNext(true, nextTs);
+                    continue; // busy loop? bug?
                 }
 
+                // Current timestamp: offset from first packet
                 int64_t cts = now - state->base_local_ts_;
 
-                // If there are any packets that should be dispatched
-                // Then create a thread for each and do it.
-                //if (state->active == 0) {
+                // Dispatch pending packets to worker thread
                 {
                     SHARED_LOCK(state->mtx, lk2);
 
@@ -323,27 +349,31 @@ void Net::_run() {
                         int64_t raw_ats = *state->timestamps.begin();
                         // state->timestamps.erase(state->timestamps.begin());
 
+                        // First frame: save local and packet timestmaps and update current ts
                         if (state->base_local_ts_ == 0) {
                             state->base_local_ts_ = now;
                             state->base_pkt_ts_ = raw_ats;
                             cts = 0;
                         }
-                        ats = raw_ats - state->base_pkt_ts_ + buffering_;
+                        // Time from first packet + buffer
+                        ats = raw_ats - state->base_pkt_ts_ + buffering_; 
                     } else {
                         // LOG(WARNING) << "No packets to present: " << cts;
                         continue;
                     }
 
-                    size_t size = state->buffer.size();
+                    size_t buffer_size = state->buffer.size();
                     lk2.unlock();
 
-                    // Not ready to display this one yet.
+                    // Not ready to display this one yet (timestamp within buffer)
                     if (ats > cts) {
+                         // ??? isn't this always true when buffering is large enough?
                         if (ats - cts > 100) {
                             ++drops_;
                         }
                         nextTs = std::min(nextTs, ats + state->base_local_ts_);
-                        hasNext = true;
+
+                        waitUntilNext(true, nextTs);
                         continue;
                     }
 
@@ -351,10 +381,11 @@ void Net::_run() {
 
                     std::list<PacketBuffer*> framePackets;
 
-                    for (size_t i = 0; i < size; ++i) {
+                    for (size_t i = 0; i < buffer_size; ++i) {
+                        // Relative packet timestamp + buffering
                         int64_t pts = current->packets.first.timestamp - state->base_pkt_ts_ + buffering_;
 
-                        // Should the packet be dispatched yet
+                        // Should the packet be dispatched yet (collect packets for next unprocessed frame)
                         if (pts == ats && !current->done) {
                             framePackets.push_back(&(*current));
 
@@ -366,8 +397,9 @@ void Net::_run() {
                         ++current;
                     }
 
+                    // Process all packets for this frame in a different thread
                     ftl::pool.push([
-                        this,
+                            this,
                             c = std::move(ftl::Counter(&state->active)),
                             c2 = std::move(ftl::Counter(&jobs_)),
                             framePackets](int ix) {
@@ -385,25 +417,30 @@ void Net::_run() {
                             } catch (const std::exception &e) {
                                 LOG(ERROR) << "Packet processing error: " << e.what();
                             }
+                            // Mark for removal
                             buf->done = true;
                         }
                     });
                 }
 
                 {
+                    // Upgrade to write lock
                     UNIQUE_LOCK(state->mtx, lk2);
                     state->timestamps.erase(state->timestamps.begin());
 
                     if (state->timestamps.size() > 0) {
                         int64_t nts = *state->timestamps.begin();
+                        // Next timestap in local clock time
                         nts = nts - state->base_pkt_ts_ + buffering_ + state->base_local_ts_;
                         nextTs = std::min(nextTs, nts);
                         hasNext = true;
                     } else {
+                        // No pending packets remain in the input buffer
                         LOG(WARNING) << "Buffer underun " << now;
                         ++underuns_;
                     }
 
+                    // Remove already processed packets.
                     auto it = state->buffer.begin();
                     while (it != state->buffer.end()) {
                         if (it->done) {
@@ -416,9 +453,7 @@ void Net::_run() {
             }
             lk.unlock();
 
-            auto used = ftl::time::get_time();
-            int64_t spare = (hasNext) ? nextTs - used : 10;
-            sleep_for(milliseconds(std::max(int64_t(1), spare)));
+            waitUntilNext(hasNext, nextTs);
         }
 #ifdef WIN32
         timeEndPeriod(5);
@@ -445,9 +480,9 @@ bool Net::begin() {
 
     // FIXME: Potential race between above check and new binding
 
-    // Add the RPC handler for the URI
+    // Add the RPC handler for the URI (called by Peer::process_message_())
     net_->bind(base_uri_, [this](
-            ftl::net::Peer &p,
+            ftl::net::PeerBase &p,
             int16_t ttimeoff,
             StreamPacketMSGPACK &spkt_raw,
             PacketMSGPACK &pkt) {
@@ -456,16 +491,21 @@ bool Net::begin() {
         _earlyProcessPacket(&p, ttimeoff, spkt_raw, pkt);
 
         if (!host_) {
+            // not hosted: buffer packets (processed in separate thread Net::_run())
             UNIQUE_LOCK(state->mtx, lk);
             state->timestamps.insert(spkt_raw.timestamp);
+
             // TODO(Nick): This buffer could be faster?
             auto &buf = state->buffer.emplace_back();
             buf.packets.first = spkt_raw;
             buf.packets.first.hint_peerid = p.localID();
             buf.packets.second = std::move(pkt);
+            
             buf.peer = nullptr;
             buf.done = false;
+
         } else {
+            // process immediately
             _processPacket(&p, ttimeoff, spkt_raw, pkt);
         }
     });
@@ -477,7 +517,7 @@ bool Net::begin() {
             // Add to list of available streams
             UNIQUE_LOCK(stream_mutex, lk);
             net_streams.push_back(uri_);
-        }
+        }  
 
         active_ = true;
         net_->broadcast("add_stream", uri_);
@@ -622,7 +662,7 @@ void Net::_cleanUp() {
  * batches (max 255 unique frames by timestamp). Requests are in the form
  * of packets that match the request except the data component is empty.
  */
-bool Net::_processRequest(ftl::net::Peer *p, const StreamPacket *spkt, DataPacket &pkt) {
+bool Net::_processRequest(ftl::net::PeerBase *p, const StreamPacket *spkt, DataPacket &pkt) {
     bool found = false;
 
     if (spkt->streamID == 255 || spkt->frame_number == 255) {

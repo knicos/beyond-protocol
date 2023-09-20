@@ -11,7 +11,7 @@
 namespace ftl {
 
 namespace net {
-class Peer;
+class PeerBase;
 }
 
 namespace internal {
@@ -71,7 +71,7 @@ struct func_traits<R (C::*)(Args...)> : func_traits<R (*)(Args...)> {};
 template <typename C, typename R, typename... Args>
 struct func_traits<R (C::*)(Args...) const> : func_traits<R (*)(Args...)> {};
 
-template <typename R, typename... Args> struct func_traits<R (*)(ftl::net::Peer &, Args...)> {
+template <typename R, typename... Args> struct func_traits<R (*)(ftl::net::PeerBase &, Args...)> {
     using result_type = R;
     using arg_count = std::integral_constant<std::size_t, sizeof...(Args)>;
     using args_type = std::tuple<typename std::decay<Args>::type...>;
@@ -99,7 +99,7 @@ template <typename C, typename R, typename... Args>
 struct func_kind_info<R (C::*)(Args...) const>
     : func_kind_info<R (*)(Args...)> {};
 
-template <typename R, typename... Args> struct func_kind_info<R (*)(ftl::net::Peer &, Args...)> {
+template <typename R, typename... Args> struct func_kind_info<R (*)(ftl::net::PeerBase &, Args...)> {
     typedef typename tags::arg_count_trait<sizeof...(Args)>::type args_kind;
     typedef typename tags::result_trait<R>::type result_kind;
     typedef true_ has_peer;

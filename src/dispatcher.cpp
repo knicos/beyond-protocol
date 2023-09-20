@@ -11,7 +11,7 @@
 #include <ftl/exception.hpp>
 #include <msgpack.hpp>
 
-using ftl::net::Peer;
+using ftl::net::PeerBase;
 using ftl::net::Dispatcher;
 using std::vector;
 using std::string;
@@ -56,7 +56,7 @@ void Dispatcher::unbind(const std::string &name) {
     }
 }
 
-void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch(PeerBase &s, const msgpack::object &msg) {
     SHARED_LOCK(mutex_, lk);
     std::shared_lock<std::shared_mutex> lk2;
 
@@ -92,7 +92,7 @@ void ftl::net::Dispatcher::dispatch(Peer &s, const msgpack::object &msg) {
     }
 }
 
-void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
+void ftl::net::Dispatcher::dispatch_call(PeerBase &s, const msgpack::object &msg) {
     call_t the_call;
 
     try {
@@ -109,8 +109,6 @@ void ftl::net::Dispatcher::dispatch_call(Peer &s, const msgpack::object &msg) {
     // assert(type == 0);
 
     if (type == 0) {
-        DLOG(2) << "RPC " << name << "() <- " << s.getURI();
-
         auto func = _locateHandler(name);
 
         if (func) {
@@ -147,7 +145,7 @@ bool ftl::net::Dispatcher::isBound(const std::string &name) const {
     return funcs_.find(name) != funcs_.end();
 }
 
-void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const &msg) {
+void ftl::net::Dispatcher::dispatch_notification(PeerBase &peer_instance, msgpack::object const &msg) {
     notification_t the_call;
     msg.convert(the_call);
 
@@ -157,12 +155,12 @@ void ftl::net::Dispatcher::dispatch_notification(Peer &s, msgpack::object const 
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
-
+    
     auto binding = _locateHandler(name);
 
     if (binding) {
         try {
-            auto result = (*binding)(s, args);
+            auto result = (*binding)(peer_instance, args);
         } catch (const int &e) {
             throw &e;
         } catch (const std::bad_cast &e) {

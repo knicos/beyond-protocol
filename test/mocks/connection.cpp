@@ -4,6 +4,7 @@
 #include "../../src/universe.hpp"
 #include "../../src/protocol/connection.hpp"
 #include "../../src/uuidMSGPACK.hpp"
+#include "../../src/protocol.hpp"
 #include <ftl/protocol/self.hpp>
 #include <chrono>
 
@@ -70,18 +71,22 @@ public:
 	size_t get_send_buffer_size() override { return 1024; }
 };
 
-ftl::net::PeerPtr createMockPeer(int c) {
+ftl::net::PeerTcpPtr createMockPeer(int c) {
 	ftl::net::Universe *u = ftl::getSelf()->getUniverse();
 	std::unique_ptr<ftl::net::internal::SocketConnection> conn = std::make_unique<Connection_Mock>(c);
+	
 	return u->injectFakePeer(std::move(conn));
 }
 
-void send_handshake(ftl::net::Peer &p) {
+void send_handshake(ftl::net::PeerTcp &p) {
 	ftl::UUID id;
-	p.send("__handshake__", ftl::net::kMagic, ((8 << 16) + (5 << 8) + 2), ftl::UUIDMSGPACK(id));
+	p.send("__handshake__", (uint64_t) ftl::net::kMagic, (uint64_t) ((8 << 16) + (5 << 8) + 2), ftl::UUIDMSGPACK(id));
 }
 
-void provideResponses(const ftl::net::PeerPtr &p, int c, const std::vector<std::tuple<bool,std::string,msgpack::object>> &responses) {
+void provideResponses(const ftl::net::PeerPtr &p_base, int c, const std::vector<std::tuple<bool,std::string,msgpack::object>> &responses) {
+	auto p = std::dynamic_pointer_cast<ftl::net::PeerTcp>(p_base);
+	if (!p) { LOG(FATAL) << "Peer ptr not of type PeerTcp"; return; }
+
     for (const auto &response : responses) {
         auto [notif,expname,resdata] = response;
         while (fakedata[c].size() == 0) std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -103,7 +108,7 @@ void provideResponses(const ftl::net::PeerPtr &p, int c, const std::vector<std::
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
-            p->data();
+            p->recv();
             sleep_for(milliseconds(50));
         } else {
             fakedata[c] = "";

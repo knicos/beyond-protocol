@@ -21,8 +21,8 @@
 #cmakedefine HAVE_URIPARSESINGLE
 #cmakedefine HAVE_LIBARCHIVE
 #cmakedefine HAVE_GNUTLS
-#cmakedefine HAVE_PYTHON
-
+#cmakedefine HAVE_OPENSSL
+#cmakedefine HAVE_MSQUIC
 #cmakedefine ENABLE_PROFILER
 
 extern const char *FTL_BRANCH;

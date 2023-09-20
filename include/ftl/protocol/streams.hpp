@@ -127,6 +127,11 @@ class Stream {
      */
     virtual bool post(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) = 0;
 
+    /**
+     * @brief Number of frames in output queue (per frame_id/channel)
+     */
+    virtual int postQueueSize(FrameID frame_id, Channel channel) const { return 0; }
+
     // TODO(Nick): Add methods for: pause, paused, statistics
 
     /**

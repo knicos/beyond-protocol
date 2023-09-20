@@ -14,6 +14,7 @@
 
 /// consider using DECLARE_MUTEX(name) which allows (optional) profiling
 #define MUTEX std::mutex
+#define MUTEX_T MUTEX
 /// consider using DECLARE_RECURSIVE_MUTEX(name) which allows (optional) profiling
 #define RECURSIVE_MUTEX std::recursive_mutex
 /// consider using DECLARE_SHARED_MUTEX(name) which allows (optional) profiling
@@ -23,6 +24,9 @@
 
 #include <type_traits>
 #include <tracy/Tracy.hpp>
+
+// new macro
+#define UNIQUE_LOCK_N(VARNAME, MUTEXNAME) std::unique_lock<LockableBase(MUTEX_T)> VARNAME(MUTEXNAME)
 
 #define DECLARE_MUTEX(varname) TracyLockable(MUTEX, varname)
 #define DECLARE_RECURSIVE_MUTEX(varname) TracyLockable(RECURSIVE_MUTEX, varname)
@@ -36,11 +40,15 @@
 #define MARK_LOCK_AQUIRED(M) LockMark(M)
 // TODO: should automatic, but requires mutexes to be declared with DECLARE_..._MUTEX macros
 
-#define T_UNIQUE_LOCK(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK_T(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+/// deprecated: use UNIQUE_LOCK_N instead
 #define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
+/// deprecated: use SHARED_LOCK_N instead
 #define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M)
 
 #else
+
+#define UNIQUE_LOCK_N(VARNAME, MUTEXNAME) std::unique_lock<MUTEX_T> VARNAME(MUTEXNAME)
 
 /// mutex with optional profiling (and debugging) when built with PROFILE_MUTEX.
 #define DECLARE_MUTEX(varname) MUTEX varname
@@ -56,8 +64,10 @@
 /// mark lock acquired (mutex M)
 #define MARK_LOCK(M) {}
 
-#define T_UNIQUE_LOCK(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK_T(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+/// deprecated: use UNIQUE_LOCK_N instead
 #define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
+/// deprecated: use SHARED_LOCK_N instead
 #define SHARED_LOCK(M, L) std::shared_lock<std::remove_reference<decltype(M)>::type> L(M)
 
 #endif  // TRACY_ENABLE

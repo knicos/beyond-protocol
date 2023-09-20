@@ -24,7 +24,7 @@
 using std::tuple;
 using std::get;
 using std::vector;
-using ftl::net::Peer;
+using ftl::net::PeerTcp;
 using std::this_thread::sleep_for;
 using std::chrono::milliseconds;
 using ftl::protocol::NodeStatus;
@@ -50,9 +50,6 @@ TEST_CASE("Peer(int)", "[]") {
         // 2) Sends FTL Version
         REQUIRE( get<1>(hs) == static_cast<unsigned int>((FTL_VERSION_MAJOR << 16) + (FTL_VERSION_MINOR << 8) + FTL_VERSION_PATCH ));
         
-        // 3) Sends peer UUID
-        
-        
         REQUIRE( s->status() == NodeStatus::kConnecting );
     }
     
@@ -66,10 +63,10 @@ TEST_CASE("Peer(int)", "[]") {
         
         // get sent message by s_l and place it in s_c's buffer
         fakedata[cidx] = fakedata[lidx]; 
-        s_l->data(); // listenin peer: process
+        s_l->recv(); // listenin peer: process
         // vice versa, listening peer gets reply and processes it
         fakedata[lidx] = fakedata[cidx]; 
-        s_c->data(); // connecting peer: process
+        s_c->recv(); // connecting peer: process
         sleep_for(milliseconds(50));
 
         // both peers should be connected now
@@ -101,7 +98,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
     int c = ctr_++;
     auto s = createMockPeer(c);
     send_handshake(*s.get());
-    s->data();
+    s->recv();
     sleep_for(milliseconds(50));
     
     SECTION("one argument call") {
@@ -118,7 +115,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
-            s->data();
+            s->recv();
             sleep_for(milliseconds(50));
         });
         int res = s->call<int>("test1", 44);
@@ -141,7 +138,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
-            s->data();
+            s->recv();
             sleep_for(milliseconds(50));
         });
         
@@ -166,7 +163,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
-            s->data();
+            s->recv();
             sleep_for(milliseconds(50));
         });
 
@@ -199,7 +196,7 @@ TEST_CASE("Peer::call()", "[rpc]") {
             std::stringstream buf;
             msgpack::pack(buf, res_obj);
             fakedata[c] = buf.str();
-            s->data();
+            s->recv();
             sleep_for(milliseconds(50));
         });
         
@@ -219,10 +216,9 @@ TEST_CASE("Peer::bind()", "[rpc]") {
     int c = ctr_++;
     auto s = createMockPeer(c);
     send_handshake(*s.get());
-    s->data();
+    s->recv();
     sleep_for(milliseconds(50));
     
-
     SECTION("no argument call") {
         bool done = false;
         
@@ -231,7 +227,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
         });
 
         s->send("hello");
-        s->data(); // Force it to read the fake send...
+        s->recv(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
         REQUIRE( done );
@@ -245,7 +241,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
         });
         
         s->send("hello", 55);
-        s->data(); // Force it to read the fake send...
+        s->recv(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
         REQUIRE( (done == 55) );
@@ -259,7 +255,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
         });
 
         s->send("hello", 55, "world");
-        s->data(); // Force it to read the fake send...
+        s->recv(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
         REQUIRE( (done == "world") );
@@ -274,7 +270,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
         });
         
         s->asyncCall<int>("hello", 55);
-        s->data(); // Force it to read the fake send...
+        s->recv(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
         REQUIRE( (done == 55) );
@@ -291,7 +287,7 @@ TEST_CASE("Peer::bind()", "[rpc]") {
         });
         
         s->asyncCall<int>("hello", 55);
-        s->data(); // Force it to read the fake send...
+        s->recv(); // Force it to read the fake send...
         sleep_for(milliseconds(50));
         
         REQUIRE( (done == 55) );
@@ -364,4 +360,3 @@ TEST_CASE("Socket::send()", "[io]") {
     s.reset();
     ftl::protocol::reset();
 }
-

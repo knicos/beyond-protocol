@@ -9,6 +9,7 @@
 #include <ftl/protocol/service.hpp>
 #include "./streams/netstream.hpp"
 #include "./streams/filestream.hpp"
+
 #include <ftl/protocol/muxer.hpp>
 #include <ftl/protocol/broadcaster.hpp>
 #include <ftl/lib/nlohmann/json.hpp>
@@ -35,12 +36,13 @@ std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri
     if (!u.isValid()) throw FTL_Error("Invalid Stream URI: " << uri);
 
     switch (u.getScheme()) {
-    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true);
-    case ftl::URI::SCHEME_FILE  :
-    case ftl::URI::SCHEME_NONE  : return std::make_shared<ftl::protocol::File>(uri, true);
-    case ftl::URI::SCHEME_CAST  : return std::make_shared<ftl::protocol::Broadcast>();
-    case ftl::URI::SCHEME_MUX   : return std::make_shared<ftl::protocol::Muxer>();
-    default                     : throw FTL_Error("Invalid Stream URI: " << uri);
+    case ftl::URI::SCHEME_FTL      :
+    case ftl::URI::SCHEME_FTL_QUIC : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), true);
+    case ftl::URI::SCHEME_FILE     :
+    case ftl::URI::SCHEME_NONE     : return std::make_shared<ftl::protocol::File>(uri, true);
+    case ftl::URI::SCHEME_CAST     : return std::make_shared<ftl::protocol::Broadcast>();
+    case ftl::URI::SCHEME_MUX      : return std::make_shared<ftl::protocol::Muxer>();
+    default                        : throw FTL_Error("Invalid Stream URI: " << uri);
     }
 }
 
@@ -50,10 +52,11 @@ std::shared_ptr<ftl::protocol::Stream> Self::getStream(const std::string &uri) {
     if (!u.isValid()) throw FTL_Error("Invalid Stream URI");
 
     switch (u.getScheme()) {
-    case ftl::URI::SCHEME_FTL   : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), false);
-    case ftl::URI::SCHEME_FILE  :
-    case ftl::URI::SCHEME_NONE  : return std::make_shared<ftl::protocol::File>(uri, false);
-    default                     : throw FTL_Error("Invalid Stream URI: " << uri);
+    case ftl::URI::SCHEME_FTL      : 
+    case ftl::URI::SCHEME_FTL_QUIC : return std::make_shared<ftl::protocol::Net>(uri, universe_.get(), false);
+    case ftl::URI::SCHEME_FILE     :
+    case ftl::URI::SCHEME_NONE     : return std::make_shared<ftl::protocol::File>(uri, false);
+    default                        : throw FTL_Error("Invalid Stream URI: " << uri);
     }
 }
 

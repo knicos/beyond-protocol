@@ -14,7 +14,12 @@ The library requires C++ 17.
 ### Dependencies
 * [msgpack v3](https://github.com/msgpack/msgpack-c) (note: version 4 doesn't work due to boost)
 * liburiparser
+* msquic v2.2.*
 * gnutls (optional, for TLS on websockets)
+
+On Ubuntu (22.04), dependencies can be installed with `apt install cmake build-essential liburiparser-dev uuid-dev libmsgpack-dev`
+
+For MsQuic, see the official build documentation https://github.com/microsoft/msquic/blob/main/docs/BUILD.md
 
 ### Linux
 Use the DEB package on supporting systems, or build from source using

@@ -16,10 +16,10 @@ if (ENABLE_PROFILER)
     )
     FetchContent_MakeAvailable(tracy)
 
-    add_library(Tracy ALIAS TracyClient)
+    set_property(TARGET TracyClient PROPERTY POSITION_INDEPENDENT_CODE ON)
 
     message(STATUS "Profiling (Tracy) enabled")
 
 else()
-    add_library(Tracy INTERFACE)
+    add_library(TracyClient INTERFACE)
 endif()

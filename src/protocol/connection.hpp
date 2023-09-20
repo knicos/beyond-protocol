@@ -22,6 +22,7 @@ namespace internal {
  *  Assumes IP socket.
  */
 class SocketConnection {
+
  protected:
     Socket sock_;
     SocketAddress addr_;  // move to socket? save uri here
@@ -93,12 +94,14 @@ class SocketConnection {
  *  Assumes IP socket.
  */
 class SocketServer {
+ public:
+    virtual ~SocketServer() = default;
  protected:
     Socket sock_;
     SocketAddress addr_;
     bool is_listening_;
 
-    SocketServer() {}
+    SocketServer() = default;
 
  public:
     SocketServer(Socket sock, SocketAddress addr) :

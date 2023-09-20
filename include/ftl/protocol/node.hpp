@@ -15,8 +15,10 @@
 
 namespace ftl {
 namespace net {
-class Peer;
-using PeerPtr = std::shared_ptr<Peer>;
+
+class PeerBase;
+using PeerPtr = std::shared_ptr<PeerBase>;
+
 }
 
 namespace protocol {
@@ -26,6 +28,7 @@ namespace protocol {
  * 
  */
 enum struct NodeType {
+    kInvalid,
     kNode,
     kWebService,
 };
@@ -51,7 +54,7 @@ enum struct NodeStatus {
  */
 class Node {
  public:
-    /** Peer for outgoing connection: resolve address and connect */
+    /** PeerTcp for outgoing connection: resolve address and connect */
     explicit Node(const ftl::net::PeerPtr &impl);
     virtual ~Node();
 
@@ -62,7 +65,7 @@ class Node {
      * 
      * @param retry Should reconnection be attempted?
      */
-    void close(bool retry = false);
+    virtual void close(bool retry = false);
 
     /**
      * @brief Check if the network connection is valid.
@@ -70,7 +73,7 @@ class Node {
      * @return true 
      * @return false 
      */
-    bool isConnected() const;
+    virtual bool isConnected() const;
     /**
      * Block until the connection and handshake has completed. You should use
      * onConnect callbacks instead of blocking, mostly this is intended for
@@ -78,15 +81,15 @@ class Node {
      * 
      * @return True if all connections were successful, false if timeout or error.
      */
-    bool waitConnection(int seconds = 1);
+    virtual bool waitConnection(int seconds = 1);
 
     /**
      * @internal
      * @brief Make a reconnect attempt. Called internally by Universe object.
      */
-    bool reconnect();
+    virtual bool reconnect();
 
-    bool isOutgoing() const;
+    virtual bool isOutgoing() const;
 
     /**
      * Test if the connection is valid. This returns true in all conditions
@@ -96,7 +99,7 @@ class Node {
      * 
      * Should return true only in cases when valid OS socket exists.
      */
-    bool isValid() const;
+    virtual bool isValid() const;
 
     /** node type */
     virtual NodeType getType() const { return NodeType::kNode; }
@@ -106,7 +109,7 @@ class Node {
      * 
      * @return NodeStatus 
      */
-    NodeStatus status() const;
+    virtual NodeStatus status() const;
 
     /**
      * @brief Get protocol version in use for this node.
@@ -122,55 +125,55 @@ class Node {
      * Get the sockets protocol, address and port as a url string. This will be
      * the same as the initial connection string on the client.
      */
-    std::string getURI() const;
+    virtual std::string getURI() const;
 
     /**
      * Get the UUID for this peer.
      */
-    const ftl::UUID &id() const;
+    virtual const ftl::UUID &id() const;
 
     /**
      * Get the peer id as a string.
      */
-    std::string to_string() const;
+    virtual std::string to_string() const;
 
     /**
      * @brief Prevent this node auto-reconnecting.
      * 
      */
-    void noReconnect();
+    virtual void noReconnect();
 
     /**
      * @brief Obtain a locally unique ID.
      * 
      * @return unsigned int 
      */
-    unsigned int localID();
+    virtual unsigned int localID();
 
-    int connectionCount() const;
+    int connectionCount() const; // ???
 
     // === RPC Methods ===
 
-    void restart();
+    virtual void restart();
 
-    void shutdown();
+    virtual void shutdown();
 
-    bool hasStream(const std::string &uri);
+    virtual bool hasStream(const std::string &uri);
 
-    void createStream(const std::string &uri, FrameID id);
+    virtual void createStream(const std::string &uri, FrameID id);
 
-    nlohmann::json details();
+    virtual nlohmann::json details();
 
-    int64_t ping();
+    virtual int64_t ping();
 
-    nlohmann::json getConfig(const std::string &path);
+    virtual nlohmann::json getConfig(const std::string &path);
 
-    void setConfig(const std::string &path, const nlohmann::json &value);
+    virtual void setConfig(const std::string &path, const nlohmann::json &value);
 
-    std::vector<std::string> listConfigs();
+    virtual std::vector<std::string> listConfigs();
 
  protected:
-    ftl::net::PeerPtr peer_;
+    ftl::net::PeerPtr peer_; // move to NetPeer
 };
 
 using NodePtr = std::shared_ptr<Node>;

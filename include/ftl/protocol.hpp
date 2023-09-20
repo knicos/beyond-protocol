@@ -90,4 +90,10 @@ std::shared_ptr<ftl::protocol::Stream> createStream(const std::string &uri);
  */
 std::shared_ptr<ftl::protocol::Stream> getStream(const std::string &uri);
 
+/** Add certificate to whitelist. Used only if certificate validation is disabled */
+void addCertificateToWhitelist(const std::string& signature);
+
+/** Disable certificate validation. */
+void disableCertificateValidation(bool enable=false);
+
 }  // namespace ftl

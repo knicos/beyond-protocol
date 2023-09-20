@@ -16,8 +16,10 @@
 
 #include <msgpack.hpp>
 
+#include <ftl/protocol/config.h>
 #include <ftl/protocol.hpp>
 #include <ftl/protocol/error.hpp>
+
 #include "peer.hpp"
 #include "dispatcher.hpp"
 #include <ftl/uuid.hpp>
@@ -27,13 +29,30 @@
 
 #include <ftl/lib/nlohmann/json_fwd.hpp>
 
+#include "socket.hpp"
+
+#ifdef HAVE_MSQUIC
+namespace beyond_impl
+{
+class QuicPeer;
+}
+#endif
+
 namespace ftl {
 namespace net {
+
+#ifdef HAVE_MSQUIC
+using QuicPeer = beyond_impl::QuicPeer;
+class QuicUniverse;
+#endif
+
+class PeerTcp;
+using PeerTcpPtr = std::shared_ptr<PeerTcp>;
 
 struct ReconnectInfo {
     int tries;
     float delay;
-    PeerPtr peer;
+    PeerTcpPtr peer;
 };
 
 struct NetImplDetail;
@@ -51,7 +70,13 @@ using Callback = unsigned int;
  */
 class Universe {
  public:
-    friend class Peer;
+    friend class PeerTcp;
+    friend class PeerBase;
+
+    #ifdef HAVE_MSQUIC
+    friend class QuicUniverse;
+    friend class beyond_impl::QuicPeer;
+    #endif
 
     Universe();
 
@@ -180,28 +205,37 @@ class Universe {
 
     // --- Test support -------------------------------------------------------
 
-    PeerPtr injectFakePeer(std::unique_ptr<ftl::net::internal::SocketConnection> s);
+    PeerTcpPtr injectFakePeer(std::unique_ptr<ftl::net::internal::SocketConnection> s);
+
+    // Used by Peer implementations
+    Dispatcher* dispatcher_() { return &disp_; }
+
+    void removePeer_(PeerPtr &p);
+    void insertPeer_(const ftl::net::PeerPtr &ptr);
+
+    void notifyConnect_(ftl::net::PeerBase*); // called after successful handshake
+    void notifyDisconnect_(ftl::net::PeerBase*); // called on any peer disconnect
+    void notifyError_(ftl::net::PeerBase* , ftl::protocol::Error, const std::string &);
 
  private:
     void _run();
     void _setDescriptors();
-    void _installBindings();
-    void _installBindings(const ftl::net::PeerPtr&);
     void _cleanupPeers();
-    void _notifyConnect(ftl::net::Peer *);
-    void _notifyDisconnect(ftl::net::Peer *);
-    void _notifyError(ftl::net::Peer *, ftl::protocol::Error, const std::string &);
+
+    // no-op? TODO: remove
+    void installBindings_();
+    void installBindings_(const ftl::net::PeerPtr&);
+
+    ftl::net::PeerPtr _findPeer(const ftl::net::PeerBase *p);
+
     void _periodic();
     void _garbage();
-    ftl::net::PeerPtr _findPeer(const ftl::net::Peer *p);
-    void _removePeer(PeerPtr &p);
-    void _insertPeer(const ftl::net::PeerPtr &ptr);
 
     static void __start(Universe *u);
 
     bool active_;
     ftl::UUID this_peer;
-    mutable SHARED_MUTEX net_mutex_;
+    mutable DECLARE_SHARED_MUTEX(net_mutex_);
     std::condition_variable_any socket_cv_;
 
     std::unique_ptr<NetImplDetail> impl_;
@@ -243,6 +277,10 @@ class Universe {
     size_t ws_send_buffer_;
     size_t ws_recv_buffer_;
 
+#ifdef HAVE_MSQUIC
+    std::unique_ptr<QuicUniverse> quic_;
+#endif
+
     // NOTE: Must always be last member
     std::thread thread_;
 };
@@ -274,7 +312,7 @@ std::optional<R> Universe::findOne(const std::string &name, ARGS... args) {
     {
         SHARED_LOCK(net_mutex_, lk);
         for (const auto &p : peers_) {
-            if (!p || !p->waitConnection()) continue;
+            if (!p || !p->waitConnection()) { continue; }
             futures.push_back(std::move(p->asyncCall<std::optional<R>>(name, args...)));
         }
     }
@@ -296,7 +334,7 @@ std::vector<R> Universe::findAll(const std::string &name, ARGS... args) {
     {
         SHARED_LOCK(net_mutex_, lk);
         for (const auto &p : peers_) {
-            if (!p || !p->waitConnection()) continue;
+            if (!p || !p->waitConnection()) { continue; }
             futures.push_back(std::move(p->asyncCall<std::vector<R>>(name, args...)));
         }
     }
@@ -344,7 +382,17 @@ bool Universe::send(const ftl::UUID &pid, const std::string &name, ARGS... args)
         return false;
     }
 
-    return p->isConnected() && p->send(name, args...) > 0;
+    if (!p->isConnected()) { return false; }
+
+    try {
+        p->send(name, args...);
+        return true;
+    }
+    catch(const std::exception& ex) {
+        // TODO/FIXME: throw instead?
+        LOG(ERROR) << "Peer::send() failed: " << ex.what();
+        return false;
+    }
 }
 
 template <typename... ARGS>
@@ -354,7 +402,17 @@ int Universe::try_send(const ftl::UUID &pid, const std::string &name, ARGS... ar
         return false;
     }
 
-    return (p->isConnected()) ? p->try_send(name, args...) : -1;
+    if (!p->isConnected()) { return false; }
+
+    try {
+        p->try_send(name, args...);
+        return true;
+    }
+    catch(const std::exception& ex) {
+        // TODO/FIXME: throw instead?
+        LOG(ERROR) << "Peer::send() failed: " << ex.what();
+        return false;
+    }
 }
 
 };  // namespace net

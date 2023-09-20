@@ -2,6 +2,8 @@
 add_library(CatchTestFTL OBJECT ./tests_ftl.cpp)
 target_link_libraries(CatchTestFTL beyond-protocol)
 
+add_subdirectory("quic/")
+
 # Default catch test (catch generated main())
 add_library(CatchTest OBJECT ./tests.cpp)
 target_link_libraries(CatchTest beyond-protocol)
@@ -23,7 +25,7 @@ add_executable(util_unit
 	./utils_unit.cpp)
 target_include_directories(util_unit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(util_unit beyond-protocol
-	Threads::Threads ${OS_LIBS})
+	Threads::Threads ${OS_LIBS} ${URIPARSER_LIBRARIES})
 
 add_test(UtilUnitTest util_unit)
 
@@ -140,6 +142,17 @@ target_link_libraries(peer_unit
 	beyond-protocol GnuTLS::GnuTLS Threads::Threads ${URIPARSER_LIBRARIES} ${UUID_LIBRARIES} ${OS_LIBS})
 
 add_test(PeerUnitTest peer_unit)
+
+### Peer API ##################################################################
+add_executable(peer_api
+	$<TARGET_OBJECTS:CatchTestFTL>
+	./peer_api_unit.cpp)
+target_include_directories(peer_api PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../include" "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+target_link_libraries(peer_api beyond-protocol
+	Threads::Threads ${OS_LIBS}
+	${URIPARSER_LIBRARIES})
+
+add_test(PeerApiTest peer_api)
 
 ### RPC Integ ##################################################################
 add_executable(rpc_integration

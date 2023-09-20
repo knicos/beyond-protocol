@@ -33,6 +33,7 @@ static const std::unordered_map<std::string, ftl::URI::scheme_t> schemeMap = {
     {"ws", URI::SCHEME_WS},
     {"wss", URI::SCHEME_WSS},
     {"ftl", URI::SCHEME_FTL},
+    {"quic", URI::SCHEME_FTL_QUIC},
     {"http", URI::SCHEME_HTTP},
     {"ipc", URI::SCHEME_IPC},
     {"device", URI::SCHEME_DEVICE},

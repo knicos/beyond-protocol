@@ -13,7 +13,8 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/build",
             "environment": [
-                {"name" : "ASAN_OPTIONS", "value" : "abort_on_error=1,protect_shadow_gap=0"}
+                // protect_shadow_cap=0 necessary for CUDA, detect_leaks=0 leak detector does not debugger
+                {"name" : "ASAN_OPTIONS", "value" : "abort_on_error=1:protect_shadow_gap=0:detect_leaks=0"}
             ],
             "externalConsole": false,
             "MIMode": "gdb",
