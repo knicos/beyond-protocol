@@ -24,3 +24,5 @@ if (@WITH_OPENSSL@)
 endif()
 
 check_required_components(BeyondProtocol)
+
+set_and_check(PROTOCOL_INCLUDE_DIRS "@PACKAGE_INCLUDE_INSTALL_DIR@")
