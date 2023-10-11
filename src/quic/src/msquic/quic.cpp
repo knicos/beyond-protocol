@@ -37,16 +37,17 @@ void MsQuicContext::Open(MsQuicContext& MsQuic, const std::string& AppName)
     QUIC_REGISTRATION_CONFIG Config {};
     Config.AppName = AppName.c_str();
 
-    Config.ExecutionProfile = QUIC_EXECUTION_PROFILE_LOW_LATENCY;
-    DLOG(INFO) << "[QUIC] Execution Profile: QUIC_EXECUTION_PROFILE_LOW_LATENCY";
+    Config.ExecutionProfile = QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT;
+    DLOG(INFO) << "[QUIC] Execution Profile: QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT";
+
+    LOG_IF(WARNING, GetTlsProvider(&MsQuic) != QUIC_TLS_PROVIDER_OPENSSL) << "[QUIC] MsQuic not built with OpenSSL";
+    DLOG(INFO) << "MsQuic opened";
 
     if (QUIC_FAILED(MsQuic.Api->RegistrationOpen(&Config, &MsQuic.hRegistration)))
     {
         LOG(ERROR) << "[QUIC] RegistrationOpen() failed";
         Close(MsQuic);
     }
-
-    LOG_IF(WARNING, GetTlsProvider(&MsQuic) != QUIC_TLS_PROVIDER_OPENSSL) << "[QUIC] MsQuic not built with OpenSSL";
 }
 
 void MsQuicContext::Close(MsQuicContext& Context)
@@ -55,12 +56,13 @@ void MsQuicContext::Close(MsQuicContext& Context)
     {
         if (Context.hRegistration)
         {
-            //Context.Api->RegistrationClose(Context.hRegistration);
+            Context.Api->RegistrationClose(Context.hRegistration);
             Context.hRegistration = nullptr;
         }
         
         MsQuicClose(Context.Api);
         Context.Api = nullptr;
+        DLOG(INFO) << "MsQuic closed";
     }
 } 
 
@@ -105,6 +107,12 @@ void MsQuicConfiguration::SetCertificatePKCS12(nonstd::span<unsigned char> Blob)
     CertificatePkcs12.Asn1BlobLength = CredentialBuffer.size();
     CertificatePkcs12.PrivateKeyPassword = nullptr;
     CredentialConfig.CertificatePkcs12 = &CertificatePkcs12;
+}
+
+void MsQuicConfiguration::SetKeepAlive(uint32_t IntervalMs)
+{
+    Settings.KeepAliveIntervalMs = IntervalMs;
+    Settings.IsSet.KeepAliveIntervalMs = true;
 }
 
 void MsQuicConfiguration::SetClient(bool IsClient)

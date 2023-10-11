@@ -291,6 +291,7 @@ void PeerBase::bind(const std::string &name, F func) {
 
 template <typename R, typename... ARGS>
 R PeerBase::call(const std::string &name, ARGS... args) {
+    //LOG(INFO) << "RPC call (local): " << name;
     auto f = asyncCall<R>(name, std::forward<ARGS>(args)...);
     if (f.wait_for(std::chrono::milliseconds(1200)) != std::future_status::ready) {
         throw FTL_Error("Call timeout: " << name);
@@ -300,6 +301,7 @@ R PeerBase::call(const std::string &name, ARGS... args) {
 
 template <typename T, typename... ARGS>
 std::future<T> PeerBase::asyncCall(const std::string &name, ARGS... args) {
+    //LOG(INFO) << "RPC call (local): " << name;
     auto args_obj = std::make_tuple(args...);
     uint32_t rpcid = 0;
 

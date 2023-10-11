@@ -23,6 +23,10 @@ public:
     explicit QuicPeer(MsQuicContext* msquic, ftl::net::Universe*, ftl::net::Dispatcher* d = nullptr);
     virtual ~QuicPeer();
 
+    ftl::protocol::NodeType getType() const override;
+
+    void setType(ftl::protocol::NodeType t) { is_webservice_ = (t == ftl::protocol::NodeType::kWebService); } // TODO: the peer should tell if it is a proxy for webservice and type is determined by that
+
     bool isValid() const override { return true; }
 
     void start() override;
@@ -66,12 +70,13 @@ private:
     void OnStreamShutdown(QuicPeerStream* stream);
     // pending bytes (send) for all streams of this connection
     std::atomic_int pending_bytes_ = 0;
+
+    bool is_webservice_;
 };
 
 class QuicPeerStream : public IMsQuicStreamHandler {
 public:
-
-    QuicPeerStream(QuicPeer* peer, const std::string& name);
+    QuicPeerStream(QuicPeer* peer, const std::string& name, bool ws_frame=true);
     virtual ~QuicPeerStream();
 
     void set_stream(MsQuicStreamPtr stream);
@@ -108,6 +113,7 @@ private:
     QuicPeer* peer_;
     MsQuicStreamPtr stream_;
     std::string name_;
+    const bool ws_frame_;
 
     DECLARE_MUTEX(recv_mtx_);
     void ProcessRecv();
@@ -123,7 +129,8 @@ private:
 
         int t;
 
-        std::array<QUIC_BUFFER, 1> quic_vector;
+        uint8_t n_buffers;
+        std::array<QUIC_BUFFER, 2> quic_vector;
         PROFILER_ASYNC_ZONE_CTX(profiler_ctx);
     };
 
@@ -133,19 +140,37 @@ private:
     std::condition_variable_any send_cv_;
     int send_buffer_count_ = 0;
 
+    std::deque<std::array<char, 14>> ws_headers_;
+    SendEvent& queue_send_(msgpack_buffer_t);
+    void send_(SendEvent&);
+    void clear_completed_();
+
+    // As a workaround for webservice, WebSocket framing is applied here. A simple quic<->tcp relay can be then used
+    // to pass frames directly to webservice. The relay only has to perform the websocket handshake. Otherwise the
+    // relay has to process msgpack messages and frame them once a complete message is received, increasing complexity
+    // significantly there. Clients can still communicate directly with each other when both sides apply websocket
+    // framing in this fashion.
+    int ws_payload_recvd_ = 0;
+    int ws_payload_remaining_ = 0;
+    int ws_partial_header_recvd_ = 0;
+    bool ws_mask_ = false;
+    std::array<unsigned char, 4> ws_mask_key_;
+    std::array<char, 14> ws_header_;
+    size_t ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed);
+
     // Send limits. Send methods will block if limits are exceeded (with warning message).
 
     // Maximum number of send buffers available. If no spare buffers are available, prints a message (likely indicates
     // that the other end can not receive fast enough; the producer should check how much data is pending and reduce
     // the amount of data sent). A large number of very small writes can also trigger this limit (TODO: coalesce sends).
-    static const int max_send_buffers_ = 128;
+    static const int max_send_buffers_ = 512; //192; TEST 05/10/23, previous default 192
 
     // Actual required buffer size depends on available bandwidth and network latency. This limit is to 
     // prevent excess memory consumption but may affect network if value is set very low.
-    static const int max_pending_bytes_ = 1024*1024*16; // 16MiB
+    static const int max_pending_bytes_ = 1024*1024*24; // 16MiB
 
     // Default size of a single send buffer.
-    static const int send_buffer_default_size_ = 1024*12; // 12KiB
+    static const int send_buffer_default_size_ = 1024*24; // 24KiB
 
     static const int recv_buffer_default_size_ = 1024*1024*8; // 8MiB
     

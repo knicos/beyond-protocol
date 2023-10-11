@@ -4,6 +4,8 @@
 
 #include "../../universe.hpp"
 
+#include "quic_websocket.cpp"
+
 using namespace beyond_impl;
 
 using ftl::protocol::NodeStatus;
@@ -11,7 +13,7 @@ using ftl::protocol::NodeStatus;
 ////////////////////////////////////////////////////////////////////////////////
 
 QuicPeerStream::SendEvent::SendEvent(msgpack_buffer_t buffer_in) :
-    buffer(std::move(buffer_in)), pending(true), complete(false), t(0)
+    buffer(std::move(buffer_in)), pending(true), complete(false), t(0), n_buffers(1)
 {
     quic_vector[0].Buffer = (uint8_t*) buffer.data();
     quic_vector[0].Length = buffer.size();
@@ -26,7 +28,8 @@ QuicPeer::QuicPeer(
 
     ftl::net::PeerBase(ftl::URI(), net, disp),
     msquic_(ctx),
-    net_(net)
+    net_(net),
+    is_webservice_(false)
 {
     bind("__handshake__", [this](uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid) {
         process_handshake_(magic, version, pid);
@@ -39,6 +42,15 @@ QuicPeer::QuicPeer(
 QuicPeer::~QuicPeer()
 {
 
+}
+
+ftl::protocol::NodeType QuicPeer::getType() const 
+{
+    if (is_webservice_)
+    {
+        return ftl::protocol::NodeType::kWebService;
+    }
+    return ftl::protocol::NodeType::kNode;
 }
 
 void QuicPeer::initiate_handshake() 
@@ -138,8 +150,8 @@ int32_t QuicPeer::AvailableBandwidth()
 
 static std::atomic_int profiler_name_ctr_ = 0;
 
-QuicPeerStream::QuicPeerStream(QuicPeer* peer, const std::string& name) :
-    peer_(peer), name_(name)
+QuicPeerStream::QuicPeerStream(QuicPeer* peer, const std::string& name, bool ws_frame) :
+    peer_(peer), name_(name), ws_frame_(ws_frame)
 {
     CHECK(peer_);
 
@@ -279,16 +291,56 @@ void QuicPeerStream::discard_queued_sends_()
 
 // SEND ////////////////////////////////////////////////////////////////////////
 
+QuicPeerStream::SendEvent& QuicPeerStream::queue_send_(msgpack_buffer_t buffer)
+{
+    auto buffer_ptr = buffer.data();
+    auto buffer_size = buffer.size();
+    auto& event = send_queue_.emplace_back(std::move(buffer));
+
+    if (ws_frame_)
+    {
+        auto key = GenerateMaskingKey();
+        auto& header_buffer = ws_headers_.emplace_back();
+        int32_t header_size = WsWriteHeader(BINARY_FRAME, true, key, buffer_size, header_buffer.data(), header_buffer.size());
+        
+        CHECK(header_size > 0);
+        Mask(buffer_ptr, buffer_size, key);
+        event.quic_vector[0] = { (uint32_t) header_size, (uint8_t*) header_buffer.data() };
+        event.quic_vector[1] = { (uint32_t) buffer_size, (uint8_t*) buffer_ptr };
+        event.n_buffers = 2;
+    }
+
+    return event;
+}
+
+void QuicPeerStream::send_(SendEvent& event)
+{
+    event.pending = !stream_->Write({event.quic_vector.data(), event.n_buffers}, &event);
+}
+
+void QuicPeerStream::clear_completed_()
+{
+    while((send_queue_.size() > 0) && send_queue_.front().complete)
+    {
+        if (ws_frame_)
+        {
+            auto& event = send_queue_.front();
+            CHECK((char*)event.quic_vector[0].Buffer == ws_headers_.front().data());
+            ws_headers_.pop_front();
+        }
+        
+        send_queue_.pop_front();
+    }
+}
+
 void QuicPeerStream::flush_send_queue_()
 {
     // Tries to push all previously queued (but not sent) buffers to MsQuic
 
     for (auto itr = send_queue_.rbegin(); (itr != send_queue_.rend() && itr->pending); itr++)
     {
-        if (!stream_->Write({itr->quic_vector.data(), itr->quic_vector.size()}, &(*itr)))
-        {
-            return;
-        }
+        send_(*itr);
+        if (!itr->pending) { return; }
         itr->pending = false;
     }
 }
@@ -326,15 +378,16 @@ int32_t QuicPeerStream::send_buffer(msgpack_buffer_t&& buffer)
     {
         // this really shouldn't be supported
         LOG(WARNING) << "[QUIC] Attempting to write before stream opened, queued for later (BUG)";
-        send_queue_.emplace_back(std::move(buffer));
+        queue_send_(std::move(buffer));
         return -1;
     }
     else
     {
         flush_send_queue_();
 
-        auto& event = send_queue_.emplace_back(std::move(buffer));
-        event.pending = !stream_->Write({event.quic_vector.data(), event.quic_vector.size()}, &event);
+        auto& event = queue_send_(std::move(buffer));
+        send_(event);
+
         if (event.pending)
         {
             LOG(WARNING) << "[QUIC] Write failed, is stream closed?";
@@ -371,10 +424,7 @@ void QuicPeerStream::OnWriteComplete(MsQuicStream* stream, void* Context, bool C
     // or the end of the dequeue.
     if (event == &send_queue_.front())
     {
-        while((send_queue_.size() > 0) && send_queue_.front().complete)
-        {
-            send_queue_.pop_front();
-        }
+        clear_completed_();
     }
     else
     {
@@ -387,11 +437,112 @@ void QuicPeerStream::OnWriteComplete(MsQuicStream* stream, void* Context, bool C
 
 // RECEIVE /////////////////////////////////////////////////////////////////////
 
+size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
+{
+    size_t size_ws = 0;
+    
+    while (buffer_in.Length > 0)
+    {
+        // Complete frame has not yet been received
+        if (ws_payload_remaining_ > 0)
+        {
+            auto recv_size = std::min<int32_t>(buffer_in.Length, ws_payload_remaining_);
+            auto ws_buffer = nonstd::span<char>((char*)buffer_in.Buffer, recv_size);
+            
+            if (ws_mask_) { Mask(ws_buffer.data(), ws_buffer.size(), ws_mask_key_, ws_payload_recvd_); }
+            ws_payload_recvd_ += recv_size;
+            ws_payload_remaining_ -= recv_size;
+            
+            memcpy(recv_buffer_.buffer() + size_consumed, ws_buffer.data(), ws_buffer.size());
+            size_consumed += ws_buffer.size();
+
+            buffer_in.Length -= recv_size;
+            buffer_in.Buffer += recv_size;
+            
+            // Process any remaining buffer
+            continue;
+        }
+
+        // No previous frames or previous frame is complete, this buffer must contain header
+        WebSocketHeader header;
+        WsParseHeaderStatus status = INVALID;
+
+        if (ws_partial_header_recvd_ > 0)
+        {
+            // Read remaining header
+            CHECK(ws_partial_header_recvd_ < (int)ws_header_.size());
+            size_t header_size = ws_header_.size() - ws_partial_header_recvd_;
+            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, header_size);
+            status = WsParseHeader(ws_header_.data(), header_size, header);
+        }
+        else
+        {
+            status = WsParseHeader((char*)buffer_in.Buffer, buffer_in.Length, header);
+        }
+
+        if (status == INVALID)
+        {
+            LOG(ERROR) << "[Quic/WebSocket] Protocol error, invalid header. Closing connection.";
+            close();
+        }
+        else if (status == NOT_ENOUGH_DATA)
+        {
+            //CHECK(buffer_in.Length < ws_header_.size());
+            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, ws_header_.size() - ws_partial_header_recvd_);
+            ws_partial_header_recvd_ += buffer_in.Length;
+
+            size_ws += buffer_in.Length;
+            buffer_in.Length -= buffer_in.Length;
+            buffer_in.Buffer += buffer_in.Length;
+        }
+        else if (status == OK)
+        {
+            if (header.OpCode == OpCodeType::CLOSE)
+            {
+                LOG(WARNING) << "[Quic/WebSocket] Received close control frame. Closing connection.";
+                close();
+            }
+            
+            auto offset = header.HeaderSize - ws_partial_header_recvd_;
+            size_ws += offset;
+            buffer_in.Length -= offset;
+            buffer_in.Buffer += offset;
+
+            ws_mask_ = header.Mask;
+            ws_mask_key_ = header.MaskingKey;
+
+            ws_partial_header_recvd_ = 0;
+            ws_payload_recvd_ = 0;
+            ws_payload_remaining_ = header.PayloadLength;
+
+            if (header.OpCode != OpCodeType::BINARY_FRAME)
+            {
+                LOG(WARNING) << "[Quic/WebSocket] Received non-binary frame "
+                             << "(OpCode: " << header.OpCode << ", size (header): " <<  header.HeaderSize << ", size (payload): "
+                             << header.PayloadLength << "). Frame ignored.";
+
+                if (header.OpCode == OpCodeType::TEXT_FRAME)
+                {
+                    LOG(WARNING) << "[Quic/WebSocket] Text Frame: " << std::string((char*)buffer_in.Buffer + header.HeaderSize, header.PayloadLength);
+                }
+                
+                size_ws += ws_payload_remaining_;
+                buffer_in.Length -= ws_payload_remaining_;
+                buffer_in.Buffer += ws_payload_remaining_;
+                ws_payload_remaining_ = 0;
+            }
+        }
+    }
+
+    return size_ws;
+}
+
 void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER> data)
 {
     size_t size_consumed = 0;
     size_t size_total = 0;
-    
+    size_t size_ws = 0;
+
     for (auto& buffer_in : data)
     {
         if ((buffer_in.Length + size_consumed) > recv_buffer_.buffer_capacity())
@@ -408,8 +559,15 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
             recv_buffer_.reserve_buffer(size_reserve);
         }
 
-        memcpy(recv_buffer_.buffer() + size_consumed, buffer_in.Buffer, buffer_in.Length);
-        size_consumed += buffer_in.Length;
+        if (ws_frame_)
+        {
+            size_ws += ws_recv_(buffer_in, size_consumed);
+        }
+        else
+        {
+            memcpy(recv_buffer_.buffer() + size_consumed, buffer_in.Buffer, buffer_in.Length);
+            size_consumed += buffer_in.Length;
+        }
     }
 
     {
@@ -422,12 +580,11 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
             ftl::pool.push([this](int){ ProcessRecv(); });
         }
     }
-    
-    stream_->Consume(size_consumed + size_total);
+    stream_->Consume(size_consumed + size_total + size_ws);
     
     size_t sz = 0;
     for (auto& buffer_in : data) { sz += buffer_in.Length; }
-    CHECK((size_consumed + size_total) == sz);
+    CHECK((size_consumed + size_total + size_ws) == sz);
 }
 
 void QuicPeerStream::ProcessRecv()

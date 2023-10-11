@@ -110,8 +110,8 @@ class Universe {
      *
      * @param addr URI giving protocol, interface and port
      */
-    PeerPtr connect(const std::string &addr);
-    PeerPtr connect(const ftl::URI &addr);
+    PeerPtr connect(const std::string &addr, bool is_webservice=false); // FIXME: use flags or remove is_webservice
+    PeerPtr connect(const ftl::URI &addr, bool is_webservice=false);
 
     bool isConnected(const ftl::URI &uri);
     bool isConnected(const std::string &s);

@@ -107,6 +107,7 @@ void ftl::net::Dispatcher::dispatch_call(PeerBase &s, const msgpack::object &msg
     auto &&name = std::get<2>(the_call);
     auto &&args = std::get<3>(the_call);
     // assert(type == 0);
+    //LOG(INFO) << "RPC call (remote): " << name;
 
     if (type == 0) {
         auto func = _locateHandler(name);
@@ -155,6 +156,8 @@ void ftl::net::Dispatcher::dispatch_notification(PeerBase &peer_instance, msgpac
 
     auto &&name = std::get<1>(the_call);
     auto &&args = std::get<2>(the_call);
+
+    //LOG(INFO) << "RPC notify (remote): " << name;
     
     auto binding = _locateHandler(name);
 

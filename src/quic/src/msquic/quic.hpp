@@ -75,6 +75,8 @@ struct MsQuicConfiguration
 
     void SetCertificatePKCS12(nonstd::span<unsigned char> Blob);
 
+    void SetKeepAlive(uint32_t IntervalMs);
+
     QUIC_SETTINGS Settings;
 
 private:

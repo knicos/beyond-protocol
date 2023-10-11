@@ -36,6 +36,8 @@ QuicUniverseImpl::QuicUniverseImpl(Universe* net) : net_(net )
     }
 
     ClientConfig.DisableCertificateValidation(); // FIXME!!
+    // Keeps connection alive when idle (only for client)
+    ClientConfig.SetKeepAlive(100); // TODO: Config value? 
     Client = std::make_unique<MsQuicClient>(&MsQuic);
     Client->Configure(ClientConfig);
 }
@@ -105,15 +107,18 @@ std::vector<ftl::URI> QuicUniverseImpl::GetListeningUris()
     return {};
 }
 
-PeerPtr QuicUniverseImpl::Connect(const ftl::URI& uri)
+PeerPtr QuicUniverseImpl::Connect(const ftl::URI& uri, bool is_webservice)
 {
-    LOG(INFO) << "[QUIC] Connecting to: " << uri.to_string();
+    LOG(INFO) << "[QUIC] Connecting to: " << uri.to_string() << (is_webservice ? " (webservice)" : "");
     auto Peer = std::make_shared<QuicPeer>(&MsQuic, net_, net_->dispatcher_());
+    if (is_webservice) { Peer->setType(ftl::protocol::NodeType::kWebService); }
     auto Connection = Client->Connect(Peer.get(), uri.getHost(), uri.getPort());
     Peer->set_connection(std::move(Connection));
 
     UNIQUE_LOCK_N(Lk, PeerMtx);
     Peers.push_back(Peer);
+
+    CHECK((Peer->getType() == ftl::protocol::NodeType::kWebService) == is_webservice);
 
     return Peer;
 }

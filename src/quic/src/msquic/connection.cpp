@@ -220,17 +220,17 @@ QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUI
         
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
         {
-            if (Connection->IsOpen())
-            {
-                Observer->OnDisconnect(Connection);
-                Connection->SetCloseStatus(QUIC_STATUS_SUCCESS);
-            }
-            else
+            if (!Connection->IsOpen())
             {
                 CHECK(!Event->SHUTDOWN_COMPLETE.HandshakeCompleted) << "[QUIC] Connection: SHUTDOWN_COMPLETE received before CONNECTED";
                 // connection failed
                 Connection->SetOpenStatus(QUIC_STATUS_ABORTED);
             }
+            // Destructor blocks until close status set. FIXME: perhaps add another future to indicate the instance is safe to release
+            // and block destruction depending on it (currently race on the close future possible?).
+            Connection->SetCloseStatus(QUIC_STATUS_SUCCESS);
+            Observer->OnDisconnect(Connection);
+
             return QUIC_STATUS_SUCCESS;
         }
         

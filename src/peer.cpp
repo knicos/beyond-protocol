@@ -137,8 +137,8 @@ bool PeerBase::process_handshake_(uint64_t magic, uint32_t version, const ftl::U
      */
     
     // FIXME: should be assert but fails unit tests (tests broken in peer_unit.cpp)
-    LOG_IF(ERROR, status_ == ftl::protocol::NodeStatus::kConnecting)
-        << "Unexpected handshake";
+    LOG_IF(ERROR, status_ != ftl::protocol::NodeStatus::kConnecting)
+        << "Unexpected handshake, state " << int(status_);
     
     if (magic != ftl::net::kMagic) {
         net_->notifyError_(this, ftl::protocol::Error::kBadHandshake, "invalid magic during handshake");
