@@ -314,13 +314,7 @@ target_include_directories(beyond-protocol PUBLIC
 	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/ftl/lib>
 )
 
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-write_basic_package_version_file(
-	"BeyondProtocolConfigVersion.cmake"
-	VERSION ${FTL_VERSION}
-	COMPATIBILITY AnyNewerVersion
-)
+install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
 set(INCLUDE_INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}")
 
@@ -329,6 +323,12 @@ configure_package_config_file(
 	"${CMAKE_CURRENT_BINARY_DIR}/BeyondProtocolConfig.cmake"
 	INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/BeyondProtocol"
 	PATH_VARS INCLUDE_INSTALL_DIR
+)
+
+write_basic_package_version_file(
+	"BeyondProtocolConfigVersion.cmake"
+	VERSION ${FTL_VERSION}
+	COMPATIBILITY AnyNewerVersion
 )
 
 install(FILES

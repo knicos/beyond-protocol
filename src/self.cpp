@@ -27,7 +27,7 @@ std::shared_ptr<ftl::protocol::Node> Self::connectNode(const std::string &uri) {
 }
 
 std::shared_ptr<ftl::protocol::Service> Self::connectService(const std::string &uri) {
-    return std::make_shared<ftl::protocol::Service>(universe_->connect(uri));
+    return std::make_shared<ftl::protocol::Service>(universe_->connect(uri, true));
 }
 
 std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri) {

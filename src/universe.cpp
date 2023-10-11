@@ -236,7 +236,7 @@ bool Universe::listen(const ftl::URI &addr) {
 
         {
             UNIQUE_LOCK(net_mutex_, lk);
-            DLOG(1) << "listening on " << l->uri().to_string();
+            LOG(INFO) << "Listening on " << l->uri().to_string();
             listeners_.push_back(std::move(l));
         }
         socket_cv_.notify_one();
@@ -295,7 +295,7 @@ void Universe::insertPeer_(const PeerPtr &ptr) {
     throw FTL_Error("Too many connections");
 }
 
-PeerPtr Universe::connect(const ftl::URI &u) {
+PeerPtr Universe::connect(const ftl::URI &u, bool is_webservice) {
     // Check if already connected or if self (when could this happen?)
 
     {
@@ -318,7 +318,7 @@ PeerPtr Universe::connect(const ftl::URI &u) {
     #ifdef HAVE_MSQUIC
     if (quic_->CanOpenUri(u))
     {
-        p = quic_->Connect(u);
+        p = quic_->Connect(u, is_webservice);
     }
     else
     #endif
@@ -333,8 +333,8 @@ PeerPtr Universe::connect(const ftl::URI &u) {
     return p;
 }
 
-PeerPtr Universe::connect(const std::string& addr) {
-    return connect(ftl::URI(addr));
+PeerPtr Universe::connect(const std::string& addr, bool is_webservice) {
+    return connect(ftl::URI(addr), is_webservice);
 }
 
 void Universe::unbind(const std::string &name) {

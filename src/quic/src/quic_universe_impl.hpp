@@ -21,7 +21,7 @@ public:
 
     std::vector<ftl::URI> GetListeningUris() override;
 
-    ftl::net::PeerPtr Connect(const ftl::URI& uri) override;
+    ftl::net::PeerPtr Connect(const ftl::URI& uri, bool) override;
 
 private:
     void OnConnection(MsQuicServer* Listener, MsQuicConnectionPtr Connection) override;
