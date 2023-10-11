@@ -47,7 +47,7 @@ uint32_t Mask(char* Buffer, int BufferSize, WsMaskKey& Key, uint32_t Offset = 0)
     return BufferSize;
 }
 
-void WsWriteMaskingKey(char* Buffer, WsMaskKey Key)
+void WsWriteMaskingKey(uint8_t* Buffer, WsMaskKey Key)
 {
     Buffer[0] = Key[0];
     Buffer[1] = Key[1];
@@ -55,11 +55,11 @@ void WsWriteMaskingKey(char* Buffer, WsMaskKey Key)
     Buffer[3] = Key[3];
 }
 
-int WsWriteHeader(OpCodeType Op, bool UseMask, WsMaskKey Mask, const size_t Length, char* Buffer, size_t MaxLength)
+int WsWriteHeader(OpCodeType Op, bool UseMask, WsMaskKey Mask, const size_t Length, uint8_t* Buffer, size_t MaxLength)
 {
     CHECK(MaxLength >= 12);
 
-    char *Header = Buffer;
+    uint8_t *Header = Buffer;
     size_t HeaderSize = 2 + (Length >= 126 ? 2 : 0) + (Length >= 65536 ? 6 : 0) + (UseMask ? 4 : 0);
     if (HeaderSize > MaxLength) return -1;
 
@@ -107,10 +107,8 @@ enum WsParseHeaderStatus
     INVALID
 };
 
-WsParseHeaderStatus WsParseHeader(char* const DataIn, size_t Length, WebSocketHeader& Header)
+WsParseHeaderStatus WsParseHeader(uint8_t* const Data, size_t Length, WebSocketHeader& Header)
 {
-    uint8_t* const Data = (uint8_t* const) DataIn; // Type must be unsigned (bit shifts)
-
     if (Length < 2) { return NOT_ENOUGH_DATA; }
     Header.Fin = (Data[0] & 0x80) == 0x80;
     Header.Rsv = (Data[0] & 0x70);

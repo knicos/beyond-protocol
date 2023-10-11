@@ -155,7 +155,7 @@ private:
     int ws_partial_header_recvd_ = 0;
     bool ws_mask_ = false;
     std::array<unsigned char, 4> ws_mask_key_;
-    std::array<char, 14> ws_header_;
+    std::array<uint8_t, 14> ws_header_;
     size_t ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed);
 
     // Send limits. Send methods will block if limits are exceeded (with warning message).

@@ -301,7 +301,7 @@ QuicPeerStream::SendEvent& QuicPeerStream::queue_send_(msgpack_buffer_t buffer)
     {
         auto key = GenerateMaskingKey();
         auto& header_buffer = ws_headers_.emplace_back();
-        int32_t header_size = WsWriteHeader(BINARY_FRAME, true, key, buffer_size, header_buffer.data(), header_buffer.size());
+        int32_t header_size = WsWriteHeader(BINARY_FRAME, true, key, buffer_size, (uint8_t*) header_buffer.data(), header_buffer.size());
         
         CHECK(header_size > 0);
         Mask(buffer_ptr, buffer_size, key);
@@ -477,7 +477,7 @@ size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
         }
         else
         {
-            status = WsParseHeader((char*)buffer_in.Buffer, buffer_in.Length, header);
+            status = WsParseHeader(buffer_in.Buffer, buffer_in.Length, header);
         }
 
         if (status == INVALID)
