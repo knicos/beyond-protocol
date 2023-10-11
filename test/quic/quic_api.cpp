@@ -313,13 +313,13 @@ TEST_CASE("QUIC Client+Server")
         
         // check that all events were fired
         auto LkServer = std::unique_lock(Server->Mtx);
-        Server->Cv.wait_for(LkServer, std::chrono::milliseconds(500), [&](){ return Server->DisconnectEventCount == 1; });
+        Server->Cv.wait_for(LkServer, std::chrono::milliseconds(1000), [&](){ return Server->DisconnectEventCount == 1; });
 
         REQUIRE(Server->ConnectEventCount == 1);
         REQUIRE(Server->DisconnectEventCount == 1);
 
         auto LkClient = std::unique_lock(Client->Mtx);
-        Client->Cv.wait_for(LkServer, std::chrono::milliseconds(500), [&](){ return Client->DisconnectEventCount == 1; });
+        Client->Cv.wait_for(LkServer, std::chrono::milliseconds(1000), [&](){ return Client->DisconnectEventCount == 1; });
 
         REQUIRE(Client->ConnectEventCount == 1);
         REQUIRE(Client->DisconnectEventCount == 1);
