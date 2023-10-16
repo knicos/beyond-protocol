@@ -60,6 +60,11 @@ class Self {
     std::shared_ptr<ftl::protocol::Service> connectService(const std::string &uri);
 
     /**
+     * @brief Connect to a quic proxy 
+     */
+    void connectProxy(const std::string &uri);
+
+    /**
      * @brief Create a new stream. Use the namespace method if possible.
      * 
      * @param uri A file:// or ftl:// URI.

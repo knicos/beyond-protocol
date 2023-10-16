@@ -56,7 +56,7 @@ public:
     /** MsQuic Send. If Delay flag set to true, the flag is passed to MsQuic (indicate more data queued shortly, 
      *  might delay transmission indefinitely if no data is passed without the flag?). Returns true on succesfully
      *  queued data. */
-    bool Write(nonstd::span<QUIC_BUFFER> Buffers, void* Context, bool Delay = false);
+    bool Write(nonstd::span<const QUIC_BUFFER> Buffers, void* Context, bool Delay = false);
 
     void SetStreamHandler(IMsQuicStreamHandler*);
 

@@ -30,6 +30,10 @@ std::shared_ptr<ftl::protocol::Service> Self::connectService(const std::string &
     return std::make_shared<ftl::protocol::Service>(universe_->connect(uri, true));
 }
 
+void Self::connectProxy(const std::string &uri) {
+    universe_->connectProxy(ftl::URI(uri));
+}
+
 std::shared_ptr<ftl::protocol::Stream> Self::createStream(const std::string &uri) {
     ftl::URI u(uri);
 

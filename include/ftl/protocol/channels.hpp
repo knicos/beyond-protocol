@@ -213,6 +213,7 @@ enum struct Channel : int {
     kMessages       = 2052,  // Vector of Strings
     kTouch          = 2053,  // List of touch data type (each touch point)
     kPipelines      = 2054,  // List of pipline URIs that have been applied
+    kReaction       = 2055,  // Unicode
 };
 
 }  // namespace protocol

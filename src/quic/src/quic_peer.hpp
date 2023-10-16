@@ -1,3 +1,4 @@
+#pragma once
 #include "../../peer.hpp"
 
 #include <ftl/profiler.hpp>
@@ -13,85 +14,32 @@ namespace beyond_impl
 {
 using msgpack_buffer_t = ftl::net::PeerBase::msgpack_buffer_t;
 
-class QuicPeerStream;
-
-class QuicPeer : public ftl::net::PeerBase, public IMsQuicConnectionHandler
-{
-    friend class QuicPeerStream;
-
+class QuicPeerStream final : public IMsQuicStreamHandler, public ftl::net::PeerBase {
 public:
-    explicit QuicPeer(MsQuicContext* msquic, ftl::net::Universe*, ftl::net::Dispatcher* d = nullptr);
-    virtual ~QuicPeer();
-
-    ftl::protocol::NodeType getType() const override;
-
-    void setType(ftl::protocol::NodeType t) { is_webservice_ = (t == ftl::protocol::NodeType::kWebService); } // TODO: the peer should tell if it is a proxy for webservice and type is determined by that
-
-    bool isValid() const override { return true; }
-
-    void start() override;
-
-    void close(bool reconnect) override;
-
-    int pending_bytes() { return pending_bytes_; }
-
-    int32_t AvailableBandwidth() override;
-
-    /** Open default stream and send handshake */
-    void initiate_handshake();
-
-    void set_connection(MsQuicConnectionPtr conn);
-
-    void process_message(msgpack::object_handle& obj) { process_message_(obj); };
-
-protected:
-    // acquire msgpack buffer for send
-    msgpack_buffer_t get_buffer_() override;
-
-    // send buffer to network. must call return_buffer_ once send is complete. if throws, caller must call return_buffer_.
-    int send_buffer_(const std::string& name, msgpack_buffer_t&& buffer, ftl::net::SendFlags flags) override;
-
-    // IMsQuicConnectionHandler
-    void OnConnect(MsQuicConnection* Connection) override;
-    void OnDisconnect(MsQuicConnection* Connection) override;
-    void OnStreamCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicStream> Stream) override;
-    //void OnDatagramCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicDatagram> Stream) override;
-
-private:
-    MsQuicContext* msquic_;
-    ftl::net::Universe* net_;
-
-    DECLARE_MUTEX(peer_mtx_);
-    MsQuicConnectionPtr connection_;
-    std::unique_ptr<QuicPeerStream> stream_;
-
-    // QuicPeerStream
-
-    void OnStreamShutdown(QuicPeerStream* stream);
-    // pending bytes (send) for all streams of this connection
-    std::atomic_int pending_bytes_ = 0;
-
-    bool is_webservice_;
-};
-
-class QuicPeerStream : public IMsQuicStreamHandler {
-public:
-    QuicPeerStream(QuicPeer* peer, const std::string& name, bool ws_frame=true);
+    QuicPeerStream(MsQuicConnection* connection, MsQuicStreamPtr stream, ftl::net::Universe*, ftl::net::Dispatcher* d = nullptr);
     virtual ~QuicPeerStream();
 
     void set_stream(MsQuicStreamPtr stream);
 
-    msgpack_buffer_t get_buffer();
-    int32_t send_buffer(msgpack_buffer_t&&);
+    void set_type(ftl::protocol::NodeType t) { node_type_ = t; } 
+
+    ftl::protocol::NodeType getType() const override { return node_type_; }
 
     int pending_bytes() { return pending_bytes_; }
     int pending_sends() { return pending_sends_; }
 
-    void close();
+    bool isValid() const override { return stream_.get() != nullptr; }
 
-    void reset();
+    void start() override;
+
+    void close(bool reconnect=false) override;
     
 protected:
+    void reset();
+
+    msgpack_buffer_t get_buffer_() override;
+    int send_buffer_(const std::string& name, msgpack_buffer_t&& buffer, ftl::net::SendFlags flags) override;
+
     // IMsQuicStreamHandler
     void OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER> data) override;
 
@@ -110,7 +58,10 @@ private:
     // discard all queued sends (not yet passed to network)
     void discard_queued_sends_();
 
-    QuicPeer* peer_;
+    // TODO: node should tell what type it is (if this code is used)
+    ftl::protocol::NodeType node_type_ = ftl::protocol::NodeType::kNode;
+
+    MsQuicConnection* connection_;
     MsQuicStreamPtr stream_;
     std::string name_;
     const bool ws_frame_;

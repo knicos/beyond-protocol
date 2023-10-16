@@ -130,7 +130,7 @@ public:
 
     // server callbacks
     
-    void OnConnection(MsQuicConnectionPtr ConnectionIn) override
+    void OnConnection(MsQuicConnectionPtr ConnectionIn, const QUIC_NEW_CONNECTION_INFO& Info) override
     {
         DLOG(INFO) << "[" << this << "] " << "OnConnection";
         Connection = std::move(ConnectionIn);

@@ -190,6 +190,10 @@ void Universe::start() {
 
 void Universe::shutdown() {
     if (!active_) return;
+    #ifdef HAVE_MSQUIC
+    quic_->Shutdown();
+    #endif
+
     DLOG(1) << "Cleanup Network ...";
 
     {
@@ -737,4 +741,12 @@ void Universe::notifyError_(PeerBase *p, ftl::protocol::Error e, const std::stri
     const auto ptr = (p) ? _findPeer(p) : nullptr;
 
     on_error_.triggerAsync(ptr, e, errstr);
+}
+
+void Universe::connectProxy(const ftl::URI &addr) {
+    #ifdef HAVE_MSQUIC
+    quic_->ConnectProxy(addr);
+    #else
+    LOG(ERROR) << "connectProxy: Built without Quic support";
+    #endif
 }

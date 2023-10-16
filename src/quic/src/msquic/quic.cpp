@@ -234,9 +234,9 @@ MsQuicConnectionPtr MsQuicClient::Connect(IMsQuicConnectionHandler* Client, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MsQuicServer::OnConnection(MsQuicConnectionPtr Connection)
+void MsQuicServer::OnConnection(MsQuicConnectionPtr Connection, const QUIC_NEW_CONNECTION_INFO& Info)
 {
-    if (CallbackHandler) { CallbackHandler->OnConnection(this, std::move(Connection)); }
+    if (CallbackHandler) { CallbackHandler->OnConnection(this, std::move(Connection), Info); }
 }
 
 MsQuicServer::MsQuicServer(MsQuicContext* Context) :
@@ -257,7 +257,7 @@ MsQuicServer::MsQuicServer(MsQuicContext* Context) :
                         Server->MsQuic,
                         Server->hConfiguration,
                         Event->NEW_CONNECTION.Connection
-                ));
+                ), *(Event->NEW_CONNECTION.Info));
             }
             case QUIC_LISTENER_EVENT_STOP_COMPLETE:
             {
@@ -379,3 +379,5 @@ void MsQuicOpenable::SetCloseStatus(QUIC_STATUS Result)
     PromiseClose.set_value(Result);
     PromiseOpen = std::promise<QUIC_STATUS>();
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

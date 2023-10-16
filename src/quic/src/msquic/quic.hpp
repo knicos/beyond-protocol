@@ -114,7 +114,7 @@ private:
 class IMsQuicServerConnectionHandler
 {
 public:
-    virtual void OnConnection(MsQuicServer* Listener, MsQuicConnectionPtr Connection) {}
+    virtual void OnConnection(MsQuicServer* Listener, MsQuicConnectionPtr Connection, const QUIC_NEW_CONNECTION_INFO& Info) {}
     virtual ~IMsQuicServerConnectionHandler() {}
 };
 
@@ -136,7 +136,7 @@ public:
 
 protected:
     /** Called onnce for connections. Implementation must call Connection->SetObserver() */
-    virtual void OnConnection(MsQuicConnectionPtr Connection);
+    virtual void OnConnection(MsQuicConnectionPtr Connection, const QUIC_NEW_CONNECTION_INFO& Info);
 
 private:
     MsQuicServer(const MsQuicServer&) = delete;

@@ -113,6 +113,8 @@ class Universe {
     PeerPtr connect(const std::string &addr, bool is_webservice=false); // FIXME: use flags or remove is_webservice
     PeerPtr connect(const ftl::URI &addr, bool is_webservice=false);
 
+    void connectProxy(const ftl::URI &addr);
+
     bool isConnected(const ftl::URI &uri);
     bool isConnected(const std::string &s);
 

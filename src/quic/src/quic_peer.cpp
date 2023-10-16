@@ -19,141 +19,23 @@ QuicPeerStream::SendEvent::SendEvent(msgpack_buffer_t buffer_in) :
     quic_vector[0].Length = buffer.size();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-QuicPeer::QuicPeer(
-    MsQuicContext* ctx,
-    ftl::net::Universe* net,
-    ftl::net::Dispatcher* disp) :
-
-    ftl::net::PeerBase(ftl::URI(), net, disp),
-    msquic_(ctx),
-    net_(net),
-    is_webservice_(false)
-{
-    bind("__handshake__", [this](uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid) {
-        process_handshake_(magic, version, pid);
-    });
-
-    stream_ = std::make_unique<QuicPeerStream>(this, "default");
-    status_ = ftl::protocol::NodeStatus::kConnecting;
-}
-
-QuicPeer::~QuicPeer()
-{
-
-}
-
-ftl::protocol::NodeType QuicPeer::getType() const 
-{
-    if (is_webservice_)
-    {
-        return ftl::protocol::NodeType::kWebService;
-    }
-    return ftl::protocol::NodeType::kNode;
-}
-
-void QuicPeer::initiate_handshake() 
-{
-    UNIQUE_LOCK_N(lk, peer_mtx_);
-    stream_->set_stream(connection_->OpenStream());
-    send_handshake_();
-    
-    LOG(INFO) << "[QUIC] New stream opened (requested by local)";
-}
-
-void QuicPeer::start() 
-{
-
-}
-
-void QuicPeer::close(bool reconnect)
-{
-    if (status() == NodeStatus::kConnected)
-    {
-        LOG(INFO) << "[QUIC] Disconnect";
-        send("__disconnect__");
-    }
-
-    if (connection_ && connection_->IsOpen())
-    {
-        stream_->close();
-        // MsQuic should close all resources associated with the connection. This is currently required by QuicUniverse
-        connection_->Close().wait();
-    }
-
-    if (reconnect)
-    {
-        LOG(ERROR) << "[QUIC] Reconnect requested, not implemented TODO";
-    }
-}
-
-void QuicPeer::set_connection(MsQuicConnectionPtr conn)
-{
-    CHECK(conn);
-    LOG_IF(WARNING, connection_.get() != nullptr) 
-        << "QuicPeer: Connection already set, this will reset all streams (BUG)";
-    
-    connection_ = std::move(conn);
-}
-
-ftl::net::PeerBase::msgpack_buffer_t QuicPeer::get_buffer_()
-{
-    CHECK(stream_);
-    return stream_->get_buffer();
-}
-
-int QuicPeer::send_buffer_(const std::string& name, msgpack_buffer_t&& buffer, ftl::net::SendFlags flags)
-{
-    CHECK(stream_);
-    return stream_->send_buffer(std::move(buffer));
-}
-
-void QuicPeer::OnConnect(MsQuicConnection* Connection)
-{
-    // nothing to do; send_handshake() opens stream
-}
-
-void QuicPeer::OnDisconnect(MsQuicConnection* Connection)
-{
-    status_ = ftl::protocol::NodeStatus::kDisconnected;
-    net_->notifyDisconnect_(this);
-
-    LOG(INFO) << "[QUIC] Connection closed";
-}
-
-void QuicPeer::OnStreamCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicStream> StreamIn) 
-{
-    UNIQUE_LOCK_N(lk, peer_mtx_);
-    
-    stream_->set_stream(std::move(StreamIn));
-    LOG(INFO) << "[QUIC] New stream opened (requested by remote)";
-}
-
-void QuicPeer::OnStreamShutdown(QuicPeerStream* Stream)
-{
-    UNIQUE_LOCK_N(lk, peer_mtx_);
-}
-
-/*void QuicPeer::OnDatagramCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicDatagram> Stream)
-{
-    LOG(ERROR) << "QuicPeer: Datagram streams not supported";
-}*/
-
-int32_t QuicPeer::AvailableBandwidth()
-{
-    if (!connection_) { return 0; }
-    return 0;
-}
-
 /// Stream /////////////////////////////////////////////////////////////////////
 
 static std::atomic_int profiler_name_ctr_ = 0;
 
-QuicPeerStream::QuicPeerStream(QuicPeer* peer, const std::string& name, bool ws_frame) :
-    peer_(peer), name_(name), ws_frame_(ws_frame)
+QuicPeerStream::QuicPeerStream(MsQuicConnection* connection, MsQuicStreamPtr stream, ftl::net::Universe* net, ftl::net::Dispatcher* disp) :
+    ftl::net::PeerBase(ftl::URI(), net, disp),
+    connection_(connection), stream_(std::move(stream)), ws_frame_(true)
 {
-    CHECK(peer_);
+    // TODO: remove connection_ (can't use with proxy)
+    CHECK(stream_.get());
+
+    bind("__handshake__", [this](uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid) {
+        process_handshake_(magic, version, pid);
+    });
+
+    stream_->SetStreamHandler(this);
+    status_ = ftl::protocol::NodeStatus::kConnecting;
 
     recv_buffer_.reserve_buffer(recv_buffer_default_size_);
     
@@ -169,6 +51,11 @@ QuicPeerStream::QuicPeerStream(QuicPeer* peer, const std::string& name, bool ws_
 QuicPeerStream::~QuicPeerStream()
 {
     close();
+}
+
+void QuicPeerStream::start()
+{
+    stream_->EnableRecv();
 }
 
 void QuicPeerStream::set_stream(MsQuicStreamPtr stream)
@@ -187,7 +74,7 @@ void QuicPeerStream::set_stream(MsQuicStreamPtr stream)
 }
 
 
-void QuicPeerStream::close()
+void QuicPeerStream::close(bool reconnect)
 {
     std::unique_lock<MUTEX_T> lk_send(send_mtx_, std::defer_lock);
     std::unique_lock<MUTEX_T> lk_recv(recv_mtx_, std::defer_lock);
@@ -216,7 +103,7 @@ void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
     
     // MsQuic releases stream instanca after this callback. Any use of it later is a bug. 
     stream_ = nullptr;
-    peer_->OnStreamShutdown(this);
+    // notify...
 }
 
 #ifdef ENABLE_PROFILER
@@ -229,7 +116,7 @@ void QuicPeerStream::statistics()
 
 // Buffer/Queue ////////////////////////////////////////////////////////////////
 
-msgpack_buffer_t QuicPeerStream::get_buffer()
+msgpack_buffer_t QuicPeerStream::get_buffer_()
 {
     UNIQUE_LOCK_N(lk, send_mtx_);
 
@@ -345,8 +232,8 @@ void QuicPeerStream::flush_send_queue_()
     }
 }
 
-int32_t QuicPeerStream::send_buffer(msgpack_buffer_t&& buffer)
-{
+int QuicPeerStream::send_buffer_(const std::string& name, msgpack_buffer_t&& buffer, ftl::net::SendFlags flags) {
+
     UNIQUE_LOCK_N(lk, send_mtx_);
     // probably doesn't work due to concurrency
     // PROFILER_ASYNC_ZONE_SCOPE("QuicSend");
@@ -372,7 +259,7 @@ int32_t QuicPeerStream::send_buffer(msgpack_buffer_t&& buffer)
 
     pending_sends_++;
     pending_bytes_ += buffer.size();
-    peer_->pending_bytes_ += buffer.size();
+    //peer_->pending_bytes_ += buffer.size();
 
     if (!stream_)
     {
@@ -409,7 +296,7 @@ void QuicPeerStream::OnWriteComplete(MsQuicStream* stream, void* Context, bool C
 
     pending_sends_--;
     pending_bytes_ -= event->buffer.size();
-    peer_->pending_bytes_ -= event->buffer.size();
+    //peer_->pending_bytes_ -= event->buffer.size();
     
     UNIQUE_LOCK_N(lk, send_mtx_);
 
@@ -595,7 +482,7 @@ void QuicPeerStream::ProcessRecv()
     while (recv_buffer_.next(obj))
     {
         lk.unlock();
-        peer_->process_message(obj);
+        process_message_(obj);
         lk.lock();
     }
 

@@ -207,6 +207,8 @@ public:
      */
     //virtual void sendBufferRaw(const char* buffer, size_t size) {}//{ std::promise<bool> promise; promise.set_value(false); return promise.get_future(); }
 
+    void send_handshake();
+
 protected:
     // TODO: add name parameter that implementation may use to return different buffers depending on name
 
@@ -219,8 +221,6 @@ protected:
     // call on received message (sync)
     void process_message_(msgpack::object_handle& object);
 
-    // send handshake to remote
-    void send_handshake_();
     // process handshke, returns true if valid handshake received
     bool process_handshake_(msgpack::object_handle& object);
     bool process_handshake_(uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid);
