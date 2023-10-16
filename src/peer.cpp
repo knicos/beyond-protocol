@@ -120,7 +120,7 @@ void PeerBase::process_message_(msgpack::object_handle& object) {
     }
 }
 
-void PeerBase::send_handshake_() {
+void PeerBase::send_handshake() {
     CHECK(status_ == ftl::protocol::NodeStatus::kConnecting)
         << "[BUG] Peer is in an invalid state (" << (int)status_ << ") for protocol handshake";
     
@@ -151,7 +151,7 @@ bool PeerBase::process_handshake_(uint64_t magic, uint32_t version, const ftl::U
     peerid_ = pid;
 
     if (!handshake_sent_) {
-        send_handshake_();
+        send_handshake();
     }
 
     status_ = ftl::protocol::NodeStatus::kConnected;

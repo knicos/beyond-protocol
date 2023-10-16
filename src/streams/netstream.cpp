@@ -608,7 +608,6 @@ bool Net::enable(FrameID id, const ChannelSet &channels) {
 
 bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t count, uint8_t bitrate, bool doreset) {
     if (!active_ || host_) return false;
-
     PacketMSGPACK pkt = {
         Codec::kAny,       // TODO(Nick): Allow specific codec requests
         0,
@@ -678,7 +677,7 @@ bool Net::_processRequest(ftl::net::PeerBase *p, const StreamPacket *spkt, DataP
         return false;
     }
 
-    DLOG(INFO) << "processing request: " << int(spkt->streamID) << ", " << int(spkt->channel);
+    DLOG(INFO) << "processing request: " << int(spkt->streamID) << ", " << int(spkt->channel) << ", count: " << pkt.frame_count;
 
     const FrameID frameId(spkt->streamID, spkt->frame_number);
 

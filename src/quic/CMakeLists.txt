@@ -14,6 +14,7 @@ add_library(beyond-quic OBJECT
 	src/msquic/quic.cpp
 	src/msquic/connection.cpp
 	src/msquic/stream.cpp
+	src/proxy.cpp
 	src/quic_peer.cpp
 	src/quic_universe.cpp
 	src/openssl_util.cpp

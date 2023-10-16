@@ -223,7 +223,7 @@ void MsQuicStream::EnableRecv(bool Value)
     CHECK_QUIC(MsQuic->Api->StreamReceiveSetEnabled(hStream, Value));
 }
 
-bool MsQuicStream::Write(nonstd::span<QUIC_BUFFER> Buffers, void* Context, bool Delay)
+bool MsQuicStream::Write(nonstd::span<const QUIC_BUFFER> Buffers, void* Context, bool Delay)
 {
     QUIC_SEND_FLAGS Flags = QUIC_SEND_FLAG_NONE;
     if (Delay) { Flags |= QUIC_SEND_FLAG_DELAY_SEND; }
