@@ -490,8 +490,9 @@ bool Net::begin() {
         auto *state = _getFrameState(FrameID(spkt_raw.streamID, spkt_raw.frame_number));
         _earlyProcessPacket(&p, ttimeoff, spkt_raw, pkt);
 
-        if (!host_) {
+        if (!host_ && !(spkt_raw.flags & ftl::protocol::kFlagOutOfBand)) {
             // not hosted: buffer packets (processed in separate thread Net::_run())
+            // or out of band which are passed to processing immediately
             UNIQUE_LOCK(state->mtx, lk);
             state->timestamps.insert(spkt_raw.timestamp);
 
