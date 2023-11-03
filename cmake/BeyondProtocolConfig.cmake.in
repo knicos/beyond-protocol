@@ -25,4 +25,10 @@ endif()
 
 check_required_components(BeyondProtocol)
 
-set_and_check(PROTOCOL_INCLUDE_DIRS @PACKAGE_INCLUDE_INSTALL_DIR@)
+if (NOT EXISTS @PACKAGE_INCLUDE_INSTALL_DIR@ AND EXISTS @PACKAGE_CMAKE_CURRENT_SOURCE_DIR@/include)
+	# Workaround when using build directory instead of install directory
+	set_and_check(PROTOCOL_INCLUDE_DIRS @PACKAGE_CMAKE_CURRENT_SOURCE_DIR@/include)
+else()
+	# Default: use install (package) includes if they exist
+	set_and_check(PROTOCOL_INCLUDE_DIRS @PACKAGE_INCLUDE_INSTALL_DIR@)
+endif()
