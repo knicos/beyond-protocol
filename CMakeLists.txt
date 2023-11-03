@@ -44,7 +44,7 @@ if (BUILD_TESTS)
 endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
 
 find_package(Threads REQUIRED)
 find_package(URIParser REQUIRED)
@@ -175,12 +175,12 @@ add_subdirectory(src/quic)
 
 ### Generate Build Configuration Files =========================================
 
-configure_file(${CMAKE_SOURCE_DIR}/include/ftl/protocol/config.h.in
-			   ${CMAKE_SOURCE_DIR}/include/ftl/protocol/config.h
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/include/ftl/protocol/config.h.in
+			   ${CMAKE_CURRENT_SOURCE_DIR}/include/ftl/protocol/config.h
 )
 
-configure_file(${CMAKE_SOURCE_DIR}/src/config.cpp.in
-			   ${CMAKE_SOURCE_DIR}/src/config.cpp
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp.in
+			   ${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp
 )
 
 if (WIN32) # TODO(nick) Should do based upon compiler (VS)
