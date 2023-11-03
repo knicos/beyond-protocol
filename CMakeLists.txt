@@ -322,7 +322,7 @@ configure_package_config_file(
 	cmake/BeyondProtocolConfig.cmake.in
 	"${CMAKE_CURRENT_BINARY_DIR}/BeyondProtocolConfig.cmake"
 	INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/BeyondProtocol"
-	PATH_VARS INCLUDE_INSTALL_DIR
+	PATH_VARS INCLUDE_INSTALL_DIR CMAKE_CURRENT_SOURCE_DIR
 )
 
 write_basic_package_version_file(
