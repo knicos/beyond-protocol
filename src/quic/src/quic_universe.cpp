@@ -61,6 +61,7 @@ QuicUniverseImpl::~QuicUniverseImpl()
 
     {
         UNIQUE_LOCK_N(Lk, ClientMtx);
+        Connections.clear();
         Client.reset();
     }
     {
