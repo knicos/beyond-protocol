@@ -47,6 +47,7 @@ public:
 
     DECLARE_MUTEX(ConnectionMtx);
     std::vector<MsQuicConnectionPtr> Connections;
+    std::condition_variable ConnectionCv;
 
     std::unique_ptr<ProxyClient> Proxy;
 };

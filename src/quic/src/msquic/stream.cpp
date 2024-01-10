@@ -27,7 +27,7 @@ std::unique_ptr<MsQuicStream> MsQuicStream::FromRemotePeer(MsQuicContext* MsQuic
         (void*)(MsQuicStream::EventHandler),
         Stream.get());
 
-    Stream->SetOpenValue(true);
+    Stream->bOpen = true;
 
     return Stream;
 }
@@ -53,7 +53,7 @@ std::unique_ptr<MsQuicStream> MsQuicStream::Create(MsQuicContext* MsQuic, HQUIC 
     CHECK_QUIC(MsQuic->Api->StreamStart(
         Stream->hStream, QUIC_STREAM_START_FLAG_IMMEDIATE));
 
-    Stream->SetOpenValue(true);
+    Stream->bOpen = true;
 
     return Stream;
 }

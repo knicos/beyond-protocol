@@ -13,8 +13,12 @@ namespace beyond_impl
 class IMsQuicConnectionHandler
 {
 public:
+    /** After succesfully connected */
     virtual void OnConnect(MsQuicConnection* Connection) {}
+    
+    /** On disconnect/failed connect */
     virtual void OnDisconnect(MsQuicConnection* Connection) {}
+
     virtual void OnStreamCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicStream> Stream) {}
     //virtual void OnDatagramCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicDatagram> Stream) {}
     virtual void OnCertificateReceived(MsQuicConnection* Connection, QUIC_BUFFER* Certificate, QUIC_BUFFER* Chain) {}
@@ -23,15 +27,18 @@ public:
 };
 
 /** MsQuicConnection */
-class MsQuicConnection : public MsQuicOpenable
+class MsQuicConnection
 {
+private:
+    std::atomic_bool bClosed;
+
 public:
     static MsQuicConnectionPtr Accept(MsQuicContext* MsQuic, HQUIC hConfiguration, HQUIC hConnection);
     static MsQuicConnectionPtr Connect(IMsQuicConnectionHandler* Observer, MsQuicContext* MsQuic, HQUIC hConfiguration, const std::string& Host, uint16_t Port);
-    
+
     ~MsQuicConnection();
 
-    std::future<QUIC_STATUS> Close();
+    void Close();
 
     /** Open new QUIC stream. Can be called anytime (MsQuic will queue the stream if connection is not ready yet). */
     MsQuicStreamPtr OpenStream();
@@ -39,11 +46,9 @@ public:
     /** Open datagram channel 
      *  Not implemented. Need methods to query allowed datagram sizes. Actual datagrams should contain unique id per
      *  "channel" for similar API as stream (multiplex multiple datagram connections in single quic/udp connection)
-     */
-    // MsQuicDatagramPtr OpenDatagramChannel();
-
-    /** Close given datagram channel (used by ~MsQuicDatagram())*/
-    void CloseDatagramChannel(MsQuicDatagram* Ptr);
+    
+    MsQuicDatagramPtr OpenDatagramChannel();
+    */
 
     QUIC_STATISTICS_V2 Statistics();
 
@@ -59,6 +64,10 @@ private:
     MsQuicContext* MsQuic;
     HQUIC hConnection;
     IMsQuicConnectionHandler* Observer;
+
+    // After QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE event is received, the shared_ptr is cleared and the destructor
+    // may release the handle. Perhaps not ideal but avoids having another layer of abstraction between this and msquic.
+    MsQuicConnectionPtr Self;
 
     // stop all datagram processing
     void ShutdownDatagrams();

@@ -45,29 +45,32 @@ QuicUniverseImpl::QuicUniverseImpl(Universe* net) : net_(net ), IsClosing(false)
 QuicUniverseImpl::~QuicUniverseImpl()
 {
     {
+        UNIQUE_LOCK_N(Lk, ClientMtx);
         Listeners.clear();
     }
-
-    std::vector<std::future<QUIC_STATUS>> Futures;
+    
     {
         UNIQUE_LOCK_N(Lk, ConnectionMtx);
         IsClosing = true;
         for (auto& Connection : Connections)
         {
-            Futures.push_back(Connection->Close());
+            Connection->Close();
         }
+
+        // Must wait for all connections to clear
+        ConnectionCv.wait(Lk, [&]() -> bool { return Connections.size() == 0; });
     }
-    for (auto& Future : Futures) { Future.wait(); }
 
     {
         UNIQUE_LOCK_N(Lk, ClientMtx);
-        Connections.clear();
         Client.reset();
     }
     {
         UNIQUE_LOCK_N(Lk, MsQuicMtx_);
         --MsQuicCtr_;
     }
+
+    Unload(false);
 }
 
 void QuicUniverseImpl::Configure()
@@ -190,6 +193,7 @@ void QuicUniverseImpl::OnConnection(MsQuicServer* Listener, MsQuicConnectionPtr 
 
 void QuicUniverseImpl::OnConnect(MsQuicConnection* Connection)
 {
+    ConnectionCv.notify_all();
 }
 
 void QuicUniverseImpl::OnDisconnect(MsQuicConnection* Connection)
@@ -199,6 +203,9 @@ void QuicUniverseImpl::OnDisconnect(MsQuicConnection* Connection)
         [&](const auto& Ptr){ return (Ptr.get() == Connection); }));
     
     LOG(INFO) << "[QUIC] Client disconnected (total: " << Connections.size() << ")"; 
+    Lk.unlock();
+
+    ConnectionCv.notify_all();
 }
 
 void QuicUniverseImpl::OnStreamCreate(MsQuicConnection* Connection, std::unique_ptr<MsQuicStream> Stream)

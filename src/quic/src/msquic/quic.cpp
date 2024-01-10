@@ -347,7 +347,7 @@ void MsQuicServer::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MsQuicOpenable::MsQuicOpenable() : bOpen(false) {}
+MsQuicOpenable::MsQuicOpenable() : bOpen(false), bClosed(false) {}
 
 std::future<QUIC_STATUS> MsQuicOpenable::Open()
 {
@@ -364,20 +364,16 @@ bool MsQuicOpenable::IsOpen() const
     return bOpen;
 }
 
-void MsQuicOpenable::SetOpenValue(bool value) { bOpen = value; }
-
 void MsQuicOpenable::SetOpenStatus(QUIC_STATUS Result)
 {
     bOpen = true;
     PromiseOpen.set_value(Result);
-    PromiseClose = std::promise<QUIC_STATUS>();
 }
 
 void MsQuicOpenable::SetCloseStatus(QUIC_STATUS Result)
 {
     bOpen = false;
     PromiseClose.set_value(Result);
-    PromiseOpen = std::promise<QUIC_STATUS>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
