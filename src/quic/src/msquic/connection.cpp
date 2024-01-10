@@ -13,17 +13,18 @@
 using namespace beyond_impl;
 
 MsQuicConnection::MsQuicConnection(IMsQuicConnectionHandler* ObserverIn, MsQuicContext* Context) :
-        MsQuic(Context), hConnection(nullptr), Observer(ObserverIn)
+        bClosed(false),
+        MsQuic(Context),
+        hConnection(nullptr),
+        Observer(ObserverIn)
 {
 }
 
 MsQuicConnection::~MsQuicConnection()
 {
-    if (hConnection)
-    {
-        MsQuic->Api->ConnectionClose(hConnection);
-        hConnection = nullptr;
-    }
+    CHECK(hConnection);
+    MsQuic->Api->ConnectionClose(hConnection);
+    hConnection = nullptr;
 }
 
 void MsQuicConnection::EnableStatistics()
@@ -77,6 +78,7 @@ void MsQuicConnection::EnableStatistics()
 MsQuicConnectionPtr MsQuicConnection::Accept(MsQuicContext* MsQuic, HQUIC hConfiguration, HQUIC hConnection)
 {
     auto Connection = MsQuicConnectionPtr(new MsQuicConnection(nullptr, MsQuic));
+    Connection->Self = Connection;
 
     Connection->hConnection = hConnection;
 
@@ -96,6 +98,7 @@ MsQuicConnectionPtr MsQuicConnection::Accept(MsQuicContext* MsQuic, HQUIC hConfi
 MsQuicConnectionPtr MsQuicConnection::Connect(IMsQuicConnectionHandler* ObserverIn, MsQuicContext* MsQuic, HQUIC hConfiguration, const std::string& Host, uint16_t Port)
 {
     auto Connection = MsQuicConnectionPtr(new MsQuicConnection(ObserverIn, MsQuic));
+    Connection->Self = Connection;
 
     CHECK_QUIC(MsQuic->Api->ConnectionOpen(
         MsQuic->hRegistration,
@@ -127,20 +130,9 @@ MsQuicStreamPtr MsQuicConnection::OpenStream()
     return MsQuicStream::Create(MsQuic, hConnection);
 }
 
-/*MsQuicDatagramPtr MsQuicConnection::OpenDatagramChannel()
+void MsQuicConnection::Close()
 {
-    UNIQUE_LOCK_N(Lock, DatagramMutex);
-    return nullptr;
-}*/
-
-void MsQuicConnection::CloseDatagramChannel(MsQuicDatagram* Datagram)
-{
-    CHECK(false);
-}
-
-std::future<QUIC_STATUS> MsQuicConnection::Close()
-{
-    if (IsOpen())
+    if (!bClosed.exchange(true))
     {
         MsQuic->Api->ConnectionShutdown(
             hConnection,
@@ -148,8 +140,6 @@ std::future<QUIC_STATUS> MsQuicConnection::Close()
             0
         );
     }
-
-    return MsQuicOpenable::Close();
 }
 
 QUIC_STATISTICS_V2 MsQuicConnection::Statistics()
@@ -195,15 +185,19 @@ QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUI
 
             if (Observer)
             {
-                Connection->SetOpenStatus(QUIC_STATUS_SUCCESS);
                 Observer->OnConnect(Connection);
                 return QUIC_STATUS_SUCCESS;
             }
             else
             {
                 LOG(WARNING) << "[QUIC] SetObserver() was not called; Connection aborted (BUG; Possibly undefined behavior)";
-                // Is this safe? Will shutdown_complete be called?
-                MsQuic->Api->ConnectionClose(Connection->hConnection);
+                if (!Connection->bClosed.exchange(true))
+                {
+                    MsQuic->Api->ConnectionShutdown(
+                        Connection->hConnection,
+                        QUIC_CONNECTION_SHUTDOWN_FLAG_SILENT,
+                        0);
+                }
                 return QUIC_STATUS_SUCCESS;
             }
         }
@@ -220,16 +214,8 @@ QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUI
         
         case QUIC_CONNECTION_EVENT_SHUTDOWN_COMPLETE:
         {
-            if (!Connection->IsOpen())
-            {
-                CHECK(!Event->SHUTDOWN_COMPLETE.HandshakeCompleted) << "[QUIC] Connection: SHUTDOWN_COMPLETE received before CONNECTED";
-                // connection failed
-                Connection->SetOpenStatus(QUIC_STATUS_ABORTED);
-            }
-            // Destructor blocks until close status set. FIXME: perhaps add another future to indicate the instance is safe to release
-            // and block destruction depending on it (currently race on the close future possible?).
-            Connection->SetCloseStatus(QUIC_STATUS_SUCCESS);
             Observer->OnDisconnect(Connection);
+            Connection->Self.reset();
 
             return QUIC_STATUS_SUCCESS;
         }
@@ -312,7 +298,7 @@ QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUI
             return QUIC_STATUS_SUCCESS;
         }
     }
-
+    // should assert/error here?
     return QUIC_STATUS_SUCCESS;
 }
 
