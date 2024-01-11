@@ -32,7 +32,7 @@ class IMsQuicConnectionHandler;
 class MsQuicStream;
 class MsQuicDatagram;
 
-using MsQuicConnectionPtr = std::unique_ptr<MsQuicConnection>;
+using MsQuicConnectionPtr = std::shared_ptr<MsQuicConnection>;
 using MsQuicStreamPtr = std::unique_ptr<MsQuicStream>;
 
 class MsQuicContext
@@ -161,17 +161,15 @@ public:
 protected:
     MsQuicOpenable();
 
-    // Set value but do not set the promise (useful for example if state can be considered open after initialization)
-    void SetOpenValue(bool);
-
     void SetOpenStatus(QUIC_STATUS);
     void SetCloseStatus(QUIC_STATUS);
+
+    std::atomic_bool bOpen;
+    std::atomic_bool bClosed;
 
 private:
     std::promise<QUIC_STATUS> PromiseOpen;
     std::promise<QUIC_STATUS> PromiseClose;
-    std::atomic_bool bOpen;
-    std::atomic_bool bClosed;
 };
 
 } // beyond_impl

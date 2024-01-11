@@ -4,6 +4,9 @@
 #include <loguru.hpp>
 #include <ftl/profiler.hpp>
 
+#include <chrono>
+#include <thread>
+
 #include <map>
 
 #include <msquic.h>
@@ -46,17 +49,21 @@ public:
 
     void OnConnect(MsQuicConnection* Connection) override
     {
-        auto Lk = std::unique_lock(Mtx);
-        DLOG(INFO) << "[" << this << "] " << "OnConnect";
-        ConnectEventCount++;
+        {
+            auto Lk = std::unique_lock(Mtx);
+            DLOG(INFO) << "[" << this << "] " << "OnConnect";
+            ConnectEventCount++;
+        }
         Cv.notify_all();
     }
 
     void OnDisconnect(MsQuicConnection* Connection) override
     {
-        auto Lk = std::unique_lock(Mtx);
-        DLOG(INFO) << "[" << this << "] " << "OnDisconnect";
-        DisconnectEventCount++;
+        {
+            auto Lk = std::unique_lock(Mtx);
+            DLOG(INFO) << "[" << this << "] " << "OnDisconnect";
+            DisconnectEventCount++;
+        }
         Cv.notify_all();
     }
 
@@ -108,7 +115,10 @@ public:
             Event.Buffers.push_back({(uint32_t)Span.size(), Span.data()});
         }
         
-        CHECK(Stream->Write({Event.Buffers.data(), Event.Buffers.size()}, &Event));
+        if (!Stream->Write({Event.Buffers.data(), Event.Buffers.size()}, &Event))
+        {
+            Event.Promise.set_value(false);
+        }
         return Event.Promise.get_future();
     }
 
@@ -125,7 +135,7 @@ public:
     MsQuicConnectionPtr Connection;
     MsQuicStreamPtr Stream;
 
-    // signaled when stream is set up
+    // Set when stream is set up
     std::promise<void> ClientConnected;
 
     // server callbacks
@@ -152,6 +162,17 @@ public:
     TestQuicServer& operator=(const TestQuicServer&) = delete;
 };
 
+bool WaitForConnectEvents(TestQuicClient* Client, int TimeMs, int ConnectCnt, int DisconnectCnt)
+{
+    auto Lk = std::unique_lock(Client->Mtx);
+    auto Pred = [&]()
+    {
+        return (Client->ConnectEventCount == ConnectCnt) &&
+               (Client->DisconnectEventCount == DisconnectCnt);
+    };
+    Client->Cv.wait_for(Lk, std::chrono::milliseconds(TimeMs), Pred);
+    return Pred();
+}
 
 static std::unique_ptr<beyond_impl::MsQuicContext> Context_;
 
@@ -180,13 +201,16 @@ static std::vector<unsigned char> Asn1Blob;
 
 TEST_CASE("Reinitialize")
 {
-    auto* Ctx = GetContext();
-    REQUIRE(Ctx != nullptr);
-    ResetContext();
-    // On Linux this fails (pointer is the same after closing and opening again) but MsQuicClose/MsQuicOpen are
-    // succesful (and called the expected number of times). TODO: Needs a better check here (otherwise may deadlock
-    // on unload etc when all resources are not properly released).
-    // REQUIRE(Ctx != GetContext()); 
+    SECTION("Library reset after initialization")
+    {
+        auto* Ctx = GetContext();
+        REQUIRE(Ctx != nullptr);
+        ResetContext();
+        // On Linux this fails (pointer is the same after closing and opening again) but MsQuicClose/MsQuicOpen are
+        // succesful (and called the expected number of times). TODO: Needs a better check here (otherwise may deadlock
+        // on unload etc when all resources are not properly released).
+        // REQUIRE(Ctx != GetContext()); 
+    }
 }
 
 TEST_CASE("Self signed certificate")
@@ -208,23 +232,10 @@ TEST_CASE("QUIC client")
 
         auto Connection = Client->Connect(Observer.get(), "localhost", 14284);
         
-        {
-            auto Future = Connection->Open();
-            Future.wait();
-            REQUIRE(Future.get() == QUIC_STATUS_ABORTED);
-        }
-
-        auto Lk = std::unique_lock(Observer->Mtx);
-        Observer->Cv.wait_for(Lk, std::chrono::milliseconds(500), [&](){ return Observer->DisconnectEventCount == 1; });
-
-        REQUIRE(Observer->ConnectEventCount == 0);
-        REQUIRE(Observer->DisconnectEventCount == 1);
+        REQUIRE(WaitForConnectEvents(Observer.get(), 500, 0, 1));
     }
 
 }
-
-#include <chrono>
-#include <thread>
 
 static std::vector<uint8_t> Data(1024*1024*256ll);
 
@@ -249,13 +260,9 @@ TEST_CASE("QUIC Client+Server")
 
     auto Client = std::make_unique<TestQuicClient>();
     auto ClientConnection = Quic->Connect(Client.get(), HOST, Port);
+    
+    REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 0));
 
-    {
-        auto Future = ClientConnection->Open();
-        Future.wait();
-        auto Status = Future.get();
-        REQUIRE(Status == QUIC_STATUS_SUCCESS);
-    }
     auto Connected = Server->ClientConnected.get_future();
 
     auto ClientStream = ClientConnection->OpenStream();
@@ -269,21 +276,9 @@ TEST_CASE("QUIC Client+Server")
 
     SECTION("server&client, disconnect events")
     {
-        Server->Stop();
-        ClientConnection->Close().wait();
-        Server->Connection->Close().wait();
-
-        auto LkServer = std::unique_lock(Server->Mtx);
-        Server->Cv.wait_for(LkServer, std::chrono::milliseconds(500), [&](){ return Server->DisconnectEventCount == 1; });
-
-        REQUIRE(Server->ConnectEventCount == 1);
-        REQUIRE(Server->DisconnectEventCount == 1);
-
-        auto LkClient = std::unique_lock(Client->Mtx);
-        Client->Cv.wait_for(LkServer, std::chrono::milliseconds(500), [&](){ return Client->DisconnectEventCount == 1; });
-
-        REQUIRE(Client->ConnectEventCount == 1);
-        REQUIRE(Client->DisconnectEventCount == 1);
+        ClientConnection->Close();
+        REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 1));
+        REQUIRE(WaitForConnectEvents(Server.get(), 1000, 1, 1));
     }
 
     SECTION("send/recv")
@@ -306,23 +301,13 @@ TEST_CASE("QUIC Client+Server")
         auto mbytes = Buffer.size()*(double)Data.size()/(1024*1024);
         LOG(INFO) << "transmitted " << mbytes << " MiB in " << seconds << " seconds (" << mbytes/seconds << " MiB/s (" << 8.0*mbytes/seconds<< " Mbit/s)" ;
 
-        ClientStream->Close().wait();
-        Server->Stream->Close().wait();
-        ClientConnection->Close().wait();
-        Server->Connection->Close().wait();
-        
-        // check that all events were fired
-        auto LkServer = std::unique_lock(Server->Mtx);
-        Server->Cv.wait_for(LkServer, std::chrono::milliseconds(1000), [&](){ return Server->DisconnectEventCount == 1; });
+        ClientStream->Close();
+        Server->Stream->Close();
+        ClientConnection->Close();
+        Server->Connection->Close();
 
-        REQUIRE(Server->ConnectEventCount == 1);
-        REQUIRE(Server->DisconnectEventCount == 1);
-
-        auto LkClient = std::unique_lock(Client->Mtx);
-        Client->Cv.wait_for(LkClient, std::chrono::milliseconds(1000), [&](){ return Client->DisconnectEventCount == 1; });
-
-        REQUIRE(Client->ConnectEventCount == 1);
-        REQUIRE(Client->DisconnectEventCount == 1);
+        REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 1));
+        REQUIRE(WaitForConnectEvents(Server.get(), 500, 1, 1));
     }
 
     SECTION("send/recv + abort")
@@ -347,22 +332,64 @@ TEST_CASE("QUIC Client+Server")
         
         Server->Stream->Abort();
 
-        ClientStream->Close().wait();
+        ClientStream->Close();
         // do NOT call Close() after abort
-        ClientConnection->Close().wait();
-        Server->Connection->Close().wait();
+        ClientConnection->Close();
+        Server->Connection->Close();
 
         // check that all events were fired
-        auto LkServer = std::unique_lock(Server->Mtx);
-        Server->Cv.wait_for(LkServer, std::chrono::milliseconds(500), [&](){ return Server->DisconnectEventCount == 1; });
+        REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 1));
+        REQUIRE(WaitForConnectEvents(Server.get(), 500, 1, 1));
+    }
 
-        REQUIRE(Server->ConnectEventCount == 1);
-        REQUIRE(Server->DisconnectEventCount == 1);
+    SECTION("Attempt to use closed handle (connection/stream)")
+    {
+        Connected.wait();
+        static std::vector<nonstd::span<uint8_t>> Buffer{ 
+            nonstd::span(Data.data(), Data.size())
+        };
+        
+        ClientStream->Close().wait();
+        Client->Write(ClientStream.get(), {Buffer.data(), Buffer.size()}).wait();
 
-        auto LkClient = std::unique_lock(Client->Mtx);
-        Client->Cv.wait_for(LkClient, std::chrono::milliseconds(500), [&](){ return Client->DisconnectEventCount == 1; });
+        ClientConnection->Close();
+        REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 1));
 
-        REQUIRE(Client->ConnectEventCount == 1);
-        REQUIRE(Client->DisconnectEventCount == 1);
+        // FIXME: This asserts. Should throw an exception instead (or return null) and then let the 
+        //        user handle the case (attempting to open stream on closed/faled connection).
+        // auto StreamPtr = ClientConnection->OpenStream();
+
+        Server->Connection->Close();
+
+        // check that all events were fired
+        REQUIRE(WaitForConnectEvents(Client.get(), 500, 1, 1));
+        REQUIRE(WaitForConnectEvents(Server.get(), 500, 1, 1));
+    }
+
+    SECTION("Close and reinitialize")
+    {
+        // Waiting for connections to close is necessary, otherwise may hang later in
+        // a callback in msquic thread.
+
+        ClientStream.reset();
+        ClientConnection->Close();
+        {
+            auto Lk = std::unique_lock(Client->Mtx);
+            Client->Cv.wait(Lk, [&]() -> bool { return Client->DisconnectEventCount == 1; });
+        }
+        ClientConnection.reset();
+        Client.reset();
+
+        Server->Connection->Close();
+        {
+            auto Lk = std::unique_lock(Server->Mtx);
+            Server->Cv.wait(Lk, [&]() -> bool { return Server->DisconnectEventCount == 1; });
+        }
+        Server.reset();
+
+        Quic.reset();
+
+        ResetContext();
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }

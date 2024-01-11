@@ -46,4 +46,9 @@ TEST_CASE("QUIC Universe/Peer")
         
         CHECK(future.get() == 1);
     }
+
+    net1->shutdown();
+    net2->shutdown();
+    net1.reset();
+    net2.reset();
 }

@@ -30,7 +30,7 @@ if (BUILD_TESTS AND (NOT WITH_OPENSSL))
 endif()
 
 if (ENABLE_ASAN)
-	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNkU")
+	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		add_compile_options(-fsanitize=address)
 		add_link_options(-fsanitize=address)
 	else()
