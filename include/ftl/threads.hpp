@@ -75,7 +75,85 @@
 #define SHARED_LOCK_TYPE(M) std::shared_lock<M>
 
 namespace ftl {
-    extern ctpl::thread_pool pool;
+
+extern ctpl::thread_pool pool;
+
+
+
+/** FIFO task queue for thread pool. */
+template<typename Task>
+class TaskQueue {
+public:
+    void queue(Task task) {
+        auto lk = std::unique_lock(mtx_);
+        if (stop_) { return; }
+        queue_.push_back(std::move(task));
+        start_and_unlock(lk);
+    }
+
+    /** Try to queue new task*/
+    bool try_queue(Task task, int max_queue_size) {
+        auto lk = std::unique_lock(mtx_);
+        if (stop_) { return false; }
+        if (queue_.size() >= max_queue_size) { return false; }
+        queue_.push_back(std::move(task));
+        start_and_unlock(lk);
+        return true;
+    }
+
+    /** Wait until finished. Returns if not stopped */
+    void wait()
+    {
+        auto lk = std::unique_lock(mtx_);
+        if (!stop_) { return; }
+        if (queue_.size() == 0) { return; }
+        cv_.wait_for(lk, [&](){ return queue_.size() == 0; });
+    }
+
+    void stop() {
+        auto lk = std::unique_lock(mtx_);
+        stop_ = true;
+        if (!run_) {
+            lk.unlock();
+            cv_.notify_all();
+        }
+    }
+
+private:
+    std::mutex mtx_;
+    std::condition_variable cv_;
+    std::deque<Task> queue_;
+    bool run_ = false;
+    bool stop_ = false;
+
+    void start_and_unlock(std::unique_lock<std::mutex>& lk) {
+        if (!run_ && !stop_) {
+            run_ = true;
+            lk.unlock();
+            pool.push(std::bind(&TaskQueue<Task>::run, this));
+        }
+    }
+
+    void run() {
+        while(true) {
+            Task task;
+            {
+                auto lk = std::unique_lock(mtx_);
+                if (!run_ || stop_ || (queue_.size() == 0)) {
+                    run_ = false;
+                    break;
+                }
+
+                task = queue_.front();
+                queue_.pop_front();
+            }
+
+            task();
+        }
+
+        cv_.notify_all();
+    }
+};
 
 namespace threads {
 
