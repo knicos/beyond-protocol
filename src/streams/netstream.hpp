@@ -91,6 +91,17 @@ class Net : public Stream {
  private:
     bool send(const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&);
 
+    /** Build with -DDEBUG_NETSTREAM to enable send/recv asserts on packet (timestamp) order. */
+    #ifdef DEBUG_NETSTREAM
+    std::map<std::pair<ftl::protocol::FrameID, ftl::protocol::Channel>, int64_t> dbg_send_;
+    std::map<std::pair<ftl::protocol::FrameID, ftl::protocol::Channel>, int64_t> dbg_recv_;
+    std::mutex dbg_mtx_send_;
+    std::mutex dbg_mtx_recv_;
+    #endif
+    
+    bool net_send_(const ftl::UUID &pid, const std::string &name, int16_t ttimeoff, const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&);
+    bool net_send_(ftl::net::PeerBase* peer, const std::string &name, int16_t ttimeoff, const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&);
+
     SHARED_MUTEX mutex_;
     bool active_ = false;
     ftl::net::Universe *net_;

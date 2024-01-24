@@ -9,10 +9,21 @@
 #include <ftl/protocol/config.h>
 #include <string>
 
-inline void FTL_PROFILE_LOG(const std::string& message) {
+namespace ftl
+{
+// Enable/disable logging to profiler. Caller must synchronize (if necessary).
+void profiler_logging_disable();
+void profiler_logging_enable();
+}
+
 #ifdef TRACY_ENABLE
-	TracyMessage(message.c_str(), message.size());
+#include <tracy/Tracy.hpp>
 #endif
+
+inline void FTL_PROFILE_LOG(const std::string& message) {
+    #ifdef TRACY_ENABLE
+    TracyMessage(message.c_str(), message.size());
+    #endif
 }
 
 namespace detail
@@ -24,11 +35,9 @@ namespace detail
     inline const char* GetPersistentString(const std::string& String) { return GetPersistentString(String.c_str()); }
 }
 
-#define PROFILER_RUNTIME_PERSISTENT_NAME(name) detail::GetPersistentString(name)
+#define PROFILER_RUNTIME_PERSISTENT_NAME(name) ::detail::GetPersistentString(name)
 
 #ifdef TRACY_ENABLE
-
-#include <tracy/Tracy.hpp>
 
 #define FTL_PROFILE_SCOPE(LABEL) ZoneScopedN(LABEL)
 
@@ -38,8 +47,13 @@ namespace detail
 
 /** Mark (secondary) frame start and stop. Each FTL_PROFILE_FRAME_BEGIN MUST be matched
  * with FTL_PROFILE_FRAME_END */
-#define FTL_PROFILE_FRAME_BEGIN(LABEL) FrameMarkStart(#LABEL)
-#define FTL_PROFILE_FRAME_END(LABEL) FrameMarkEnd(#LABEL)
+
+//  Discontinuous frame (next one is not assumed to begin immediately after the previous completes)
+//#define FTL_PROFILE_FRAME_BEGIN(LABEL) FrameMarkStart(LABEL)
+//#define FTL_PROFILE_FRAME_END(LABEL) FrameMarkEnd(LABEL)
+
+/** Mark frame scope */
+#define FTL_PROFILE_FRAME_END(LABEL) FrameMarkNamed(LABEL)
 
 /** Mark end of primary frame (main rendering/capture loop etc, if applicable) */
 #define FTL_PROFILE_PRIMARY_FRAME_END() FrameMark

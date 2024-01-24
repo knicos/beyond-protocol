@@ -20,7 +20,7 @@
 /// consider using DECLARE_SHARED_MUTEX(name) which allows (optional) profiling
 #define SHARED_MUTEX std::shared_mutex
 
-#if defined(TRACY_ENABLE)
+#if defined(TRACY_ENABLE) && defined(DEBUG_LOCKS)
 
 #include <type_traits>
 #include <tracy/Tracy.hpp>
@@ -41,6 +41,8 @@
 // TODO: should automatic, but requires mutexes to be declared with DECLARE_..._MUTEX macros
 
 #define UNIQUE_LOCK_T(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK_MUTEX_T std::unique_lock<LockableBase(MUTEX_T)>
+
 /// deprecated: use UNIQUE_LOCK_N instead
 #define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
 /// deprecated: use SHARED_LOCK_N instead
@@ -65,6 +67,8 @@
 #define MARK_LOCK(M) {}
 
 #define UNIQUE_LOCK_T(M) std::unique_lock<std::remove_reference<decltype(M)>::type>
+#define UNIQUE_LOCK_MUTEX_T std::unique_lock<MUTEX_T>
+
 /// deprecated: use UNIQUE_LOCK_N instead
 #define UNIQUE_LOCK(M, L) std::unique_lock<std::remove_reference<decltype(M)>::type> L(M)
 /// deprecated: use SHARED_LOCK_N instead
@@ -75,6 +79,8 @@
 #define SHARED_LOCK_TYPE(M) std::shared_lock<M>
 
 namespace ftl {
+
+void set_thread_name(const std::string& name);
 
 extern ctpl::thread_pool pool;
 
@@ -87,8 +93,10 @@ public:
     int queue(Task task) {
         auto lk = std::unique_lock(mtx_);
         if (stop_) { return -1; }
+        int size = queue_.size();
         queue_.push_back(std::move(task));
         start_and_unlock(lk);
+        return size;
     }
 
     /** Try to queue new task if queue is not larger than max_queue_size. 
@@ -147,7 +155,7 @@ private:
             busy_ = true;
             lk.unlock();
             pool.push(std::bind(&TaskQueue<Task>::run, this));
-        }
+        } else { lk.unlock(); }
     }
 
     void run() {

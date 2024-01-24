@@ -10,6 +10,41 @@
 //#include <absl/container/flat_hash_map.h>
 #include <unordered_map>
 
+#ifdef TRACY_ENABLE
+void tracy_log_cb(void* user_data, const loguru::Message& message)
+{
+    size_t size = strlen(message.message);
+    if (message.verbosity <= loguru::NamedVerbosity::Verbosity_ERROR)
+    {
+        TracyMessageC(message.message, size, tracy::Color::Red1);
+    }
+    else if (message.verbosity == loguru::NamedVerbosity::Verbosity_WARNING)
+    {
+        TracyMessageC(message.message, size, tracy::Color::Yellow1);
+    }
+    else
+    {
+        TracyMessageC(message.message, size, tracy::Color::WhiteSmoke);
+    }
+}
+#endif
+namespace ftl
+{
+// Enable/disable logging to profiler. Caller must synchronize (if necessary).
+void profiler_logging_disable()
+{
+    #ifdef TRACY_ENABLE
+    loguru::remove_callback("tracy_profiler");
+    #endif
+}
+void profiler_logging_enable()
+{
+    #ifdef TRACY_ENABLE
+    loguru::add_callback("tracy_profiler", tracy_log_cb, nullptr, loguru::NamedVerbosity::Verbosity_1);
+    #endif
+}
+}
+
 using map_t = std::unordered_map<std::string, const char*>;
 
 inline bool MapContains(map_t map, const std::string& key)

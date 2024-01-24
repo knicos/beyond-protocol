@@ -13,7 +13,7 @@ static MsQuicContext MsQuic;
 
 void QuicUniverse::Unload(bool force)
 {
-    UNIQUE_LOCK_N(Lk, MsQuicMtx_);
+    auto lk = std::unique_lock(MsQuicMtx_);
     if (MsQuic.IsValid() && (force || (MsQuicCtr_ == 0)))
     {
         LOG_IF(WARNING, MsQuicCtr_ != 0) << "[QUIC] Unloading MsQuic before all users have released their resources";
@@ -28,7 +28,7 @@ std::unique_ptr<ftl::net::QuicUniverse> QuicUniverse::Create(Universe* net)
 
 QuicUniverseImpl::QuicUniverseImpl(Universe* net) : net_(net ), IsClosing(false)
 {
-    UNIQUE_LOCK_N(Lk, MsQuicMtx_);
+    auto lk = std::unique_lock(MsQuicMtx_);
     if (MsQuicCtr_++ == 0)
     {
         MsQuicContext::Open(MsQuic, "Beyond");
@@ -62,11 +62,11 @@ QuicUniverseImpl::~QuicUniverseImpl()
     }
 
     {
-        UNIQUE_LOCK_N(Lk, ClientMtx);
+        auto lk = std::unique_lock(ClientMtx);
         Client.reset();
     }
     {
-        UNIQUE_LOCK_N(Lk, MsQuicMtx_);
+        auto lk = std::unique_lock(MsQuicMtx_);
         --MsQuicCtr_;
     }
 

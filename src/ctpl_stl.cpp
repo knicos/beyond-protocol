@@ -1,25 +1,14 @@
-#ifdef WIN32
-#include <Ws2tcpip.h>
-#include <windows.h>
-#include <string>
-#endif
-
 #include <ftl/lib/ctpl_stl.hpp>
-
-#ifdef TRACY_ENABLE
-#include <tracy/Tracy.hpp>
-#endif
+#include <ftl/threads.hpp>
+#include <string>
 
 void ctpl::thread_pool::set_thread(int i) {
     std::shared_ptr<std::atomic<bool>> flag(this->flags[i]);  // a copy of the shared ptr to the flag
     auto f = [this, i, flag/* a copy of the shared ptr to the flag */]() {
-        #if TRACY_ENABLE
         {
             const auto thread_name = "thread_pool/" + std::to_string(i);
-            tracy::SetThreadName(thread_name.c_str());
+            ftl::set_thread_name(thread_name);
         }
-        #endif
-        
         std::atomic<bool> & _flag = *flag;
         std::function<void(int id)> * _f;
         bool isPop = this->q.pop(_f);
@@ -42,30 +31,4 @@ void ctpl::thread_pool::set_thread(int i) {
         }
     };
     this->threads[i].reset(new std::thread(f));  // compiler may not support std::make_unique()
-
-	// For excess threads, ensure they only operate if needed.
-	/*if (i >= std::thread::hardware_concurrency()-1) {
-		#ifndef WIN32
-		sched_param p;
-		p.sched_priority = sched_get_priority_min(SCHED_FIFO);
-		pthread_setschedparam(threads[i]->native_handle(), SCHED_FIFO, &p);
-		#endif
-	} else {
-		#ifndef WIN32
-		sched_param p;
-		p.sched_priority = sched_get_priority_max(SCHED_FIFO);
-		pthread_setschedparam(threads[i]->native_handle(), SCHED_FIFO, &p);
-		#endif
-	}*/
-
-	/*
-    #ifdef WIN32
-    SetThreadAffinityMask(this->threads[i]->native_handle(), 1 << i);
-    #else
-    cpu_set_t cpus;
-    CPU_ZERO(&cpus);
-    CPU_SET(i, &cpus);
-    pthread_setaffinity_np(this->threads[i]->native_handle(), sizeof(cpus), &cpus);
-    #endif
-	*/
 }

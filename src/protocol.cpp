@@ -10,11 +10,23 @@
 #include "universe.hpp"
 #include "rpc.hpp"
 
+#ifdef TRACY_ENABLE
+#include <tracy/Tracy.hpp>
+#endif
+
 static std::shared_ptr<ftl::net::Universe> universe;
 static std::mutex globalmtx;
 
 // ctpl::thread_pool ftl::pool(std::thread::hardware_concurrency()*2);
 ctpl::thread_pool ftl::pool(4);
+
+void ftl::set_thread_name(const std::string& name) {
+    #if TRACY_ENABLE
+    tracy::SetThreadName(name.c_str());
+    #else
+    loguru::set_thread_name(name.c_str());
+    #endif
+}
 
 void ftl::protocol::reset() {
     UNIQUE_LOCK(globalmtx, lk);

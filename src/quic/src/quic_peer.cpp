@@ -39,12 +39,18 @@ QuicPeerStream::QuicPeerStream(MsQuicConnection* connection, MsQuicStreamPtr str
 
     recv_buffer_.reserve_buffer(recv_buffer_default_size_);
     
+    
     #ifdef ENABLE_PROFILER
     profiler_name_ = PROFILER_RUNTIME_PERSISTENT_NAME("QuicStream[" + std::to_string(profiler_name_ctr_++) + "]");
-    profiler_id_.plt_pending_buffers =  PROFILER_RUNTIME_PERSISTENT_NAME(peer_->getURI() + ": " + name_ + " pending buffers");
-    profiler_id_.plt_pending_bytes =  PROFILER_RUNTIME_PERSISTENT_NAME(peer_->getURI() + ":" + name_ + " pending bytes");
-    TracyPlotConfig(profiler_id_.plt_pending_buffers, tracy::PlotFormatType::Percentage, false, true, tracy::Color::Red1);
-    TracyPlotConfig(profiler_id_.plt_pending_bytes, tracy::PlotFormatType::Memory, false, true, tracy::Color::Red1);
+    profiler_id_.plt_pending_buffers =  PROFILER_RUNTIME_PERSISTENT_NAME(getURI() + ": " + name_ + " pending buffers");
+    profiler_id_.plt_pending_bytes =  PROFILER_RUNTIME_PERSISTENT_NAME(getURI() + ":" + name_ + " pending bytes");
+    profiler_id_.plt_recv_size =  PROFILER_RUNTIME_PERSISTENT_NAME(getURI() + ": " + name_ + " recv size");
+    profiler_id_.plt_recv_size_obj =  PROFILER_RUNTIME_PERSISTENT_NAME(getURI() + ":" + name_ + " recv size (msgpack objects)");
+
+    TracyPlotConfig(profiler_id_.plt_pending_buffers, tracy::PlotFormatType::Number, true, true, tracy::Color::Red1);
+    TracyPlotConfig(profiler_id_.plt_pending_bytes, tracy::PlotFormatType::Memory, true, true, tracy::Color::Red1);
+    TracyPlotConfig(profiler_id_.plt_recv_size, tracy::PlotFormatType::Memory, true, true, tracy::Color::Green1);
+    TracyPlotConfig(profiler_id_.plt_recv_size_obj, tracy::PlotFormatType::Number, true, true, tracy::Color::Green1);
     #endif
 }
 
@@ -76,13 +82,24 @@ void QuicPeerStream::set_stream(MsQuicStreamPtr stream)
 
 void QuicPeerStream::close(bool reconnect)
 {
-    std::unique_lock<MUTEX_T> lk_send(send_mtx_, std::defer_lock);
-    std::unique_lock<MUTEX_T> lk_recv(recv_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(recv_mtx_) lk_recv(recv_mtx_, std::defer_lock);
     std::lock(lk_send, lk_recv);
+    recv_queue_.clear();
 
     if (stream_ && stream_->IsOpen())
     {
         auto future = stream_->Close();
+        if (recv_waiting_)
+        {
+            CHECK(recv_busy_);
+
+            // In case ProcessRecv is waiting, notify here
+            recv_waiting_ = false;
+            recv_cv_.notify_one(); // Not ideal to notify before releasing the lock (and then waiting on same cv)
+            recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
+        }
+
         lk_send.unlock();
         lk_recv.unlock();
 
@@ -97,8 +114,8 @@ void QuicPeerStream::OnShutdown(MsQuicStream* stream)
 
 void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
 {
-    std::unique_lock<MUTEX_T> lk_send(send_mtx_, std::defer_lock);
-    std::unique_lock<MUTEX_T> lk_recv(recv_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(recv_mtx_) lk_recv(recv_mtx_, std::defer_lock);
     std::lock(lk_send, lk_recv);
     
     // MsQuic releases stream instanca after this callback. Any use of it later is a bug. 
@@ -281,6 +298,10 @@ int QuicPeerStream::send_buffer_(const std::string& name, msgpack_buffer_t&& buf
         }
     }
 
+    #ifdef ENABLE_PROFILER
+    statistics();
+    #endif
+
     return 1;
 }
 
@@ -326,6 +347,7 @@ void QuicPeerStream::OnWriteComplete(MsQuicStream* stream, void* Context, bool C
 
 size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
 {
+    // Amount of bytes for websocket header consumed
     size_t size_ws = 0;
     
     while (buffer_in.Length > 0)
@@ -374,9 +396,9 @@ size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
         }
         else if (status == NOT_ENOUGH_DATA)
         {
-            //CHECK(buffer_in.Length < ws_header_.size());
+            CHECK(buffer_in.Length < ws_header_.size());
             memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, ws_header_.size() - ws_partial_header_recvd_);
-            ws_partial_header_recvd_ += buffer_in.Length;
+            ws_partial_header_recvd_ = std::min<uint32_t>(ws_header_.size(), ws_partial_header_recvd_ + buffer_in.Length);
 
             size_ws += buffer_in.Length;
             buffer_in.Length -= buffer_in.Length;
@@ -426,9 +448,11 @@ size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
 
 void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER> data)
 {
-    size_t size_consumed = 0;
-    size_t size_total = 0;
-    size_t size_ws = 0;
+    FTL_PROFILE_SCOPE("OnData");
+
+    size_t size_consumed = 0; // bytes written to current msgpack buffer
+    size_t size_total = 0;    // bytes already passed to msgpack
+    size_t size_ws = 0;       // number of bytes from websocket headers
 
     for (auto& buffer_in : data)
     {
@@ -457,34 +481,93 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
         }
     }
 
-    {
-        UNIQUE_LOCK_N(lk, recv_mtx_);
-        recv_buffer_.buffer_consumed(size_consumed);
-
-        if (!recv_busy_)
-        {
-            recv_busy_ = true;
-            ftl::pool.push([this](int){ ProcessRecv(); });
-        }
-    }
     stream_->Consume(size_consumed + size_total + size_ws);
-    
     size_t sz = 0;
     for (auto& buffer_in : data) { sz += buffer_in.Length; }
     CHECK((size_consumed + size_total + size_ws) == sz);
+
+    {
+        UNIQUE_LOCK_N(lk, recv_mtx_);
+        // Try to parse received buffer (msgpack parsing is fast)
+        // 2024/01 Increase in execution time is less than 1 microsecond per call.
+        recv_buffer_.buffer_consumed(size_consumed);
+        recv_queue_.resize(recv_queue_.size() + 1);
+        int offset = recv_queue_.size() - 1;
+        int count = 0;
+        for(; recv_buffer_.next(recv_queue_[count + offset]); recv_queue_.resize(++count + offset + 1));
+        recv_queue_.pop_back(); // Last element always invalid (next() returns false)
+        
+        #ifdef TRACY_ENABLE
+        TracyPlot(profiler_id_.plt_recv_size, double(size_consumed + size_total + size_ws));
+        TracyPlot(profiler_id_.plt_recv_size_obj, double(recv_queue_.size()));
+        #endif
+        notify_recv_and_unlock_(lk);
+    }
+}
+
+void QuicPeerStream::notify_recv_and_unlock_(UNIQUE_LOCK_MUTEX_T& lk)
+{
+    bool notify = false;
+    if (!recv_busy_)
+    {
+        recv_busy_ = true;
+        lk.unlock();
+        ftl::pool.push([this](int){ ProcessRecv(); });
+    }
+    else 
+    {
+        notify = recv_waiting_ && (recv_queue_.size() > 0);
+        lk.unlock();
+    }
+
+    if (notify)
+    { 
+        // OK outside lock, if resumed due to timeout buffer already available
+        recv_cv_.notify_one();
+    }
+
+    CHECK(!lk.owns_lock());
 }
 
 void QuicPeerStream::ProcessRecv()
 {
-    UNIQUE_LOCK_N(lk, recv_mtx_);
-    msgpack::object_handle obj;
+    const int t_wait_ms = 300; // Time to wait before returning
+    std::vector<msgpack::object_handle> objs;
+    objs.reserve(4);
 
-    while (recv_buffer_.next(obj))
+    UNIQUE_LOCK_N(lk, recv_mtx_);
+    while (true)
     {
+        if (recv_queue_.size() == 0)
+        {
+            auto pred = [&]() { return recv_waiting_ && recv_queue_.size() > 0; };
+            // Wait a bit before exit. The idea is to use the same thread for the same connection/stream.
+            // TODO: Probably not a good idea to use the shared thread pool for this. 
+            recv_waiting_ = true;
+            bool has_data = recv_cv_.wait_for(lk, std::chrono::milliseconds(t_wait_ms), pred);
+            recv_waiting_ = false;
+            if (!has_data)
+            {
+                // Buffer was not updated or didn't get a complete message
+                break;
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        CHECK(objs.size() == 0);
+        std::swap(recv_queue_, objs);
+
         lk.unlock();
-        process_message_(obj);
+        FTL_PROFILE_SCOPE("ProcessRecv");
+        for (auto& obj : objs) { process_message_(obj); }
+        objs.clear();
         lk.lock();
     }
 
     recv_busy_ = false;
+    lk.unlock();
+    recv_cv_.notify_all();
 }
