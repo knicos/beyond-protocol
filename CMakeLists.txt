@@ -117,7 +117,6 @@ if (USE_CPPCHECK)
 endif()
 
 include(ftl_tracy)
-include(ftl_abseil)
 include(git_version)
 include(ftl_paths)
 
@@ -213,9 +212,6 @@ target_include_directories(beyond-common PUBLIC
 
 target_link_libraries(beyond-common PRIVATE
 	TracyClient
-	absl::strings
-	absl::flat_hash_map
-	absl::flat_hash_set
 )
 
 ### ====================================================================================================================

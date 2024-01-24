@@ -16,6 +16,7 @@
 #include <ftl/lib/loguru.hpp>
 #include <ftl/lib/ctpl_stl.hpp>
 #include <ftl/counter.hpp>
+#include <ftl/profiler.hpp>
 
 #include "common.hpp"
 

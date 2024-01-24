@@ -56,6 +56,30 @@ std::atomic_size_t Net::tx_sample_count__ = 0;
 int64_t Net::last_msg__ = 0;
 MUTEX Net::msg_mtx__;
 
+#ifdef DEBUG_NETSTREAM
+
+void dbg_check_pkt(std::mutex& mtx, std::map<std::pair<ftl::protocol::FrameID, ftl::protocol::Channel>, int64_t>& ts, const ftl::protocol::StreamPacket& spkt, const std::string& type)
+{
+    auto lk = std::unique_lock(mtx);
+    auto channel = spkt.channel;
+    auto id = ftl::protocol::FrameID(spkt.frameSetID(), spkt.frameNumber());
+    auto key = std::make_pair(id, channel);
+    auto ts_new = spkt.timestamp;
+    if (ts.count(key) > 0) {
+        auto ts_old = ts[key];
+        CHECK(ts_old <= ts_new) << "Out of Order send for channel " << int(channel) << ", diff: " << (ts_new - ts_old) << ", new ts. " << ts_new;
+        ts[key] = ts_new;
+    }
+    else {
+        ts[key] = ts_new;
+    }
+}
+
+#define DEBUG_CHECK_PKT(mtx, ts, spkt, name) dbg_check_pkt(mtx, ts, spkt, name)
+#else
+#define DEBUG_CHECK_PKT(mtx, ts, spkt, name) {}
+#endif
+
 static std::list<std::string> net_streams;
 static SHARED_MUTEX stream_mutex;
 
@@ -133,6 +157,16 @@ int Net::postQueueSize(FrameID frame_id, Channel channel) const {
     return 0;
 }
 
+bool Net::net_send_(ftl::net::PeerBase* peer, const std::string &name, int16_t ttimeoff, const ftl::protocol::StreamPacket& spkt, const ftl::protocol::DataPacket& dpkt) {
+    DEBUG_CHECK_PKT(dbg_mtx_send_, dbg_send_, spkt, "send");
+    return peer->send(name, ttimeoff, reinterpret_cast<const StreamPacketMSGPACK&>(spkt), reinterpret_cast<const PacketMSGPACK&>(dpkt));
+}
+
+bool Net::net_send_(const ftl::UUID &pid, const std::string &name, int16_t ttimeoff, const ftl::protocol::StreamPacket& spkt, const ftl::protocol::DataPacket& dpkt) {
+    DEBUG_CHECK_PKT(dbg_mtx_send_, dbg_send_, spkt, "send");
+    return net_->send(pid, name, ttimeoff, reinterpret_cast<const StreamPacketMSGPACK&>(spkt), reinterpret_cast<const PacketMSGPACK&>(dpkt));
+}
+
 bool Net::send(const StreamPacket &spkt, const DataPacket &pkt) {
     if (!active_) return false;
     if (paused_) return true;
@@ -172,7 +206,8 @@ bool Net::send(const StreamPacket &spkt, const DataPacket &pkt) {
                     // Or send non-blocking and wait
                     auto peer = net_->getPeer(client.peerid);
                     
-                    if (!peer || !peer->send(
+                    if (!peer || !net_send_(
+                            peer.get(),
                             base_uri_,
                             pre_transmit_latency,  // Time since timestamp for tx
                             spkt_net,
@@ -200,7 +235,7 @@ bool Net::send(const StreamPacket &spkt, const DataPacket &pkt) {
         try {
             int16_t pre_transmit_latency = int16_t(ftl::time::get_time() - spkt.localTimestamp);
 
-            net_->send(*peer_,
+            net_send_(*peer_,
                 base_uri_,
                 pre_transmit_latency,  // Time since timestamp for tx
                 spkt_net,
@@ -315,6 +350,7 @@ void waitUntilNext(bool hasNext, int64_t nextTs) {
 
 void Net::_run() {
     thread_ = std::thread([this]() {
+        set_thread_name("netstream");
 #ifdef WIN32
         timeBeginPeriod(5);
 #endif
@@ -436,7 +472,7 @@ void Net::_run() {
                         hasNext = true;
                     } else {
                         // No pending packets remain in the input buffer
-                        LOG(WARNING) << "Buffer underun " << now;
+                        //LOG(WARNING) << "Buffer underun " << now;
                         ++underuns_;
                     }
 
@@ -487,9 +523,15 @@ bool Net::begin() {
             StreamPacketMSGPACK &spkt_raw,
             PacketMSGPACK &pkt) {
 
+        DEBUG_CHECK_PKT(dbg_mtx_recv_, dbg_recv_, spkt_raw, "recv");
+
         auto *state = _getFrameState(FrameID(spkt_raw.streamID, spkt_raw.frame_number));
         _earlyProcessPacket(&p, ttimeoff, spkt_raw, pkt);
 
+        // HACK: disable network buffering here
+        //_processPacket(&p, ttimeoff, spkt_raw, pkt);
+        //return; 
+       
         if (!host_ && !(spkt_raw.flags & ftl::protocol::kFlagOutOfBand)) {
             // not hosted: buffer packets (processed in separate thread Net::_run())
             // or out of band which are passed to processing immediately
@@ -632,7 +674,7 @@ bool Net::_sendRequest(Channel c, uint8_t frameset, uint8_t frames, uint8_t coun
         0
     };
 
-    net_->send(*peer_, base_uri_, (int16_t)0, spkt, pkt);
+    net_send_(*peer_, base_uri_, (int16_t)0, spkt, pkt);
     hasPosted(spkt, pkt);
     return true;
 }

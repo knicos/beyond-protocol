@@ -30,7 +30,6 @@ public:
     virtual bool Listen(const ftl::URI& uri) = 0;
     virtual std::vector<ftl::URI> GetListeningUris() = 0;
 
-
     virtual PeerPtr Connect(const ftl::URI& uri, bool is_webservice=false) = 0;
     virtual void ConnectProxy(const ftl::URI& url) = 0; // Connect to QuicProxy
 

@@ -24,6 +24,7 @@
 #cmakedefine HAVE_OPENSSL
 #cmakedefine HAVE_MSQUIC
 #cmakedefine ENABLE_PROFILER
+#cmakedefine DEBUG_LOCKS
 
 extern const char *FTL_BRANCH;
 extern const char *FTL_VERSION_LONG;

@@ -116,6 +116,7 @@ WsParseHeaderStatus WsParseHeader(uint8_t* const Data, size_t Length, WebSocketH
     Header.Mask = (Data[1] & 0x80) == 0x80;
     auto PayloadLength = (Data[1] & 0x7F);
     Header.HeaderSize = 2 + (PayloadLength == 126 ? 2 : 0) + (PayloadLength == 127? 8 : 0) + (Header.Mask? 4 : 0);
+    CHECK(Header.HeaderSize <= 14);
 
     if (Length < Header.HeaderSize) { return NOT_ENOUGH_DATA; } // header incomplete
     if (Header.Rsv != 0) { return INVALID; } // must be 0 according to RFC

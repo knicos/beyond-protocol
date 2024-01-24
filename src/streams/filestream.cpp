@@ -456,6 +456,7 @@ bool File::_open() {
 
 bool File::run() {
     thread_ = std::thread([this]() {
+        set_thread_name("filestream");
         while (active_) {
             auto now = ftl::time::get_time();
             tick(now);

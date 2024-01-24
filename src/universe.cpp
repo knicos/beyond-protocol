@@ -489,6 +489,9 @@ void Universe::_periodic() {
     txBytes_ = 0;
     stats_lastTS_ = now;
 
+#ifdef HAVE_MSQUIC
+#endif
+
     auto i = reconnects_.begin();
     while (i != reconnects_.end()) {
         std::string addr = i->peer->getURI();
@@ -552,6 +555,7 @@ void Universe::_garbage() {
 }
 
 void Universe::__start(Universe *u) {
+    set_thread_name("net/universe");
 #ifndef WIN32
     // TODO(Seb): move somewhere else (common initialization file?)
     signal(SIGPIPE, SIG_IGN);

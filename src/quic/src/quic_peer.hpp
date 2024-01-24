@@ -66,10 +66,15 @@ private:
     std::string name_;
     const bool ws_frame_;
 
+    void notify_recv_and_unlock_(UNIQUE_LOCK_MUTEX_T& lk);
+
     DECLARE_MUTEX(recv_mtx_);
-    void ProcessRecv();
+    std::condition_variable_any recv_cv_;
     msgpack::unpacker recv_buffer_;
+    std::vector<msgpack::object_handle> recv_queue_;
+    void ProcessRecv();
     bool recv_busy_ = false;
+    bool recv_waiting_ = false;
 
     struct SendEvent {
         SendEvent(msgpack_buffer_t buffer);
@@ -135,6 +140,8 @@ private:
         const char* stream = nullptr;
         const char* plt_pending_buffers = nullptr;
         const char* plt_pending_bytes = nullptr;
+        const char* plt_recv_size = nullptr;
+        const char* plt_recv_size_obj = nullptr;
     } profiler_id_;
 
     void statistics();
