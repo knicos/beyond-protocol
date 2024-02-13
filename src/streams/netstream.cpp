@@ -433,7 +433,12 @@ void Net::_run() {
                         ++current;
                     }
 
-                    // Process all packets for this frame in a different thread
+                    // Process all packets for this frame in a different thread;
+                    // FIXME: This may interleave (out of order processing should next frame
+                    //        arrive before processing of the previous frame completes). Behaves
+                    //        differently to unbuffered, as this also processes each channel
+                    //        in parallel. Simple fix: use task queue. and monitor queue length.
+                    //        Probably can get rid of ftl::Counter as as well.
                     ftl::pool.push([
                             this,
                             c = std::move(ftl::Counter(&state->active)),
