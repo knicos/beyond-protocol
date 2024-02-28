@@ -18,16 +18,20 @@
 #include <ftl/handle.hpp>
 #include "packetmanager.hpp"
 
+#define DEBUG_NETSTREAM 
+
 namespace ftl {
 namespace protocol {
 
 namespace detail {
-struct StreamClient {
-    ftl::UUID peerid;
+
+struct StreamClientLocal {
+    int peerid;                         // Local id
     std::atomic<int> txcount;           // Frames sent since last request
     std::atomic<uint32_t> channels;     // A channel mask, those that have been requested
     uint8_t quality;
 };
+
 }
 
 struct NetStats {
@@ -61,6 +65,10 @@ class Net : public Stream {
     void reset() override;
     void refresh() override;
 
+    void setBuffering(float seconds);
+
+    void setAutoBufferAdjust(bool enable);
+
     void setProperty(ftl::protocol::StreamProperty opt, std::any value) override;
     std::any getProperty(ftl::protocol::StreamProperty opt) override;
     bool supportsProperty(ftl::protocol::StreamProperty opt) override;
@@ -93,8 +101,8 @@ class Net : public Stream {
 
     /** Build with -DDEBUG_NETSTREAM to enable send/recv asserts on packet (timestamp) order. */
     #ifdef DEBUG_NETSTREAM
-    std::map<std::pair<ftl::protocol::FrameID, ftl::protocol::Channel>, int64_t> dbg_send_;
-    std::map<std::pair<ftl::protocol::FrameID, ftl::protocol::Channel>, int64_t> dbg_recv_;
+    std::unordered_map<uint64_t, int64_t> dbg_send_;
+    std::unordered_map<uint64_t, int64_t> dbg_recv_;
     std::mutex dbg_mtx_send_;
     std::mutex dbg_mtx_recv_;
     #endif
@@ -117,10 +125,6 @@ class Net : public Stream {
     std::string name_;
     ftl::PacketManager mgr_;
     ftl::Handler<ftl::net::PeerBase*> connect_cb_;
-    int64_t buffering_ = 0;
-    std::atomic_int underuns_ = 0;
-    std::atomic_int drops_ = 0;
-    std::atomic_int jobs_ = 0;
 
     static std::atomic_size_t req_bitrate__;
     static std::atomic_size_t tx_bitrate__;
@@ -129,29 +133,75 @@ class Net : public Stream {
     static int64_t last_msg__;
     static MUTEX msg_mtx__;
 
+    // Recv Buffering; All access to recv buffering variables must be synchronized with queue_mtx_
+    std::mutex queue_mtx_;
+    std::condition_variable queue_cv_;
+
+    bool buffering_auto_ = true; // Disable adaptive buffering
+    int underruns_ = 0;
+    int last_underrun_buffering_ = 0;
+
+    int32_t buffering_ = 0; // Network buffering delay before dispatched for processing (milliseconds)
+    int32_t buffering_default_ = 0; // Default value for buffering if automatic adjustment is disabled. If not set, current value used if adjustment disabled.
+    int32_t buffering_min_ms_ = 20; // Minimum network buffer size (milliseconds)
+    int32_t buffer_readjust_threshold_ms_ = 50; // If actual buffer has more than this threshold excess over buffering_, 
+                                                // timestamp offset is adjusted so that buffer length is back to buffering_.
+                                                // Without this adjustment, network buffer might get unexpectedly long.
+    int64_t t_buffering_updated_ = 0;
+    int64_t buffering_update_delay_ms_ = 50;    // Delay between buffering adjustments (prevent too rapid changes)
+
     struct PacketBuffer {
-        ftl::protocol::PacketPair packets;
-        ftl::net::PeerBase *peer = nullptr;
-        std::atomic_bool done = false;
+        ftl::protocol::StreamPacket spkt;
+        ftl::protocol::DataPacket dpkt;
+
+        // Relative timestamp since first frame
+        int64_t ts_rel;
+        
+        PacketBuffer(ftl::protocol::StreamPacket spkt_in, ftl::protocol::DataPacket dpkt_in, int64_t ts_local=0) : 
+            spkt(std::move(spkt_in)), dpkt(std::move(dpkt_in)), ts_rel(ts_local) {};
     };
 
-    struct FrameState {
-        ftl::protocol::FrameID id;
-        std::atomic_int active = 0;
-        SHARED_MUTEX mtx;
-        std::list<PacketBuffer> buffer;
-        std::set<int64_t> timestamps;
-        int64_t base_pkt_ts_ = 0;
-        int64_t base_local_ts_ = 0;
+    struct PacketQueue {
+        std::mutex mtx;
+        std::deque<PacketBuffer> packets; // Timestamps must be always increasing: push back, pop front.
+
+        /** First received frame timestamps is used to calculate relative timestamps */
+        const int64_t ts_base_spkt = 0;
+
+        /** Local clock timestmap (guess) for first seen timestmap. May be updated if buffer grows unexpectedly large */
+        int64_t ts_base_local = 0;
+
+        /** Relative timestamp to first frame */
+        int64_t ts_complete_rel;
+
+        #ifdef TRACY_ENABLE
+        char const* profiler_id_queue_length_; // Profiler id for queue length (in milliseconds)
+        #endif
+
+        PacketQueue(int64_t base_spkt, int64_t base_local=0) : ts_base_spkt(base_spkt), ts_base_local(base_local), ts_complete_rel(0) {}
     };
 
-    SHARED_MUTEX statesMtx_;
-    std::unordered_map<uint32_t, std::unique_ptr<FrameState>> frameStates_;
+    std::unordered_map<ftl::protocol::FrameID, PacketQueue> packet_queue_;
+    ftl::TaskQueue pending_packets_;
+    static void process_buffered_packets_(Net* stream, std::vector<PacketBuffer> packets);
+    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<PacketBuffer>> packet_process_queue_;
 
-    std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClient>> clients_;
+    /** If enabled, packet callbacks are synchronized by timestamp: callbacks are waited before next processing for 
+     *  frame(set) with next timestamp begins. When disabled, callbacks of different channels may interleave, but
+     *  ordering by timestamp for each channel is always guaranteed. This option is here for backward compatibility.
+     */
+    bool synchronize_recv_timestamps_ = false;
+
+    void queuePacket_(ftl::net::PeerBase*, ftl::protocol::StreamPacket, ftl::protocol::DataPacket);
+
+    // Used for warning message if more than one peer in streaming to this instance (buffering will likely fail)
+    int64_t dbg_streams_peers_mask_ = 0;
+
+    // End of Recv Buffering
+
+    std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClientLocal>> clients_local_;
     std::thread thread_;
 
-    FrameState *_getFrameState(FrameID id);
     bool _enable(FrameID id);
     bool _processRequest(ftl::net::PeerBase *p, const ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket &pkt);
     void _checkRXRate(size_t rx_size, int64_t rx_latency, int64_t ts);
@@ -168,7 +218,11 @@ class Net : public Stream {
     void _earlyProcessPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt_raw, DataPacket &pkt);
 
     // processing loop for non-hosted netstreams (runs in dedicated thread)
-    void _run();
+    void run_();
+    void netstream_thread_();
+
+    char const*  profiler_frame_id_;
+    char const*  profiler_queue_id_;
 };
 
 }  // namespace protocol

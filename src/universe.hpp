@@ -128,6 +128,10 @@ class Universe {
 
     /** get peer pointer by peer UUID, returns nullptr if not found */
     PeerPtr getPeer(const ftl::UUID &pid) const;
+
+    /** Get peer by local id */
+    PeerPtr getPeer(int localId) const;
+
     /** get webservice peer pointer, returns nullptr if not connected to webservice */
     PeerPtr getWebService() const;
 

@@ -34,7 +34,11 @@ public:
 
     void close(bool reconnect=false) override;
     
+    int32_t getRtt() const override;
+
 protected:
+    void periodic_() override;
+
     void reset();
 
     msgpack_buffer_t get_buffer_() override;
@@ -98,7 +102,7 @@ private:
 
     std::deque<std::array<char, 14>> ws_headers_;
     SendEvent& queue_send_(msgpack_buffer_t);
-    void send_(SendEvent&);
+    void send_(SendEvent&, ftl::net::SendFlags flags=ftl::net::SendFlags::NONE);
     void clear_completed_();
 
     // As a workaround for webservice, WebSocket framing is applied here. A simple quic<->tcp relay can be then used

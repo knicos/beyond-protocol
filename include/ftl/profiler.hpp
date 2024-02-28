@@ -111,6 +111,9 @@ struct TracyFiberScope
 #define FTL_PROFILE_PRIMARY_FRAME_END() {}
 #define FTL_PROFILE_SCOPE(LABEL) {}
 
+#define TracyPlot(name, val) tracy::Profiler::PlotData( name, val ) {}
+#define TracyPlotConfig(name, type, step, fill, color) {}
+
 /// deprectated
 #define FTL_Profile(LABEL, LIMIT) {}
 

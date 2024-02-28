@@ -59,6 +59,15 @@ QuicPeerStream::~QuicPeerStream()
     close();
 }
 
+
+int32_t QuicPeerStream::getRtt() const {
+    return connection_->GetRtt()/1000;
+}
+
+void QuicPeerStream::periodic_() {
+    connection_->RefreshStatistics();
+}
+
 void QuicPeerStream::start()
 {
     stream_->EnableRecv();
@@ -217,9 +226,10 @@ QuicPeerStream::SendEvent& QuicPeerStream::queue_send_(msgpack_buffer_t buffer)
     return event;
 }
 
-void QuicPeerStream::send_(SendEvent& event)
+void QuicPeerStream::send_(SendEvent& event, ftl::net::SendFlags flags)
 {
-    event.pending = !stream_->Write({event.quic_vector.data(), event.n_buffers}, &event);
+    bool delay = flags & ftl::net::SendFlags::DELAY;
+    event.pending = !stream_->Write({event.quic_vector.data(), event.n_buffers}, &event, delay);
 }
 
 void QuicPeerStream::clear_completed_()
@@ -280,7 +290,7 @@ int QuicPeerStream::send_buffer_(const std::string& name, msgpack_buffer_t&& buf
 
     if (!stream_)
     {
-        // this really shouldn't be supported
+        // This really shouldn't be allowed even if msquic allows writes to streams immediately
         LOG(WARNING) << "[QUIC] Attempting to write before stream opened, queued for later (BUG)";
         queue_send_(std::move(buffer));
         return -1;
@@ -380,9 +390,13 @@ size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
         {
             // Read remaining header
             CHECK(ws_partial_header_recvd_ < (int)ws_header_.size());
-            size_t header_size = ws_header_.size() - ws_partial_header_recvd_;
-            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, header_size);
-            status = WsParseHeader(ws_header_.data(), header_size, header);
+            size_t cpy_size = std::min<size_t>(ws_header_.size() - ws_partial_header_recvd_, buffer_in.Length);
+            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, cpy_size);
+            status = WsParseHeader(ws_header_.data(), ws_partial_header_recvd_ + cpy_size, header);
+
+            // FIXME: In principle it is possible that the header still is not complete,
+            //         but rest of the code has to be checked for correctness (unit tests)
+            CHECK(status != NOT_ENOUGH_DATA);
         }
         else
         {
@@ -396,13 +410,14 @@ size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
         }
         else if (status == NOT_ENOUGH_DATA)
         {
-            CHECK(buffer_in.Length < ws_header_.size());
-            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, ws_header_.size() - ws_partial_header_recvd_);
+            CHECK(buffer_in.Length < ws_header_.size() && ws_partial_header_recvd_ == 0);
+            size_t cpy_size = std::min<size_t>(ws_header_.size() - ws_partial_header_recvd_, buffer_in.Length);
+            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, cpy_size);
             ws_partial_header_recvd_ = std::min<uint32_t>(ws_header_.size(), ws_partial_header_recvd_ + buffer_in.Length);
 
-            size_ws += buffer_in.Length;
-            buffer_in.Length -= buffer_in.Length;
-            buffer_in.Buffer += buffer_in.Length;
+            size_ws += cpy_size;
+            buffer_in.Length -= cpy_size;
+            buffer_in.Buffer += cpy_size;
         }
         else if (status == OK)
         {

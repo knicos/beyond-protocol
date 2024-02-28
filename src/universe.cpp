@@ -96,7 +96,7 @@ Universe::Universe() :
         impl_(new ftl::net::NetImplDetail()),
         peers_(kDefaultMaxConnections),
         phase_(0),
-        periodic_time_(1.0),
+        periodic_time_(0.67),
         reconnect_attempts_(5),
         tcp_send_buffer_(TCP_SEND_BUFFER_SIZE),
         tcp_recv_buffer_(TCP_RECEIVE_BUFFER_SIZE),
@@ -464,6 +464,14 @@ PeerPtr Universe::getPeer(const UUID &id) const {
         return peers_[ix->second];
 }
 
+PeerPtr Universe::getPeer(int localId) const {
+    SHARED_LOCK(net_mutex_, lk);
+    for (auto& peer : peers_) {
+        if (peer && peer->localID() == localId) return peer;
+    }
+    return nullptr;
+}
+
 PeerPtr Universe::getWebService() const {
     SHARED_LOCK(net_mutex_, lk);
     auto it = std::find_if(peers_.begin(), peers_.end(), [](const auto &p) {
@@ -539,6 +547,16 @@ void Universe::_periodic() {
     // Garbage peers may not be needed any more
     if (garbage_.size() > 0) {
         _garbage();
+    }
+
+    SHARED_LOCK(net_mutex_, lk);
+    for (auto& peer : peers_) {
+        try {
+            if (peer && peer->isValid()) peer->periodic_();
+        } catch (const std::exception& ex) {
+            LOG(ERROR) << "Uncaught excpetion in PeerBase::periodic_(): " << ex.what()
+                       << "; implementation should not throw (BUG)";
+        }
     }
 }
 

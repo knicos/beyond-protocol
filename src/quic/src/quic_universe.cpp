@@ -183,6 +183,7 @@ void QuicUniverseImpl::OnConnection(MsQuicServer* Listener, MsQuicConnectionPtr 
     if (IsClosing) { return; }
 
     Connection->SetConnectionObserver(this);
+
     QUIC_ADDR_STR AddrStr;
     QuicAddrToString(Info.RemoteAddress, &AddrStr);
 

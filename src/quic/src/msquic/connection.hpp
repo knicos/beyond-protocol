@@ -50,7 +50,10 @@ public:
     MsQuicDatagramPtr OpenDatagramChannel();
     */
 
-    QUIC_STATISTICS_V2 Statistics();
+    const QUIC_STATISTICS_V2& GetStatistics();
+    void RefreshStatistics();
+
+    int32_t GetRtt() const { return Rtt; }
 
     MsQuicConnection(const MsQuicConnection&) = delete;
     MsQuicConnection& operator=(const MsQuicConnection&) = delete;
@@ -59,6 +62,8 @@ public:
     void SetConnectionObserver(IMsQuicConnectionHandler* Observer);
 
 private:
+    void ProfilerLogStatistics(const QUIC_STATISTICS_V2&, int64_t);
+
     MsQuicConnection(IMsQuicConnectionHandler* Observer, MsQuicContext* Context);
 
     MsQuicContext* MsQuic;
@@ -73,7 +78,15 @@ private:
     void ShutdownDatagrams();
 
     void EnableStatistics();
-    std::vector<const char*> StatisticsPtrs;
+
+    QUIC_STATISTICS_V2 Statistics;
+    
+    QUIC_STATISTICS_V2 StatisticsPrev;
+    int64_t StatisticsTimePrev = 0;
+
+    std::atomic_int32_t Rtt;
+
+    std::array<const char*, 8> StatisticsIdPtrs;
 
     static QUIC_STATUS EventHandler(HQUIC Connection, void* Context, QUIC_CONNECTION_EVENT* Event);
 };

@@ -7,17 +7,22 @@
 
 #include <ftl/time.hpp>
 
+#include "rpc/time.hpp"
+
 using ftl::net::PeerBase;
 using ftl::protocol::NodeStatus;
 using ftl::protocol::Error;
 
 std::atomic_int PeerBase::rpcid__ = 0;
 
-PeerBase::PeerBase(const ftl::URI& uri, ftl::net::Universe* net, ftl::net::Dispatcher* d) :
-    local_id_(0),
+static std::atomic_int local_id_ctr_ = 0;
+
+PeerBase::PeerBase(const ftl::URI& uri, ftl::net::Universe* net, ftl::net::Dispatcher* d) : 
+    local_id_(local_id_ctr_++),
     uri_(uri),
     net_(net),
-    disp_(std::make_unique<Dispatcher>(d))
+    disp_(std::make_unique<Dispatcher>(d)),
+    clock_info_(this) // depends on disp_
 {
     bind("__disconnect__", [this]() {
         DLOG(1) << "[NET] Peer elected to disconnect: " << id().to_string();
@@ -25,13 +30,15 @@ PeerBase::PeerBase(const ftl::URI& uri, ftl::net::Universe* net, ftl::net::Dispa
         close(false);
     });
 
-    bind("__ping__", [this]() {
-        return ftl::time::get_time();
-    });
+    bind("__ping__", ftl::time::get_time);
 }
 
 PeerBase::~PeerBase() {
 
+}
+
+void PeerBase::periodic_() {
+    
 }
 
 void PeerBase::_dispatchResponse(uint32_t id, msgpack::object &err, msgpack::object &res) {
@@ -84,30 +91,6 @@ void PeerBase::_sendErrorResponse(uint32_t id, const msgpack::object &res) {
     }
 }
 
-/*void PeerBase::_waitCall(int id, std::condition_variable &cv, bool &hasreturned, const std::string &name) {
-    std::mutex m;
-
-    int64_t beginat = ftl::time::get_time();
-    std::function<void(int)> j;
-    while (!hasreturned) {
-        // Attempt to do a thread pool job if available
-        if (static_cast<bool>(j = ftl::pool.pop())) {
-            j(-1);
-        } else {
-            // Block for a little otherwise
-            std::unique_lock<std::mutex> lk(m);
-            cv.wait_for(lk, std::chrono::milliseconds(2), [&hasreturned]{return hasreturned;});
-        }
-
-        if (ftl::time::get_time() - beginat > 1000) break;
-    }
-
-    if (!hasreturned) {
-        cancelCall(id);
-        throw FTL_Error("RPC failed with timeout: " << name);
-    }
-}*/
-
 void PeerBase::waitForCallbacks() {
 
 }
@@ -127,6 +110,8 @@ void PeerBase::send_handshake() {
     handshake_sent_ = true;
     send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::UUIDMSGPACK(net_->id()));
 }
+
+int32_t PeerBase::getRtt() const { return clock_info_.getRtt(); }
 
 bool PeerBase::process_handshake_(uint64_t magic, uint32_t version, const ftl::UUIDMSGPACK &pid) {
     /** Handshake protocol:
@@ -156,6 +141,7 @@ bool PeerBase::process_handshake_(uint64_t magic, uint32_t version, const ftl::U
 
     status_ = ftl::protocol::NodeStatus::kConnected;
     net_->notifyConnect_(this);
+
     return true;
 }
 

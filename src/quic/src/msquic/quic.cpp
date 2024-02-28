@@ -37,8 +37,8 @@ void MsQuicContext::Open(MsQuicContext& MsQuic, const std::string& AppName)
     QUIC_REGISTRATION_CONFIG Config {};
     Config.AppName = AppName.c_str();
 
-    Config.ExecutionProfile = QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT;
-    DLOG(INFO) << "[QUIC] Execution Profile: QUIC_EXECUTION_PROFILE_TYPE_MAX_THROUGHPUT";
+    Config.ExecutionProfile = QUIC_EXECUTION_PROFILE_LOW_LATENCY;
+    DLOG(INFO) << "[QUIC] Execution Profile: QUIC_EXECUTION_PROFILE_LOW_LATENCY";
 
     LOG_IF(WARNING, GetTlsProvider(&MsQuic) != QUIC_TLS_PROVIDER_OPENSSL) << "[QUIC] MsQuic not built with OpenSSL";
     DLOG(INFO) << "MsQuic opened";

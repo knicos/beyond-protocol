@@ -32,7 +32,7 @@ endif()
 if (ENABLE_ASAN)
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 		add_compile_options(-fsanitize=address)
-		add_link_options(-fsanitize=address)
+		add_link_options(-fsanitize=address -static-libasan)
 	else()
 		message(WARNING "Ignoring ENABLE_ASAN for CMAKE_CXX_COMPILER_ID ${CMAKE_CXX_COMPILER_ID}")
 		# TODO: MSVC
@@ -247,6 +247,8 @@ add_library(beyond-protocol STATIC
 	src/channelUtils.cpp
 	src/service.cpp
 	src/codecs/data.cpp
+
+	src/rpc/time.cpp
 )
 
 target_include_directories(beyond-protocol PUBLIC
