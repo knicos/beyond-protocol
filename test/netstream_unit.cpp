@@ -84,6 +84,15 @@ TEST_CASE("Net stream options") {
     }
 
     SECTION("can increase buffering") {
+        int ts_packet_1_ms = 50;
+        int ts_packet_2_ms = 100;
+        float buffering_increase = 0.1f; // Amount how much to increase buffering
+        int margin_ms = 5;
+
+        // Buffering increased between packets, expected delay is:
+        //   (ts_packet_2_ms - ts_packet_1_ms) + [increase in buffering]
+        // within margin configured above
+
         auto p = createMockPeer(0);
         fakedata[0] = "";
         send_handshake(*p.get());
@@ -92,23 +101,25 @@ TEST_CASE("Net stream options") {
 
         auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
         
-        int64_t seenTs = 0;
+        int64_t prevTs = 0;
         int64_t delta = 0;
         std::atomic_int count = 0;
 
-        auto h = s1->onPacket([&seenTs, &count, &delta](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+        auto h = s1->onPacket([&prevTs, &count, &delta](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
             int64_t now = ftl::time::get_time();
-            delta = now - seenTs;
-            seenTs = now;
+            delta = now - prevTs;
+            prevTs = now;
             ++count;
             return true;
         });
-        
-        REQUIRE( s1->begin() );
+
+        s1->setProperty(ftl::protocol::StreamProperty::kAutoBufferAdjust, false);
+        float buffering_old = std::any_cast<float>(s1->getProperty(ftl::protocol::StreamProperty::kBuffering));
+        REQUIRE(s1->begin());
 
         ftl::protocol::StreamPacketMSGPACK spkt;
         ftl::protocol::PacketMSGPACK pkt;
-        spkt.timestamp = 100;
+        spkt.timestamp = ts_packet_1_ms;
         spkt.streamID = 0;
         spkt.frame_number = 0;
         spkt.channel = Channel::kColour;
@@ -117,25 +128,26 @@ TEST_CASE("Net stream options") {
         while (p->jobs() > 0) sleep_for(milliseconds(1));
 
         while (count < 1) {
+            // Wait for the packet 1
             sleep_for(milliseconds(10));
         }
 
-        spkt.timestamp = 120;
+        spkt.timestamp = ts_packet_2_ms;
         writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
 
-        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 0.1f);
+        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, buffering_old + buffering_increase);
 
         p->recv();
         while (p->jobs() > 0) sleep_for(milliseconds(1));
 
         while (count < 2) {
+            // Wait for packet 2
             sleep_for(milliseconds(10));
         }
 
-        // what is expected delta and why? original test had timestamp=130, and delta=140 fails the test,
-        // isn't this expected with 10ms buffering?
-        REQUIRE(delta > 110);
-        REQUIRE(delta < 140);
+        int expected = ts_packet_2_ms - ts_packet_1_ms + buffering_increase*1000;
+        REQUIRE(delta > expected - margin_ms);
+        REQUIRE(delta < expected + margin_ms);
     }
 }
 

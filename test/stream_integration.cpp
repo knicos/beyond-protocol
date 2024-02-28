@@ -7,12 +7,12 @@
 #include <ftl/protocol/node.hpp>
 #include <ftl/time.hpp>
 
+#include <future>
+
 using ftl::protocol::FrameID;
 using ftl::protocol::StreamProperty;
 
-// --- Mock --------------------------------------------------------------------
-
-
+static auto TEST_TIMEOUT = std::chrono::milliseconds(1500);
 
 // --- Tests -------------------------------------------------------------------
 
@@ -61,9 +61,10 @@ TEST_CASE("TCP Stream", "[net]") {
             return true;
         });
 
-        bool seenReq = false;
-        auto h2 = s1->onRequest([&seenReq](const ftl::protocol::Request &req) {
-            seenReq = true;
+        std::promise<bool> seenReqPromise;
+        auto seenReqFuture = seenReqPromise.get_future();
+        auto h2 = s1->onRequest([&](const ftl::protocol::Request &req) {
+            seenReqPromise.set_value(true);
             return true;
         });
 
@@ -72,10 +73,8 @@ TEST_CASE("TCP Stream", "[net]") {
 
         s2->enable(FrameID(0, 0));
 
-        // TODO: Find better option
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-        REQUIRE( seenReq );
+        seenReqFuture.wait_for(TEST_TIMEOUT);
+        REQUIRE((seenReqFuture.valid() && seenReqFuture.get()));
 
         ftl::protocol::StreamPacket spkt;
         spkt.timestamp = 0;
@@ -119,8 +118,8 @@ TEST_CASE("TCP Stream", "[net]") {
 
         s2->enable(FrameID(0, 0));
 
-        // TODO: Find better option
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // FIXME
+        std::this_thread::sleep_for(TEST_TIMEOUT);
 
         REQUIRE(s1->active(FrameID(0, 0)) == true);
 
@@ -139,7 +138,7 @@ TEST_CASE("TCP Stream", "[net]") {
             s1->post(spkt, pkt);
         }
 
-        // TODO: Find better option
+        // FIXME
         int k = 20;
         while (--k > 0 && rcount < 30) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -149,22 +148,25 @@ TEST_CASE("TCP Stream", "[net]") {
 
     SECTION("receives at correct rate") {
         std::atomic_int rcount = 0;
-        std::atomic_int avgDelay = 0;
-        int64_t lastTS = 0;
+        std::atomic_int totalDelay = 0;
+        int64_t lastTs = 0;
         auto s1 = ftl::createStream("ftl://mystream");
-        REQUIRE( s1 );
+        REQUIRE(s1);
 
         auto s2 = self->getStream("ftl://mystream");
-        REQUIRE( s2 );
+        REQUIRE(s2);
 
-        auto h = s2->onPacket([&rcount, &lastTS, &avgDelay](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
-            if (lastTS == 0) {
-                lastTS = ftl::time::get_time();
+        // Large enough buffering value so the queue can't grow to large (otherwise fast forwards until buffer at desired length)
+        s2->setProperty(ftl::protocol::StreamProperty::kBuffering, 0.05f);
+
+        auto h = s2->onPacket([&rcount, &lastTs, &totalDelay](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+            if (lastTs == 0) {
+                lastTs = ftl::time::get_time();
             } else {
                 int64_t now = ftl::time::get_time();
-                int64_t delta = now - lastTS;
-                lastTS = now;
-                avgDelay += delta;
+                int64_t delta = now - lastTs;
+                lastTs = now;
+                totalDelay += delta;
                 ++rcount;
             }
             return true;
@@ -177,13 +179,13 @@ TEST_CASE("TCP Stream", "[net]") {
 
         s2->enable(FrameID(0, 0));
 
-        // TODO: Find better option
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // FIXME
+        std::this_thread::sleep_for(std::chrono::milliseconds(TEST_TIMEOUT));
 
         REQUIRE(s1->active(FrameID(0, 0)) == true);
 
         ftl::protocol::StreamPacket spkt;
-        spkt.timestamp = 0;
+        spkt.timestamp = 1;
         spkt.streamID = 0;
         spkt.frame_number = 0;
         spkt.channel = ftl::protocol::Channel::kEndFrame;
@@ -193,19 +195,17 @@ TEST_CASE("TCP Stream", "[net]") {
         pkt.packet_count = 1;
 
         for (int i=0; i<10; ++i) {
-            spkt.timestamp = i * 10;
+            spkt.timestamp += 10;
             s1->post(spkt, pkt);
         }
 
-        // TODO: Find better option
-        int k = 10;
-        while (--k > 0 && rcount < 9) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-        const float delay = static_cast<float>(avgDelay) / static_cast<float>(rcount);
-        LOG(INFO) << "AVG DELAY = " << delay << ", " << rcount;
-        REQUIRE(delay > 8.0f);
-        REQUIRE(delay < 20.0f);
+        // FIXME
+        for(int k = 100; k > 0 && rcount < 9; k--) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+        const float delay = static_cast<float>(totalDelay) / static_cast<float>(rcount);
+        float margin = 3.33f;
+        LOG(INFO) << "AVG DELAY = " << delay << ", (" << rcount << " samples)";
+        REQUIRE(delay > 10.0f - margin);
+        REQUIRE(delay < 10.0f + margin);
     }
 
     /*SECTION("handles out-of-order packets") {

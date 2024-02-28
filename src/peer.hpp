@@ -32,6 +32,8 @@
 #include <ftl/uuid.hpp>
 #include <ftl/threads.hpp>
 
+#include "rpc/time.hpp"
+
 #include "uuidMSGPACK.hpp"
 
 # define ENABLE_IF(...) \
@@ -127,7 +129,7 @@ public:
      */
     const ftl::UUID &id() const { return peerid_; }
 
-    inline unsigned int localID() const { return local_id_; }
+    inline int localID() const { return local_id_; }
 
     /**
      * Get the peer id as a string.
@@ -209,7 +211,14 @@ public:
 
     void send_handshake();
 
+    virtual int32_t getRtt() const;
+    //virtual int64_t getJitter() const;
+    //virtual int64_t getClockOffset() const;
+
 protected:
+    /** Called by ftl::Universe (no promises on any timing) */
+    virtual void periodic_();
+
     // TODO: add name parameter that implementation may use to return different buffers depending on name
 
     // acquire msgpack buffer for send
@@ -254,8 +263,10 @@ protected:
 private:
     std::unique_ptr<ftl::net::Dispatcher> disp_;    // For RPC call dispatch
 
+    ClockInfo clock_info_;
+
     DECLARE_RECURSIVE_MUTEX(cb_mtx_);
-    std::map<int, std::function<void(const msgpack::object&, const msgpack::object&)>> callbacks_;
+    std::unordered_map<int, std::function<void(const msgpack::object&, const msgpack::object&)>> callbacks_;
 
     static std::atomic_int rpcid__;                 // Return ID for RPC calls
 

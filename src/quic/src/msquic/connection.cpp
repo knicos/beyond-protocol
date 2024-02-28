@@ -1,6 +1,6 @@
 #include <loguru.hpp>
 
-#ifdef ENABLE_PROFILER
+#ifdef TRACY_ENABLE
 #include <ftl/profiler.hpp>
 #endif
 
@@ -43,35 +43,33 @@ void MsQuicConnection::EnableStatistics()
     AddrString = "[" + AddrString + "] ";
     
     // NOTE: Pointers indexed by order
-    #ifdef ENABLE_PROFILER
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Rtt"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Number, false, true, 0);
+    #ifdef TRACY_ENABLE
+    StatisticsIdPtrs[0] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Rtt");
+    TracyPlotConfig(StatisticsIdPtrs[0], tracy::PlotFormatType::Number, false, true, 0);
 
     // Send
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendTotalBytes"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Memory, false, true, 0);
+    StatisticsIdPtrs[1] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Send Bytes/s");
+    TracyPlotConfig(StatisticsIdPtrs[1], tracy::PlotFormatType::Memory, false, true, 0);
 
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendCongestionCount"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Number, false, true, 0);
+    StatisticsIdPtrs[2] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Send CongestionCount");
+    TracyPlotConfig(StatisticsIdPtrs[2], tracy::PlotFormatType::Number, false, true, 0);
 
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendSuspectedLostPackets"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Number, false, true, 0);
+    StatisticsIdPtrs[3] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Send SuspectedLostPackets");
+    TracyPlotConfig(StatisticsIdPtrs[3], tracy::PlotFormatType::Number, false, true, 0);
 
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendSpuriousLostPackets"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Number, false, true, 0);
+    StatisticsIdPtrs[4] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Send SpuriousLostPackets");
+    TracyPlotConfig(StatisticsIdPtrs[4], tracy::PlotFormatType::Number, false, true, 0);
 
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendCongestionWindow"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Memory, false, true, 0);
+    StatisticsIdPtrs[5] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "SendCongestionWindow");
+    TracyPlotConfig(StatisticsIdPtrs[5], tracy::PlotFormatType::Memory, false, true, 0);
 
     // Recv
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "RecvTotalBytes"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Memory, false, true, 0);
+    StatisticsIdPtrs[6] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Recv Bytes/s");
+    TracyPlotConfig(StatisticsIdPtrs[6], tracy::PlotFormatType::Memory, false, true, 0);
 
-    StatisticsPtrs.push_back(PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "RecvDroppedPackets"));
-    TracyPlotConfig(StatisticsPtrs.back(), tracy::PlotFormatType::Number, false, true, 0);
+    StatisticsIdPtrs[7] = PROFILER_RUNTIME_PERSISTENT_NAME(AddrString + "Recv DroppedPackets");
+    TracyPlotConfig(StatisticsIdPtrs[7], tracy::PlotFormatType::Number, false, true, 0);
 
-    CHECK(StatisticsPtrs.size() == 8);
-    for (const auto* Ptr : StatisticsPtrs) { CHECK(Ptr); }
     #endif
 }
 
@@ -142,33 +140,56 @@ void MsQuicConnection::Close()
     }
 }
 
-QUIC_STATISTICS_V2 MsQuicConnection::Statistics()
+const QUIC_STATISTICS_V2& MsQuicConnection::GetStatistics()
 {
-    QUIC_STATISTICS_V2 Stats;
-    uint32_t StatsSize = sizeof(Stats);
-    CHECK_QUIC(MsQuic->Api->GetParam(
+    return Statistics;
+}
+
+void MsQuicConnection::RefreshStatistics() {
+    uint32_t StatsSize = sizeof(Statistics);
+    auto retval = MsQuic->Api->GetParam(
         hConnection,
         QUIC_PARAM_CONN_STATISTICS_V2,
         &StatsSize,
-        &Stats));
+        &Statistics);
 
+    int64_t Now = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
+    if (QUIC_SUCCEEDED(retval) && StatisticsTimePrev != 0) {
+        Rtt = Statistics.Rtt;
+        // Could jitter be estimated from Min/Max rtt?
+        ProfilerLogStatistics(Statistics, Now);
+    }
+    StatisticsPrev = Statistics;
+    StatisticsTimePrev = Now;
+}
+
+void MsQuicConnection::ProfilerLogStatistics(const QUIC_STATISTICS_V2& Stats, int64_t Now) {
     //int64_t LostPackets = (int64_t)Stats.SendSuspectedLostPackets - (int64_t)Stats.SendSpuriousLostPackets;
 
-    #ifdef ENABLE_PROFILER
-    if (StatisticsPtrs.size() > 0)
+    #ifdef TRACY_ENABLE
+    double Duration = (double(Now) - double(StatisticsTimePrev))/1000000.0;
+
+    double SendTotalBytes = double(Stats.SendTotalBytes - StatisticsPrev.SendTotalBytes)/Duration;
+    int64_t SendCongestionCount = Stats.SendCongestionCount - StatisticsPrev.SendCongestionCount;
+    int64_t SendSuspectedLostPackets = Stats.SendSuspectedLostPackets - StatisticsPrev.SendSuspectedLostPackets;
+    int64_t SendSpuriousLostPackets = Stats.SendSpuriousLostPackets - StatisticsPrev.SendSpuriousLostPackets;
+    double RecvTotalBytes = double(Stats.RecvTotalBytes - StatisticsPrev.RecvTotalBytes)/Duration;
+    int64_t RecvDroppedPackets = Stats.RecvDroppedPackets - StatisticsPrev.RecvDroppedPackets;
+
+    if (StatisticsIdPtrs.size() > 0)
     {
-        TracyPlot(StatisticsPtrs[0], (int64_t)Stats.Rtt);
-        TracyPlot(StatisticsPtrs[1], (int64_t)Stats.SendTotalBytes);
-        TracyPlot(StatisticsPtrs[2], (int64_t)Stats.SendCongestionCount);
-        TracyPlot(StatisticsPtrs[3], (int64_t)Stats.SendSuspectedLostPackets);
-        TracyPlot(StatisticsPtrs[4], (int64_t)Stats.SendSpuriousLostPackets);
-        TracyPlot(StatisticsPtrs[5], (int64_t)Stats.SendCongestionWindow);
-        TracyPlot(StatisticsPtrs[6], (int64_t)Stats.RecvTotalBytes);
-        TracyPlot(StatisticsPtrs[7], (int64_t)Stats.RecvDroppedPackets);
+        TracyPlot(StatisticsIdPtrs[0], (int64_t)Stats.Rtt);
+        TracyPlot(StatisticsIdPtrs[1], SendTotalBytes);
+        TracyPlot(StatisticsIdPtrs[2], SendCongestionCount);
+        TracyPlot(StatisticsIdPtrs[3], SendSuspectedLostPackets);
+        TracyPlot(StatisticsIdPtrs[4], SendSpuriousLostPackets);
+        TracyPlot(StatisticsIdPtrs[5], (int64_t)Stats.SendCongestionWindow);
+        TracyPlot(StatisticsIdPtrs[6], RecvTotalBytes);
+        TracyPlot(StatisticsIdPtrs[7], RecvDroppedPackets);
     }
     #endif
-
-    return Stats;
 }
 
 QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUIC_CONNECTION_EVENT* Event)
@@ -182,6 +203,7 @@ QUIC_STATUS MsQuicConnection::EventHandler(HQUIC hConnection, void* Context, QUI
         case QUIC_CONNECTION_EVENT_CONNECTED:
         {
             Connection->EnableStatistics();
+            Connection->RefreshStatistics();
 
             if (Observer)
             {
