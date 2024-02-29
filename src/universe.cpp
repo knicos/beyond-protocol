@@ -434,7 +434,7 @@ void Universe::removePeer_(PeerPtr &p) {
         --connection_count_;
 
         DLOG(1) << "Removing disconnected peer: " << p->id().to_string();
-        on_disconnect_.triggerAsync(p);
+        on_disconnect_.trigger(p);
 
         p.reset();
     }
@@ -748,21 +748,21 @@ void Universe::notifyConnect_(PeerBase *p) {
         peer_ids_[ptr->id()] = ptr->local_id_;
     }
 
-    on_connect_.triggerAsync(ptr);
+    on_connect_.trigger(ptr);
 }
 
 void Universe::notifyDisconnect_(PeerBase *p) {
     const auto ptr = _findPeer(p);
     if (!ptr) return;
 
-    on_disconnect_.triggerAsync(ptr);
+    on_disconnect_.trigger(ptr);
 }
 
 void Universe::notifyError_(PeerBase *p, ftl::protocol::Error e, const std::string &errstr) {
     LOG(ERROR) << "[NET] Error: (" << int(e) << "): " << errstr;
     const auto ptr = (p) ? _findPeer(p) : nullptr;
 
-    on_error_.triggerAsync(ptr, e, errstr);
+    on_error_.trigger(ptr, e, errstr);
 }
 
 void Universe::connectProxy(const ftl::URI &addr) {
