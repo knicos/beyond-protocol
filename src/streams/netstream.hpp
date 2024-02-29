@@ -156,14 +156,18 @@ class Net : public Stream {
 
         // Relative timestamp since first frame
         int64_t ts_rel;
+
+        // Set to true once this entry can be removed from PacketQueue::packets
+        bool packet_consumed;
         
         PacketBuffer(ftl::protocol::StreamPacket spkt_in, ftl::protocol::DataPacket dpkt_in, int64_t ts_local=0) : 
-            spkt(std::move(spkt_in)), dpkt(std::move(dpkt_in)), ts_rel(ts_local) {};
+            spkt(std::move(spkt_in)), dpkt(std::move(dpkt_in)), ts_rel(ts_local), packet_consumed(false) {};
     };
 
     struct PacketQueue {
         std::mutex mtx;
-        std::deque<PacketBuffer> packets; // Timestamps must be always increasing: push back, pop front.
+        // Timestamps must be always increasing: push back, pop front.
+        std::deque<PacketBuffer> packets;
 
         /** First received frame timestamps is used to calculate relative timestamps */
         const int64_t ts_base_spkt = 0;
@@ -171,20 +175,21 @@ class Net : public Stream {
         /** Local clock timestmap (guess) for first seen timestmap. May be updated if buffer grows unexpectedly large */
         int64_t ts_base_local = 0;
 
-        /** Relative timestamp to first frame */
-        int64_t ts_complete_rel;
+        /** Packet counter, maps timestamp for number of packets received, zeroed on last packet. */
+        std::unordered_map<int64_t, int> packet_count;
+        std::unordered_set<int64_t> completed;
 
         #ifdef TRACY_ENABLE
         char const* profiler_id_queue_length_; // Profiler id for queue length (in milliseconds)
         #endif
 
-        PacketQueue(int64_t base_spkt, int64_t base_local=0) : ts_base_spkt(base_spkt), ts_base_local(base_local), ts_complete_rel(0) {}
+        PacketQueue(int64_t base_spkt, int64_t base_local=0) : ts_base_spkt(base_spkt), ts_base_local(base_local) {}
     };
 
     std::unordered_map<ftl::protocol::FrameID, PacketQueue> packet_queue_;
     ftl::TaskQueue pending_packets_;
-    static void process_buffered_packets_(Net* stream, std::vector<PacketBuffer> packets);
-    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<PacketBuffer>> packet_process_queue_;
+    static void process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>> packets);
+    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>> packet_process_queue_;
 
     /** If enabled, packet callbacks are synchronized by timestamp: callbacks are waited before next processing for 
      *  frame(set) with next timestamp begins. When disabled, callbacks of different channels may interleave, but

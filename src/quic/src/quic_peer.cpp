@@ -527,6 +527,7 @@ void QuicPeerStream::notify_recv_and_unlock_(UNIQUE_LOCK_MUTEX_T& lk)
     {
         recv_busy_ = true;
         lk.unlock();
+        // There is at most only one thread working on a this Peer's queue. recv_busy_ is set to false on worker exit.
         ftl::pool.push([this](int){ ProcessRecv(); });
     }
     else 
