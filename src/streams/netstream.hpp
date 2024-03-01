@@ -96,10 +96,27 @@ class Net : public Stream {
     virtual void hasPosted(const ftl::protocol::StreamPacket &, const ftl::protocol::DataPacket &) {}
     void inject(const ftl::protocol::StreamPacket &, ftl::protocol::DataPacket &);
 
+    // Allow frames with different timestmaps to interleave. If disabled, newer frame packets are processed
+    // only after previous frame receives kFrameEnd and Stream waits until kFrameEnd is processed by the consumer.
+    // When enabled (default), packets for next frame may be sent to consumer before the previous frame had received 
+    // kFrameEnd and before all previous frame's callbacks have returned. Only relevant for receiving stream
+    // (streaming from remote). 
+    // 
+    // Note that  there is currently no way to guarantee that the Stream will produce frames in timestamp order if 
+    // actual receives can interleave (not implemented). If Peer is allowed interleave (multiple quic streams) packets
+    // of different frames, simplest way to support this might be by adding frame counter via new channel kFrameBegin
+    // gives each frame a sequence number and order by it.
+    // 
+    // See also synchronize_frame_timestamps_.
+    void allowFrameInterleaving(bool);
+
  private:
     bool send(const ftl::protocol::StreamPacket&, const ftl::protocol::DataPacket&);
 
-    /** Build with -DDEBUG_NETSTREAM to enable send/recv asserts on packet (timestamp) order. */
+    /** Build with -DDEBUG_NETSTREAM or define DEBUG_NETSTREAM in header to enable send/recv asserts on 
+     *  packet (timestamp) order. If parallel send/receive (with multple quic streams) is implemented, assumption
+     *  on received timestamps always larger or equal to earlier received timestmaps no longer holds. See also
+     *  above note on allowFrameInterleaving()  */
     #ifdef DEBUG_NETSTREAM
     std::unordered_map<uint64_t, int64_t> dbg_send_;
     std::unordered_map<uint64_t, int64_t> dbg_recv_;
@@ -112,6 +129,7 @@ class Net : public Stream {
 
     SHARED_MUTEX mutex_;
     bool active_ = false;
+
     ftl::net::Universe *net_;
     std::optional<ftl::UUID> peer_;
     std::string uri_;
@@ -176,8 +194,8 @@ class Net : public Stream {
         int64_t ts_base_local = 0;
 
         /** Packet counter, maps timestamp for number of packets received, zeroed on last packet. */
-        std::unordered_map<int64_t, int> packet_count;
-        std::unordered_set<int64_t> completed;
+        std::unordered_map<int64_t, int> incomplete_packet_count;
+        //std::unordered_set<int64_t> completed; redundant
 
         #ifdef TRACY_ENABLE
         char const* profiler_id_queue_length_; // Profiler id for queue length (in milliseconds)
@@ -188,14 +206,12 @@ class Net : public Stream {
 
     std::unordered_map<ftl::protocol::FrameID, PacketQueue> packet_queue_;
     ftl::TaskQueue pending_packets_;
-    static void process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>> packets);
-    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>> packet_process_queue_;
 
     /** If enabled, packet callbacks are synchronized by timestamp: callbacks are waited before next processing for 
      *  frame(set) with next timestamp begins. When disabled, callbacks of different channels may interleave, but
      *  ordering by timestamp for each channel is always guaranteed. This option is here for backward compatibility.
      */
-    bool synchronize_recv_timestamps_ = false;
+    bool synchronize_on_recv_timestamps_ = false;
 
     void queuePacket_(ftl::net::PeerBase*, ftl::protocol::StreamPacket, ftl::protocol::DataPacket);
 
@@ -205,7 +221,6 @@ class Net : public Stream {
     // End of Recv Buffering
 
     std::unordered_map<ftl::protocol::FrameID, std::list<detail::StreamClientLocal>> clients_local_;
-    std::thread thread_;
 
     bool _enable(FrameID id);
     bool _processRequest(ftl::net::PeerBase *p, const ftl::protocol::StreamPacket *spkt, ftl::protocol::DataPacket &pkt);
@@ -228,6 +243,13 @@ class Net : public Stream {
 
     char const*  profiler_frame_id_;
     char const*  profiler_queue_id_;
+
+    std::thread thread_;
+    static void process_buffered_packets_(
+        Net* stream,
+        std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>,
+        bool sync_frames);
+    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>, bool> packet_process_queue_;
 };
 
 }  // namespace protocol

@@ -10,6 +10,8 @@ extern std::map<int, std::string> fakedata;
 
 void send_handshake(ftl::net::PeerTcp &p);
 
+void mockRecv(ftl::net::PeerTcpPtr &p);
+
 template <typename ARG>
 msgpack::object packResponse(msgpack::zone &z, const ARG &arg) {
     return msgpack::object(arg, z);
