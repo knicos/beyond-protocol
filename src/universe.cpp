@@ -342,7 +342,7 @@ PeerPtr Universe::connect(const std::string& addr, bool is_webservice) {
 }
 
 void Universe::unbind(const std::string &name) {
-    UNIQUE_LOCK(net_mutex_, lk);
+    // Dispatcher internally synchronized
     disp_.unbind(name);
 }
 
@@ -561,6 +561,11 @@ void Universe::_periodic() {
 }
 
 void Universe::_garbage() {
+    // FIXME: Deadlocks. Make sure all Peer calls have returned and no further calls permitted 
+    //        before acquiring unique lock here. Currently deadlocks (at least) on notifyConnect:
+    //        Dispatcher has shared lock for its own mutex, tries to lock in notifyConnect, but
+    //        lock already held here and this method deadlocks on attempting unique lock on
+    //        same Peer's dispatcher's mutex.
     UNIQUE_LOCK(net_mutex_, lk);
     // Only do garbage if processing is idle.
     if (ftl::pool.n_idle() == ftl::pool.size()) {
