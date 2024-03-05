@@ -86,6 +86,7 @@ void QuicPeerStream::set_stream(MsQuicStreamPtr stream)
     stream_ = std::move(stream);
     stream_->SetStreamHandler(this);
     stream_->EnableRecv();
+    is_valid_ = !!stream_;
 }
 
 
@@ -133,6 +134,7 @@ void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
     recv_cv_.notify_all();
     
     // MsQuic releases stream instance after this callback. Any use of it later is a bug. 
+    is_valid_ = false;
     stream_ = nullptr;
 }
 

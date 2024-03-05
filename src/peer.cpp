@@ -105,7 +105,7 @@ void PeerBase::process_message_(msgpack::object_handle& object) {
 
 void PeerBase::send_handshake() {
     CHECK(status_ == ftl::protocol::NodeStatus::kConnecting)
-        << "[BUG] Peer is in an invalid state (" << (int)status_ << ") for protocol handshake";
+        << "[BUG] Peer is in an invalid state (" << int(status_.load()) << ") for protocol handshake";
     
     handshake_sent_ = true;
     send("__handshake__", ftl::net::kMagic, ftl::net::kVersion, ftl::UUIDMSGPACK(net_->id()));
@@ -123,7 +123,7 @@ bool PeerBase::process_handshake_(uint64_t magic, uint32_t version, const ftl::U
     
     // FIXME: should be assert but fails unit tests (tests broken in peer_unit.cpp)
     LOG_IF(ERROR, status_ != ftl::protocol::NodeStatus::kConnecting)
-        << "Unexpected handshake, state " << int(status_);
+        << "Unexpected handshake, state " << int(status_.load());
     
     if (magic != ftl::net::kMagic) {
         net_->notifyError_(this, ftl::protocol::Error::kBadHandshake, "invalid magic during handshake");

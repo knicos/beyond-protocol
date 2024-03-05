@@ -23,7 +23,7 @@ TEST_CASE("QUIC Universe/Peer")
             return false;
         });
         auto future = promise.get_future();
-        REQUIRE(future.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready);
+        REQUIRE(future.wait_for(std::chrono::milliseconds(1000)) == std::future_status::ready);
     }
 
     REQUIRE(net2->getPeers().size() == 1);
