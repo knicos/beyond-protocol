@@ -517,7 +517,7 @@ void Net::process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::pro
         }
     }
 
-    batch.wait();
+    // Batch.wait() called by ~Batch()
 }
 
 void Net::netstream_thread_() {

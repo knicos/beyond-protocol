@@ -96,23 +96,27 @@ void QuicPeerStream::close(bool reconnect)
     std::lock(lk_send, lk_recv);
     recv_queue_.clear();
 
-    if (stream_ && stream_->IsOpen())
+    if (recv_waiting_)
     {
-        auto future = stream_->Close();
-        if (recv_waiting_)
-        {
-            CHECK(recv_busy_);
+        CHECK(recv_busy_);
 
-            // In case ProcessRecv is waiting, notify here
-            recv_waiting_ = false;
-            recv_cv_.notify_one(); // Not ideal to notify before releasing the lock (and then waiting on same cv)
-            recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
-        }
+        // In case ProcessRecv is waiting, notify here and wait the worker to exit
+        recv_waiting_ = false;
+    }
 
+    if (recv_busy_) {
+        recv_cv_.notify_one();
+        recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
+    }
+    //LOG(INFO) << "CLOSE: " << this;
+
+    if (stream_)
+    {
+        if (stream_->IsOpen()) { stream_->Close(); }
         lk_send.unlock();
-        lk_recv.unlock();
 
-        future.wait();
+        recv_cv_.wait(lk_recv, [&]() { return !stream_; });
+        lk_recv.unlock();
     }
 }
 
@@ -126,10 +130,10 @@ void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
     UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
     UNIQUE_LOCK_T(recv_mtx_) lk_recv(recv_mtx_, std::defer_lock);
     std::lock(lk_send, lk_recv);
+    recv_cv_.notify_all();
     
-    // MsQuic releases stream instanca after this callback. Any use of it later is a bug. 
+    // MsQuic releases stream instance after this callback. Any use of it later is a bug. 
     stream_ = nullptr;
-    // notify...
 }
 
 #ifdef ENABLE_PROFILER
@@ -584,6 +588,6 @@ void QuicPeerStream::ProcessRecv()
     }
 
     recv_busy_ = false;
-    lk.unlock();
     recv_cv_.notify_all();
+    lk.unlock();
 }
