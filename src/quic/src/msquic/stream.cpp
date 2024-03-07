@@ -177,7 +177,6 @@ MsQuicStream::~MsQuicStream()
         hStream = nullptr;
     }
 
-    // will result in 
     CHECK(!hStream && !IsOpen()) << "SHUTDOWN_COMPLETE was not received but callback handler destroyed!";
 }
 

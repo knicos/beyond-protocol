@@ -25,7 +25,7 @@ static std::atomic_int profiler_name_ctr_ = 0;
 
 QuicPeerStream::QuicPeerStream(MsQuicConnection* connection, MsQuicStreamPtr stream, ftl::net::Universe* net, ftl::net::Dispatcher* disp) :
     ftl::net::PeerBase(ftl::URI(), net, disp),
-    connection_(connection), stream_(std::move(stream)), ws_frame_(true)
+    connection_(connection), stream_(std::move(stream)), is_valid_(true), ws_frame_(true)
 {
     // TODO: remove connection_ (can't use with proxy)
     CHECK(stream_.get());
@@ -109,7 +109,7 @@ void QuicPeerStream::close(bool reconnect)
         recv_cv_.notify_one();
         recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
     }
-    //LOG(INFO) << "CLOSE: " << this;
+    CHECK(recv_busy_ == false);
 
     if (stream_)
     {
@@ -119,6 +119,7 @@ void QuicPeerStream::close(bool reconnect)
         recv_cv_.wait(lk_recv, [&]() { return !stream_; });
         lk_recv.unlock();
     }
+    CHECK(stream_ == nullptr);
 }
 
 void QuicPeerStream::OnShutdown(MsQuicStream* stream)
@@ -128,14 +129,19 @@ void QuicPeerStream::OnShutdown(MsQuicStream* stream)
 
 void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
 {
-    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
     UNIQUE_LOCK_T(recv_mtx_) lk_recv(recv_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
     std::lock(lk_send, lk_recv);
-    recv_cv_.notify_all();
-    
+
     // MsQuic releases stream instance after this callback. Any use of it later is a bug. 
     is_valid_ = false;
     stream_ = nullptr;
+
+    recv_cv_.notify_all();
+
+    // close() and the destructor synchronized on recv_mtx_, lock on it must be released last
+    lk_send.unlock();
+    lk_recv.unlock();
 }
 
 #ifdef ENABLE_PROFILER

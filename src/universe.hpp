@@ -239,7 +239,7 @@ class Universe {
 
     static void __start(Universe *u);
 
-    bool active_;
+    std::atomic_bool active_;
     ftl::UUID this_peer;
     mutable DECLARE_SHARED_MUTEX(net_mutex_);
     std::condition_variable_any socket_cv_;

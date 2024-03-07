@@ -18,7 +18,7 @@ TEST_CASE("QUIC Universe/Peer")
 
     {
         std::promise<bool> promise;
-        auto handle = net1->onConnect([&](const ftl::net::PeerPtr& Peer){
+        auto handle = net1->onConnect([&](const ftl::net::PeerPtr& Peer) {
             promise.set_value(true);
             return false;
         });
