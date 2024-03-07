@@ -156,16 +156,14 @@ class Net : public Stream {
     std::condition_variable queue_cv_;
 
     bool buffering_auto_ = true; // Disable adaptive buffering
-    int underruns_ = 0;
-    int last_underrun_buffering_ = 0;
+    int underruns_ = 0;                 // TODO: Move to PacketQueue
+    int last_underrun_buffering_ = 0;   // TODO: Move to PacketQueue
+    int32_t buffering_ = 0; // Network buffering delay before dispatched for processing (milliseconds) // TODO: Move to PacketQueue
 
-    int32_t buffering_ = 0; // Network buffering delay before dispatched for processing (milliseconds)
     int32_t buffering_default_ = 0; // Default value for buffering if automatic adjustment is disabled. If not set, current value used if adjustment disabled.
     int32_t buffering_min_ms_ = 20; // Minimum network buffer size (milliseconds)
-    int32_t buffer_readjust_threshold_ms_ = 50; // If actual buffer has more than this threshold excess over buffering_, 
-                                                // timestamp offset is adjusted so that buffer length is back to buffering_.
-                                                // Without this adjustment, network buffer might get unexpectedly long.
-    int64_t t_buffering_updated_ = 0;
+
+    int64_t t_buffering_updated_ = 0; // TODO: Move to PacketQueue
     int64_t buffering_update_delay_ms_ = 50;    // Delay between buffering adjustments (prevent too rapid changes)
 
     struct PacketBuffer {
@@ -190,7 +188,7 @@ class Net : public Stream {
         /** First received frame timestamps is used to calculate relative timestamps */
         const int64_t ts_base_spkt = 0;
 
-        /** Local clock timestmap (guess) for first seen timestmap. May be updated if buffer grows unexpectedly large */
+        /** Local clock timestmap (guess) for first seen timestmap. */
         int64_t ts_base_local = 0;
 
         /** Packet counter, maps timestamp for number of packets received, zeroed on last packet. */
@@ -199,6 +197,7 @@ class Net : public Stream {
 
         #ifdef TRACY_ENABLE
         char const* profiler_id_queue_length_; // Profiler id for queue length (in milliseconds)
+        char const* profiler_id_queue_underrun_count_; // Profiler id for queue length (in milliseconds)
         #endif
 
         PacketQueue(int64_t base_spkt, int64_t base_local=0) : ts_base_spkt(base_spkt), ts_base_local(base_local) {}

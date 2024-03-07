@@ -391,6 +391,10 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
 
         int32_t buffering_auto = float(peer->getRtt())*buffer_rtt_size;
 
+        #ifdef TRACY_ENABLE
+        TracyPlot("network buffer underruns ", double(underruns_));
+        #endif
+
         if (underruns_ > 0) {
             last_underrun_buffering_ = buffering_;
 
@@ -400,9 +404,8 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
             else {
                 buffering_ =  std::min<int32_t>(buffering_auto*grow_factor, buffering_ + buffer_diff_max_ms);;
             }
-            auto buffering_old = buffering_;
             buffering_ = std::max(buffering_, buffering_min_ms_);
-            LOG_IF(1, buffering_ != buffering_old) << "Netstream: buffering increased to " << buffering_ << "ms";
+            LOG_IF(1, buffering_ != last_underrun_buffering_) << "Netstream: buffering increased to " << buffering_ << "ms";
             underruns_ = 0;
         }
         else if (buffering_ > buffering_auto*shrink_threshold) {
@@ -426,6 +429,8 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
         std::string name = uri_ + " (" + std::to_string(fid.frameset()) + ", " + std::to_string(fid.source()) + ")";
         queue.profiler_id_queue_length_ = 
             PROFILER_RUNTIME_PERSISTENT_NAME("packet buffer length (ms): " + name);
+        queue.profiler_id_queue_underrun_count_ =
+            PROFILER_RUNTIME_PERSISTENT_NAME("packet buffer underruns: " + name);
         #endif
 
         /* The code below tries to estimate base timestamp of the stream in local clock. Time synchronization
@@ -587,16 +592,6 @@ void Net::netstream_thread_() {
             #ifdef TRACY_ENABLE
             TracyPlot(queue->profiler_id_queue_length_, double(buffer_length_ms));
             #endif
-
-            // TODO: If buffer consists of incomplete frames, logging should at least be less noisy
-            if (buffer_length_ms > buffering && (buffer_length_ms - buffering) > buffer_readjust_threshold_ms_) {
-                // If buffer gets much larger than target, skip enough packets to get back within threshold.
-                // TODO: Check if this causes any issues in node Receiver
-                int64_t t_skip_ms = buffer_length_ms - buffering;
-                LOG(WARNING) << "Netstream buffer too large (total: " << buffer_length_ms << "), "
-                             << "fast forwarding by " << t_skip_ms << "ms";
-                queue->ts_base_local -= t_skip_ms; // Move base_ts to earlier
-            }
 
             auto should_process_now = [&](const PacketBuffer& pkt) {
                 bool have_all_packets = queue->incomplete_packet_count.count(pkt.spkt.timestamp) == 0;
