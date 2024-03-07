@@ -23,6 +23,7 @@ option(BUILD_EXAMPLES "Compile the examples" ON)
 option(ENABLE_PROFILER "Enable builtin performance profil4ing" OFF)
 option(DEBUG_LOCKS "Enable lock profiling (requires ENABLE_PROFILER)" OFF)
 option(ENABLE_ASAN "Build with address sanitizer" OFF)
+option(ENABLE_TSAN "Build with thread sanitizer" OFF)
 
 if (BUILD_TESTS AND (NOT WITH_OPENSSL))
 	message(WARNING "OpenSSL enabled for tests")
@@ -37,6 +38,24 @@ if (ENABLE_ASAN)
 		message(WARNING "Ignoring ENABLE_ASAN for CMAKE_CXX_COMPILER_ID ${CMAKE_CXX_COMPILER_ID}")
 		# TODO: MSVC
 	endif()
+endif()
+
+if (ENABLE_TSAN)
+	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+		if (ENABLE_PROFILER)
+			# Tracy: ‘atomic_thread_fence’ not supported
+			add_compile_options(-Wno-error=tsan)
+		endif()
+		add_compile_options(-fsanitize=thread)
+		add_link_options(-fsanitize=thread -static-libtsan)
+	else()
+		message(WARNING "Ignoring ENABLE_TSAN for CMAKE_CXX_COMPILER_ID ${CMAKE_CXX_COMPILER_ID}")
+		# TODO: MSVC
+	endif()
+endif()
+
+if (ENABLE_ASAN AND ENABLE_TSAN)
+	message(ERROR "Both ENABLE_ASAN and ENABLE_TSAN set, enable only one")
 endif()
 
 if (BUILD_TESTS)

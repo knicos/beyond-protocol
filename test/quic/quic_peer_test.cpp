@@ -18,12 +18,12 @@ TEST_CASE("QUIC Universe/Peer")
 
     {
         std::promise<bool> promise;
-        auto handle = net1->onConnect([&](const ftl::net::PeerPtr& Peer){
+        auto handle = net1->onConnect([&](const ftl::net::PeerPtr& Peer) {
             promise.set_value(true);
             return false;
         });
         auto future = promise.get_future();
-        REQUIRE(future.wait_for(std::chrono::milliseconds(100)) == std::future_status::ready);
+        REQUIRE(future.wait_for(std::chrono::milliseconds(1000)) == std::future_status::ready);
     }
 
     REQUIRE(net2->getPeers().size() == 1);

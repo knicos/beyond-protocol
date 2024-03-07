@@ -25,7 +25,7 @@ static std::atomic_int profiler_name_ctr_ = 0;
 
 QuicPeerStream::QuicPeerStream(MsQuicConnection* connection, MsQuicStreamPtr stream, ftl::net::Universe* net, ftl::net::Dispatcher* disp) :
     ftl::net::PeerBase(ftl::URI(), net, disp),
-    connection_(connection), stream_(std::move(stream)), ws_frame_(true)
+    connection_(connection), stream_(std::move(stream)), is_valid_(true), ws_frame_(true)
 {
     // TODO: remove connection_ (can't use with proxy)
     CHECK(stream_.get());
@@ -86,6 +86,7 @@ void QuicPeerStream::set_stream(MsQuicStreamPtr stream)
     stream_ = std::move(stream);
     stream_->SetStreamHandler(this);
     stream_->EnableRecv();
+    is_valid_ = !!stream_;
 }
 
 
@@ -96,24 +97,29 @@ void QuicPeerStream::close(bool reconnect)
     std::lock(lk_send, lk_recv);
     recv_queue_.clear();
 
-    if (stream_ && stream_->IsOpen())
+    if (recv_waiting_)
     {
-        auto future = stream_->Close();
-        if (recv_waiting_)
-        {
-            CHECK(recv_busy_);
+        CHECK(recv_busy_);
 
-            // In case ProcessRecv is waiting, notify here
-            recv_waiting_ = false;
-            recv_cv_.notify_one(); // Not ideal to notify before releasing the lock (and then waiting on same cv)
-            recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
-        }
-
-        lk_send.unlock();
-        lk_recv.unlock();
-
-        future.wait();
+        // In case ProcessRecv is waiting, notify here and wait the worker to exit
+        recv_waiting_ = false;
     }
+
+    if (recv_busy_) {
+        recv_cv_.notify_one();
+        recv_cv_.wait(lk_recv, [&]() { return !recv_busy_; });
+    }
+    CHECK(recv_busy_ == false);
+
+    if (stream_)
+    {
+        if (stream_->IsOpen()) { stream_->Close(); }
+        lk_send.unlock();
+
+        recv_cv_.wait(lk_recv, [&]() { return !stream_; });
+        lk_recv.unlock();
+    }
+    CHECK(stream_ == nullptr);
 }
 
 void QuicPeerStream::OnShutdown(MsQuicStream* stream)
@@ -123,13 +129,19 @@ void QuicPeerStream::OnShutdown(MsQuicStream* stream)
 
 void QuicPeerStream::OnShutdownComplete(MsQuicStream* stream)
 {
-    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
     UNIQUE_LOCK_T(recv_mtx_) lk_recv(recv_mtx_, std::defer_lock);
+    UNIQUE_LOCK_T(send_mtx_) lk_send(send_mtx_, std::defer_lock);
     std::lock(lk_send, lk_recv);
-    
-    // MsQuic releases stream instanca after this callback. Any use of it later is a bug. 
+
+    // MsQuic releases stream instance after this callback. Any use of it later is a bug. 
+    is_valid_ = false;
     stream_ = nullptr;
-    // notify...
+
+    recv_cv_.notify_all();
+
+    // close() and the destructor synchronized on recv_mtx_, lock on it must be released last
+    lk_send.unlock();
+    lk_recv.unlock();
 }
 
 #ifdef ENABLE_PROFILER
@@ -527,6 +539,7 @@ void QuicPeerStream::notify_recv_and_unlock_(UNIQUE_LOCK_MUTEX_T& lk)
     {
         recv_busy_ = true;
         lk.unlock();
+        // There is at most only one thread working on a this Peer's queue. recv_busy_ is set to false on worker exit.
         ftl::pool.push([this](int){ ProcessRecv(); });
     }
     else 
@@ -583,6 +596,6 @@ void QuicPeerStream::ProcessRecv()
     }
 
     recv_busy_ = false;
-    lk.unlock();
     recv_cv_.notify_all();
+    lk.unlock();
 }

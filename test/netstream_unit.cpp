@@ -408,3 +408,227 @@ TEST_CASE("Net stream can see received data") {
     p.reset();
     ftl::protocol::reset();
 }
+
+TEST_CASE("receive buffering, interleaving and reordering") {
+    auto p = createMockPeer(0);
+    fakedata[0] = "";
+    send_handshake(*p.get());
+    mockRecv(p);
+
+    auto s1 = std::make_shared<MockNetStream>("ftl://mystream", ftl::getSelf()->getUniverse(), false);
+
+    std::mutex mtx;
+    std::condition_variable cv;
+    std::vector<std::tuple<Channel, int64_t>> recv_buffer;
+
+    s1->setProperty(ftl::protocol::StreamProperty::kAutoBufferAdjust, false);
+    s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 0.02f);
+
+    auto h = s1->onPacket([&](const ftl::protocol::StreamPacket &spkt, const ftl::protocol::DataPacket &pkt) {
+        {
+            auto lk = std::unique_lock(mtx);
+            recv_buffer.emplace_back(spkt.channel, spkt.timestamp);
+        }
+        cv.notify_all();
+        return true;
+    });
+
+    auto wait_for_packets = [&](size_t expected_size, int timeout_ms=1000) {
+        auto lk = std::unique_lock(mtx);
+        auto cond = [&](){ return recv_buffer.size() == expected_size; };
+        if (cond()) { return true; }
+        return cv.wait_for(lk, std::chrono::milliseconds(timeout_ms), cond);
+    };
+
+    auto send_packet = [&](int64_t ts) {
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = Channel::kColour;
+        spkt.timestamp = ts;
+
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        mockRecv(p);
+    };
+
+    auto send_eof = [&](int64_t ts, int count) {
+        ftl::protocol::StreamPacketMSGPACK spkt;
+        ftl::protocol::PacketMSGPACK pkt;
+        spkt.streamID = 0;
+        spkt.frame_number = 0;
+        spkt.channel = Channel::kEndFrame;
+        spkt.timestamp = ts;
+
+        pkt.frame_count = 1;
+        pkt.packet_count = count + 1;
+
+        writeNotification(0, "ftl://mystream", std::make_tuple(0, spkt, pkt));
+        mockRecv(p);
+    };
+
+    auto print_buffer = [&]() {
+        for(auto& v : recv_buffer) {
+            LOG(INFO) << (int)std::get<0>(v) << ", " <<  (int)std::get<1>(v);
+        }
+    };
+
+    // Test for incorrect input, stream must still make sure EndOfFrame packets are in the end. 
+    // Only with long enough buffer, stream must reorder packets to correct order.
+
+    for (bool interleave : {false, true}) {
+        SECTION("kEndOfFrame must always be last packet for each timestmap") {
+            LOG(INFO) << "Interleave: " << interleave;
+            REQUIRE(s1->begin());
+            // Without the waits after every packet, the buffer may receive all packets and (correctly)
+            // reorder them before calling the callback.
+            s1->allowFrameInterleaving(interleave);
+            std::vector<int64_t> timestamps = { 100, 400, 200, 300, 700, 800, 600, 500 };
+
+            int count = 0;
+            for (auto ts : timestamps) {
+                send_packet(ts);
+                send_eof(ts, 1);
+                count += 2;
+                wait_for_packets(count, 200);
+            }
+
+            REQUIRE(recv_buffer.size() == timestamps.size()*2);
+            for (auto ts : timestamps) {
+                auto itr_data = std::find(recv_buffer.begin(), recv_buffer.end(), 
+                    std::make_tuple(Channel::kColour, ts));
+                auto itr_eof = std::find(recv_buffer.begin(), recv_buffer.end(),
+                    std::make_tuple(Channel::kEndFrame, ts));
+                
+                REQUIRE(itr_data != recv_buffer.end());
+                REQUIRE(itr_eof != recv_buffer.end());
+                REQUIRE(itr_data < itr_eof);
+            }
+        }
+
+        SECTION("kEndOfFrame must always be last packet for each timestmap, first send data, then end of frames") {
+            LOG(INFO) << "Interleave: " << interleave;
+            REQUIRE(s1->begin());
+            // Without the waits after every packet, the buffer may receive all packets and (correctly)
+            // reorder them before calling the callback.
+            s1->allowFrameInterleaving(interleave);
+            std::vector<int64_t> timestamps = { 100, 400, 200, 300, 700, 800, 600, 500 };
+
+            for (auto ts : timestamps) { send_packet(ts); std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
+            int count = timestamps.size();
+            for (auto ts : timestamps) { send_eof(ts, 1); wait_for_packets(++count, 200); }
+            
+            REQUIRE(recv_buffer.size() == timestamps.size()*2);
+            for (auto ts : timestamps) {
+                auto itr_data = std::find(recv_buffer.begin(), recv_buffer.end(), 
+                    std::make_tuple(Channel::kColour, ts));
+                auto itr_eof = std::find(recv_buffer.begin(), recv_buffer.end(),
+                    std::make_tuple(Channel::kEndFrame, ts));
+                
+                REQUIRE(itr_data != recv_buffer.end());
+                REQUIRE(itr_eof != recv_buffer.end());
+                REQUIRE(itr_data < itr_eof);
+            }
+        }
+    }
+    
+    SECTION("large buffer, frames must be reordered before callback") {
+        REQUIRE(s1->begin());
+        s1->allowFrameInterleaving(true);
+        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 1.5f);
+
+        std::vector<int64_t> timestamps = { 100, 400, 200, 300, 700, 800, 600, 500 };
+
+        for (auto ts : timestamps) { send_packet(ts); }
+        for (auto ts : timestamps) { send_eof(ts, 1); }
+
+        wait_for_packets(timestamps.size()*2, 20000);
+
+        REQUIRE(recv_buffer.size() == timestamps.size()*2);
+        for (auto ts : timestamps) {
+            auto itr_data = std::find(recv_buffer.begin(), recv_buffer.end(), 
+                std::make_tuple(Channel::kColour, ts));
+            auto itr_eof = std::find(recv_buffer.begin(), recv_buffer.end(),
+                std::make_tuple(Channel::kEndFrame, ts));
+            
+            REQUIRE(itr_data != recv_buffer.end());
+            REQUIRE(itr_eof != recv_buffer.end());
+            REQUIRE(itr_data < itr_eof);
+        }
+        
+        int64_t ts_prev = 0;
+        for (auto [c, ts] : recv_buffer) {
+            REQUIRE(ts >= ts_prev);
+            ts_prev = ts;
+        }
+    }
+
+    SECTION("allowFrameInterleaving(true) and large buffer, frames must be reordered and callbacks only for complete frames") {
+        REQUIRE(s1->begin());
+        s1->allowFrameInterleaving(false);
+        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 1.5f);
+
+        std::vector<int64_t> timestamps = { 50, 200, 100, 150, 350, 400, 300, 250 };
+
+        for (auto ts : timestamps) { send_packet(ts); }
+        wait_for_packets(timestamps.size(), 2000);
+        REQUIRE(recv_buffer.size() == 0);
+
+        std::sort(timestamps.begin(), timestamps.end());
+        for (auto ts : timestamps) { send_eof(ts, 1); }
+        wait_for_packets(timestamps.size()*2, 2000);
+
+        REQUIRE(recv_buffer.size() == timestamps.size()*2);
+        for (auto ts : timestamps) {
+            auto itr_data = std::find(recv_buffer.begin(), recv_buffer.end(), 
+                std::make_tuple(Channel::kColour, ts));
+            auto itr_eof = std::find(recv_buffer.begin(), recv_buffer.end(),
+                std::make_tuple(Channel::kEndFrame, ts));
+            
+            REQUIRE(itr_data != recv_buffer.end());
+            REQUIRE(itr_eof != recv_buffer.end());
+            REQUIRE(itr_data < itr_eof);
+        }
+        
+        int64_t ts_prev = 0;
+        for (auto [c, ts] : recv_buffer) {
+            REQUIRE(ts >= ts_prev);
+            ts_prev = ts;
+        }
+    }
+
+    // Correct input, packets in arriving correct order must be in correct order in callback
+
+    SECTION("input on correct order must be in same order in callback") {
+        REQUIRE(s1->begin());
+        s1->allowFrameInterleaving(true);
+        s1->setProperty(ftl::protocol::StreamProperty::kBuffering, 1.5f);
+
+        std::vector<int64_t> timestamps = { 10, 20, 40, 60, 70, 80, 100, 120, 200, 201, 202, 203 };
+
+        for (auto ts : timestamps) { send_packet(ts); }
+        wait_for_packets(timestamps.size(), 2000);
+
+        std::sort(timestamps.begin(), timestamps.end());
+        for (auto ts : timestamps) { send_eof(ts, 1); }
+        wait_for_packets(timestamps.size()*2, 2000);
+
+        REQUIRE(recv_buffer.size() == timestamps.size()*2);
+        for (auto ts : timestamps) {
+            auto itr_data = std::find(recv_buffer.begin(), recv_buffer.end(), 
+                std::make_tuple(Channel::kColour, ts));
+            auto itr_eof = std::find(recv_buffer.begin(), recv_buffer.end(),
+                std::make_tuple(Channel::kEndFrame, ts));
+            
+            REQUIRE(itr_data != recv_buffer.end());
+            REQUIRE(itr_eof != recv_buffer.end());
+            REQUIRE(itr_data < itr_eof);
+        }
+        
+        int64_t ts_prev = 0;
+        for (auto [c, ts] : recv_buffer) {
+            REQUIRE(ts >= ts_prev);
+            ts_prev = ts;
+        }
+    }
+}

@@ -78,6 +78,11 @@ ftl::net::PeerTcpPtr createMockPeer(int c) {
 	return u->injectFakePeer(std::move(conn));
 }
 
+void mockRecv(ftl::net::PeerTcpPtr& peer) {
+    peer->recv();
+	while (peer->jobs() > 0) sleep_for(milliseconds(1));
+}
+
 void send_handshake(ftl::net::PeerTcp &p) {
 	ftl::UUID id;
 	p.send("__handshake__", (uint64_t) ftl::net::kMagic, (uint64_t) ((8 << 16) + (5 << 8) + 2), ftl::UUIDMSGPACK(id));

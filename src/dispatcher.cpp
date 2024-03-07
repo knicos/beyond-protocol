@@ -49,6 +49,8 @@ vector<string> Dispatcher::getBindings() const {
 }
 
 void Dispatcher::unbind(const std::string &name) {
+    // Write lock on mutex_ necessary, as there is no other way to synchronize on any ongoing calls. 
+    // A read lock is held by any rpc call (in dispatch()), so this method will block if any calls busy.
     UNIQUE_LOCK(mutex_, lk);
     auto i = funcs_.find(name);
     if (i != funcs_.end()) {

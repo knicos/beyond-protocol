@@ -104,16 +104,16 @@ private:
             {
                 auto lk = std::unique_lock(mtx_);
                 count = --busy_;
+                if (count == 0) { cv_.notify_all(); }
             }
-            if (count == 0) { cv_.notify_all(); }
         });
         busy_++;
     }
 
 public:
     Batch() {};
-    Batch(std::initializer_list<std::function<void()>> funcs) {
-        
+    ~Batch() {
+        wait();
     };
 
     template<typename T>
@@ -223,6 +223,11 @@ public:
         }
     }
 
+    ~WorkerQueue() {
+        stop(true);
+        wait();
+    }
+
 private:
     std::mutex mtx_;
     std::condition_variable cv_;
@@ -245,6 +250,7 @@ private:
                 auto lk = std::unique_lock(mtx_);
                 if (stop_ || (queue_.size() == 0)) {
                     busy_ = false;
+                    cv_.notify_all();
                     break;
                 }
 
@@ -258,7 +264,6 @@ private:
                 //LOG(ERROR) << "Task failed with exception: " << ex.what();
             }
         }
-        cv_.notify_all();
     }
 
 protected:

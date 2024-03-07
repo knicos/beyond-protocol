@@ -253,7 +253,7 @@ protected:
     ftl::UUID peerid_;                              // Received in handshake or allocated
     uint32_t version_;                              // Received protocol version in handshake
 
-    ftl::protocol::NodeStatus status_ = ftl::protocol::NodeStatus::kInvalid; // Connected, errored, reconnecting..
+    std::atomic<ftl::protocol::NodeStatus> status_ = ftl::protocol::NodeStatus::kInvalid; // Connected, errored, reconnecting..
 
     ftl::net::Universe *net_;                       // Origin net universe
 

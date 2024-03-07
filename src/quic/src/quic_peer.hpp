@@ -28,7 +28,7 @@ public:
     int pending_bytes() { return pending_bytes_; }
     int pending_sends() { return pending_sends_; }
 
-    bool isValid() const override { return stream_.get() != nullptr; }
+    bool isValid() const override { return is_valid_; }
 
     void start() override;
 
@@ -67,6 +67,7 @@ private:
 
     MsQuicConnection* connection_;
     MsQuicStreamPtr stream_;
+    std::atomic_bool is_valid_ = false;
     std::string name_;
     const bool ws_frame_;
 

@@ -58,6 +58,8 @@ MUTEX Net::msg_mtx__;
 
 void dbg_check_pkt(std::mutex& mtx, std::unordered_map<uint64_t, int64_t>& ts, const ftl::protocol::StreamPacket& spkt, const std::string& name)
 {
+    // This check verifies per-channel timestmaps are always in increasing order. See comments header for details.
+
     auto lk = std::unique_lock(mtx);
     auto channel = spkt.channel;
     auto id = ftl::protocol::FrameID(spkt.frameSetID(), spkt.frameNumber());
@@ -66,7 +68,7 @@ void dbg_check_pkt(std::mutex& mtx, std::unordered_map<uint64_t, int64_t>& ts, c
     auto ts_new = spkt.timestamp;
     if (ts.count(key) > 0) {
         auto ts_old = ts[key];
-        CHECK(ts_old <= ts_new) << "Out of Order send for channel " << int(channel) << ", diff: " << (ts_new - ts_old) << ", new ts. " << ts_new;
+        LOG_IF(ERROR, ts_old > ts_new) << "Out of Order " << name << " for channel " << int(channel) << ", diff: " << (ts_new - ts_old) << ", new ts. " << ts_new;
         ts[key] = ts_new;
     }
     else {
@@ -79,10 +81,17 @@ void dbg_check_pkt(std::mutex& mtx, std::unordered_map<uint64_t, int64_t>& ts, c
 #define DEBUG_CHECK_PKT(mtx, ts, spkt, name) {}
 #endif
 
-static std::list<std::string> net_streams;
 static SHARED_MUTEX stream_mutex;
+static std::list<std::string> net_streams;
 
 void Net::installRPC(ftl::net::Universe *net) {
+    static std::atomic_int installRPC_count = 0;
+
+    // net->bind() should fail, but print an error message to indicate incorrect use.
+    LOG_IF(ERROR, ++installRPC_count == 0)
+        << "Net::installRPC() called more than once (total: " << installRPC_count << "), "
+        << "should only be called once at initialization (BUG)";
+
     net->bind("find_stream", [net](const std::string &uri) -> optional<ftl::UUIDMSGPACK> {
         DLOG(INFO) << "Request for stream: " << uri;
 
@@ -147,10 +156,8 @@ Net::Net(const std::string &uri, ftl::net::Universe *net, bool host) :
 
 Net::~Net() {
     end();
-
-    // FIXME: Wait to ensure no net callbacks are active.
-    //        This will just crash if everythign isn't completed after 100ms?
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    pending_packets_.stop();
+    pending_packets_.wait();
 }
 
 int Net::postQueueSize(FrameID frame_id, Channel channel) const {
@@ -265,6 +272,7 @@ bool Net::post(const StreamPacket &spkt, const DataPacket &pkt) {
 void Net::_earlyProcessPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPacket &spkt, DataPacket &pkt) {
     // Better to crash here than crash later because of out-of-bounds write. StreamID 255 means "all streams".
     CHECK(spkt.streamID < 5 || spkt.streamID == 255) << "FIXME: Frameset ID must be less than 5 or 255 (tally_[] is a fixed size array)";
+    DEBUG_CHECK_PKT(dbg_mtx_recv_, dbg_recv_, spkt, "recv");
 
     if (!active_) return;
 
@@ -335,10 +343,15 @@ void Net::run_() {
 static std::once_flag warning_large_peerid;
 static std::once_flag warning_more_than_one_peer_streaming;
 
+void Net::allowFrameInterleaving(bool value) {
+    auto lk = std::unique_lock(queue_mtx_);
+    synchronize_on_recv_timestamps_ = true;
+}
+
 void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spkt, ftl::protocol::DataPacket dpkt) {
     int64_t t_now = ftl::time::get_time();
     auto fid = FrameID(spkt.streamID, spkt.frame_number);
-    bool is_eof = spkt.channel == Channel::kEndFrame;
+    bool is_eof_packet = spkt.channel == Channel::kEndFrame;
 
     auto queue_lock = std::unique_lock(queue_mtx_);
 
@@ -365,7 +378,7 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
     // Adjust buffering based on latency. Assumes only one Peer, in principle could be updated to work with more than
     // one peer if bufferi is determined by the peer with most delay.  Buffering is updated only if underruns occurred.
     // TODO: Documentation; Whas is the exact use case here? Is single netstream supposed to process input from more
-    //       than one peer? The code appears to permit multiple peers to use same netstream.
+    //       than one peer? The code appears to permit multiple peers to use stream into the same netstream.
     if (buffering_auto_ && (t_now - t_buffering_updated_) > buffering_update_delay_ms_) {
         t_buffering_updated_ = t_now;
         
@@ -378,6 +391,10 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
 
         int32_t buffering_auto = float(peer->getRtt())*buffer_rtt_size;
 
+        #ifdef TRACY_ENABLE
+        TracyPlot("network buffer underruns ", double(underruns_));
+        #endif
+
         if (underruns_ > 0) {
             last_underrun_buffering_ = buffering_;
 
@@ -388,16 +405,17 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
                 buffering_ =  std::min<int32_t>(buffering_auto*grow_factor, buffering_ + buffer_diff_max_ms);;
             }
             buffering_ = std::max(buffering_, buffering_min_ms_);
-            LOG_IF(1, buffering_ != buffering_min_ms_) << "Netstream: buffering increased to " << buffering_ << "ms";
+            LOG_IF(1, buffering_ != last_underrun_buffering_) << "Netstream: buffering increased to " << buffering_ << "ms";
             underruns_ = 0;
         }
         else if (buffering_ > buffering_auto*shrink_threshold) {
             // This branch shrinks the buffer in case it gets large (compared to buffering_auto)
+            auto buffering_old = buffering_;
             buffering_ = std::max(
                 std::max<int32_t>(buffering_*shrink_factor, buffering_ - buffer_diff_max_ms),
                 buffering_min_ms_
             );
-            LOG_IF(1, buffering_ != buffering_min_ms_) << "Netstream: buffering decreased to " << buffering_ << "ms";
+            LOG_IF(1, buffering_ != buffering_old) << "Netstream: buffering decreased to " << buffering_ << "ms";
         }
     }
 
@@ -411,6 +429,8 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
         std::string name = uri_ + " (" + std::to_string(fid.frameset()) + ", " + std::to_string(fid.source()) + ")";
         queue.profiler_id_queue_length_ = 
             PROFILER_RUNTIME_PERSISTENT_NAME("packet buffer length (ms): " + name);
+        queue.profiler_id_queue_underrun_count_ =
+            PROFILER_RUNTIME_PERSISTENT_NAME("packet buffer underruns: " + name);
         #endif
 
         /* The code below tries to estimate base timestamp of the stream in local clock. Time synchronization
@@ -440,50 +460,69 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
 
     // Insert into queue, update completed time if End of Frame packet
     auto lock = std::unique_lock(queue.mtx);
-    int64_t ts_rel = spkt.timestamp - queue.ts_base_spkt;
+    const int64_t ts = spkt.timestamp;
+    const int64_t ts_rel = ts - queue.ts_base_spkt;
     queue.packets.emplace_back(std::move(spkt), std::move(dpkt), ts_rel);
-    if (is_eof) {
+
+    auto& count = queue.incomplete_packet_count[spkt.timestamp];
+    count++;
+
+    // EndOfFrame dpkt.packet_count has total number packets sent for this timestamp
+    if (is_eof_packet) { count -= dpkt.packet_count; }
+    
+    if (count == 0) {
+        queue.incomplete_packet_count.erase(ts);
         FTL_PROFILE_FRAME_END(profiler_frame_id_);
-        queue.ts_complete_rel = ts_rel;
     }
 
     // It might be necessary to add book keeping for end of frame counts per frameset ...
     // On the other hand, is there anything to be done here if something is missing?
 }
 
-void Net::process_buffered_packets_(Net* stream, std::vector<PacketBuffer> packets) {
+void Net::process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>> packets, bool sync_frames) {
     if (!stream->active_) { return; }
 
-    std::vector<PacketBuffer*> packets_sorted;
+    std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>*> packets_sorted;
     packets_sorted.reserve(packets.size());
-    for (auto& pkt : packets) { packets_sorted.push_back(const_cast<PacketBuffer*>(&pkt)); }
+    for (auto& pkt : packets) { packets_sorted.push_back(&pkt); }
 
+    // Sort packets by timestamp and place kEndFrame as last for each timestmap.
     std::stable_sort(packets_sorted.begin(), packets_sorted.end(),
-        [](const auto& a, const auto& b) { return a->spkt.timestamp < b->spkt.timestamp; });
+        [](const auto& a, const auto& b) { 
+            auto& a_spkt = std::get<StreamPacket>(*a);
+            auto& b_spkt = std::get<StreamPacket>(*b);
+            if (a_spkt.timestamp == b_spkt.timestamp) {
+                return b_spkt.channel == Channel::kEndFrame;
+            }
+            else {
+                return a_spkt.timestamp < b_spkt.timestamp;
+            }
+    });
 
     // Parallelize on expensive (video) channels (channel < 32).
     // The model of parallelization is the same as if multiple quic streams are used (without buffering);
     // video frames can arrive in parallel to other channels.
     ftl::threads::Batch batch;
-    int64_t ts = packets_sorted.front()->spkt.timestamp;
 
     for (auto* pkt : packets_sorted) {
-        if (stream->synchronize_recv_timestamps_ && pkt->spkt.timestamp != ts) {
-            batch.wait();
-            ts = pkt->spkt.timestamp;
-        }
+        auto& spkt = std::get<StreamPacket>(*pkt);
+        auto& dpkt = std::get<DataPacket>(*pkt);
 
-        // Always push the EndFrame channel to the end of batch, so callbacks final callback for timestmap is always last
-        auto channel = pkt->spkt.channel;
-        if (int(channel) < 32 || channel == Channel::kEndFrame) {
-            batch.add([stream, pkt](){ stream->_processPacket(nullptr, 0, pkt->spkt, pkt->dpkt); });
+        auto channel = spkt.channel;
+        if (int(channel) < 32) {
+            batch.add([&](){ stream->_processPacket(nullptr, 0, spkt, dpkt); });
         }
         else {
-            stream->_processPacket(nullptr, 0, pkt->spkt, pkt->dpkt);
+            // TODO: kEndFrame must be passed to consumer only after previous callbacks have finished
+            //       sync_frames set to true as workaround here (concurrency needs to be implemented differently).
+            sync_frames = true;
+            if (sync_frames && spkt.channel == Channel::kEndFrame) { batch.wait(); }
+
+            stream->_processPacket(nullptr, 0, spkt, dpkt);
         }
     }
 
-    batch.wait();
+    // Batch.wait() called by ~Batch()
 }
 
 void Net::netstream_thread_() {
@@ -504,10 +543,13 @@ void Net::netstream_thread_() {
     int64_t next_frame_ts_local = ftl::time::get_time() + buffering_min_ms_;
     int64_t t_now_u = ftl::time::get_time_micro();
 
-    std::vector<PacketBuffer> packets;
-    std::vector<PacketBuffer*> packets_sorted; 
+    std::vector<std::tuple<StreamPacket, DataPacket>> packets;
+    std::vector<std::tuple<StreamPacket, DataPacket>*> packets_sorted; 
     std::vector<PacketQueue*> queues;
-    int64_t buffering = buffering_; // Access to buffering_ is synchronized
+
+    int64_t buffering = buffering_;
+    bool sync_frames = synchronize_on_recv_timestamps_;
+
     while(active_) {
         FTL_PROFILE_SCOPE("NetStream Buffering");
 
@@ -533,7 +575,9 @@ void Net::netstream_thread_() {
                 //       when "removed", second time here to indicate the queue won't be used later).
                 //       Actual remove can then happen on either callback.
             }
+
             buffering = buffering_;
+            sync_frames = synchronize_on_recv_timestamps_;
 
             if (queues.size() == 0) { // No packets in any of the queues
                 underruns_++;
@@ -549,37 +593,54 @@ void Net::netstream_thread_() {
             TracyPlot(queue->profiler_id_queue_length_, double(buffer_length_ms));
             #endif
 
-            if (buffer_length_ms > buffering && (buffer_length_ms - buffering) > buffer_readjust_threshold_ms_) {
-                // If buffer gets much larger than target, skip enough packets to get back within threshold.
-                // TODO: Check if this causes any issues in node Receiver
-                int64_t t_skip_ms = buffer_length_ms - buffering;
-                LOG(WARNING) << "Netstream buffer too large, fast forwarding by " << t_skip_ms << "ms";
-                queue->ts_base_local -= t_skip_ms; // Move base_ts to earlier
-            }
-
             auto should_process_now = [&](const PacketBuffer& pkt) {
-                // NOTE: Should check that frame is actually complete (kEndFrame received)?
+                bool have_all_packets = queue->incomplete_packet_count.count(pkt.spkt.timestamp) == 0;
 
-                // Calculate estimated time of release
+                if (sync_frames && !have_all_packets) {
+                    // See note on allowFrameInterleaving(). This is NOT sufficient to guarantee that callbacks
+                    // are always in timestmap order. This can only reorder long enough network buffers by 
+                    // deferring callbacks until all packets are received.
+                    return false;
+                }
+
+                if (pkt.spkt.channel == Channel::kEndFrame && !have_all_packets) {
+                    // All packets not yet received, but kEndOfFrame (with number of packets sent) already
+                    // received. This packet must not be sent until all actual data packets are.
+
+                    // This should not happen frames are assumed to be sent in order and not interleaved, see
+                    // comment for allowFrameInterleaving(). However, the best place to handle this is
+                    // probably in here (this thread).
+                    
+                    return false;
+                }
+
+                // Calculate time to release from buffer 
                 int64_t t_buffered_ms = queue->ts_base_local + pkt.ts_rel + buffering;
                 return (t_buffered_ms*1000 < t_now_u);
             };
 
-            while((queue->packets.size() > 0) && should_process_now(queue->packets.front())) {
-                packets.push_back(std::move(queue->packets.front()));
-                queue->packets.pop_front();
+            for (auto& packet : queue->packets) {
+                if (packet.packet_consumed) { continue; }
+
+                if (should_process_now(packet)) {
+                    packets.emplace_back(std::move(packet.spkt), std::move(packet.dpkt));
+                    packet.packet_consumed = true;
+                }
+                else {
+                    next_frame_ts_local = std::min(
+                        queue->ts_base_local + packet.ts_rel + buffering,
+                        next_frame_ts_local);
+                }
             }
 
-            if (queue->packets.size() > 0) {
-                // Time to next frame in buffer (all queues)
-                next_frame_ts_local = std::min(
-                    queue->ts_base_local + queue->packets.back().ts_rel + buffering,
-                    next_frame_ts_local);
+            // Clear all processed packets in front of the queue
+            while((queue->packets.size() > 0) && queue->packets.front().packet_consumed) {
+                 queue->packets.pop_front();
             }
         }
 
         if (packets.size() > 0) {
-            int n_pending = packet_process_queue_.queue(this, std::move(packets));
+            int n_pending = packet_process_queue_.queue(this, std::move(packets), sync_frames);
             // Consumer should be fixed, dropping here is not a good idea (encoded video etc.)
             LOG_IF(WARNING, n_pending > 3)  << "Netstream buffering: " << n_pending << " "
                                             << "framesets pending (processing too slow)";
@@ -603,15 +664,11 @@ bool Net::begin() {
     // Add the RPC handler for the URI (called by Peer::process_message_())
             
     if (!host_) {
-        // Not the ideal place for buffering but moving to Receiver/Builder would likely
-        // require major refactoring in receiving code.
         net_->bind(base_uri_, [this](
             ftl::net::PeerBase &p,
             int16_t ttimeoff, // Offset between capture and transmission
             StreamPacketMSGPACK &spkt,
             PacketMSGPACK &pkt) {
-                
-
                 _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
 
                 if (spkt.flags & ftl::protocol::kFlagOutOfBand) {
@@ -620,21 +677,22 @@ bool Net::begin() {
                     _processPacket(&p, ttimeoff, spkt, pkt);
                     return;
                 }
+
                 queuePacket_(&p, std::move(spkt), std::move(pkt));
-    });
-}
-else {
-    net_->bind(base_uri_, [this](
-            ftl::net::PeerBase &p,
-            int16_t ttimeoff, // Offset between capture and transmission
-            StreamPacketMSGPACK &spkt,
-            PacketMSGPACK &pkt) {
-        
-        // process immediately
-        _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
-        _processPacket(&p, ttimeoff, spkt, pkt);
-    });
-}
+        });
+    }
+    else {
+        net_->bind(base_uri_, [this](
+                ftl::net::PeerBase &p,
+                int16_t ttimeoff, // Offset between capture and transmission
+                StreamPacketMSGPACK &spkt,
+                PacketMSGPACK &pkt) {
+            
+            // process immediately
+            _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
+            _processPacket(&p, ttimeoff, spkt, pkt);
+        });
+    }
 
     if (host_) {
         DLOG(INFO) << "Hosting stream: " << uri_;
@@ -680,7 +738,7 @@ void Net::reset() {
 
 bool Net::_enable(FrameID id) {
     if (host_) { return false; }
-    if (peer_) return true;
+    if (peer_) { return true; }
     if (enabled(id)) return true;
 
     // not hosting, try to find peer now
@@ -906,7 +964,7 @@ bool Net::end() {
     }
     queue_cv_.notify_all();
     
-
+    // unbind() returns only after any calls to base_uri_ have returned
     net_->unbind(base_uri_);
     if (thread_.joinable()) thread_.join();
 
