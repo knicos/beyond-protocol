@@ -155,13 +155,18 @@ class Net : public Stream {
     std::mutex queue_mtx_;
     std::condition_variable queue_cv_;
 
-    bool buffering_auto_ = true; // Disable adaptive buffering
+    bool buffering_auto_ = false; // Enable/Disable adaptive buffering
     int underruns_ = 0;                 // TODO: Move to PacketQueue
     int last_underrun_buffering_ = 0;   // TODO: Move to PacketQueue
-    int32_t buffering_ = 0; // Network buffering delay before dispatched for processing (milliseconds) // TODO: Move to PacketQueue
+
+    /** Network buffering delay before dispatched for processing (milliseconds). If adjusted after stream is started,
+     *  any remaining queue is sent immediately (if decreased) or a delayed (if increased).
+     *  TODO: Move to PacketQueue
+     */
+    int32_t buffering_ = 0;
 
     int32_t buffering_default_ = 0; // Default value for buffering if automatic adjustment is disabled. If not set, current value used if adjustment disabled.
-    int32_t buffering_min_ms_ = 20; // Minimum network buffer size (milliseconds)
+    int32_t buffering_min_ms_ = 0; // Minimum network buffer size (milliseconds)
 
     int64_t t_buffering_updated_ = 0; // TODO: Move to PacketQueue
     int64_t buffering_update_delay_ms_ = 50;    // Delay between buffering adjustments (prevent too rapid changes)

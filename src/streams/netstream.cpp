@@ -376,16 +376,15 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
     }
 
     // Adjust buffering based on latency. Assumes only one Peer, in principle could be updated to work with more than
-    // one peer if bufferi is determined by the peer with most delay.  Buffering is updated only if underruns occurred.
-    // TODO: Documentation; Whas is the exact use case here? Is single netstream supposed to process input from more
-    //       than one peer? The code appears to permit multiple peers to use stream into the same netstream.
+    // one peer if bufferi is determined by the peer with most delay. Buffering is updated only if underruns occurred.
+    // TODO: Documentation. This assumes only one sending peer per net::Stream instance.
     if (buffering_auto_ && (t_now - t_buffering_updated_) > buffering_update_delay_ms_) {
         t_buffering_updated_ = t_now;
         
         // These should be adjustable parameters
         float buffer_rtt_size = 2.1f;
         float grow_factor = 1.2;
-        float shrink_threshold = 1.33;
+        float shrink_threshold = 1.5;
         float shrink_factor = 0.9;
         int32_t buffer_diff_max_ms = 20; // Absolute maximum increment/decrement allowed per update
 
@@ -398,11 +397,11 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
         if (underruns_ > 0) {
             last_underrun_buffering_ = buffering_;
 
-            if (buffering_ < buffering_auto) {
-                buffering_ = std::min(buffering_auto, buffering_ + buffer_diff_max_ms);
+            if (buffering_ < buffering_auto + buffer_diff_max_ms) {
+                buffering_ = buffering_auto;
             }
             else {
-                buffering_ =  std::min<int32_t>(buffering_auto*grow_factor, buffering_ + buffer_diff_max_ms);;
+                buffering_ =  buffering_ + buffer_diff_max_ms;
             }
             buffering_ = std::max(buffering_, buffering_min_ms_);
             LOG_IF(1, buffering_ != last_underrun_buffering_) << "Netstream: buffering increased to " << buffering_ << "ms";
