@@ -340,9 +340,6 @@ void Net::run_() {
     thread_ = std::thread(&Net::netstream_thread_, this);
 }
 
-static std::once_flag warning_large_peerid;
-static std::once_flag warning_more_than_one_peer_streaming;
-
 void Net::allowFrameInterleaving(bool value) {
     auto lk = std::unique_lock(queue_mtx_);
     synchronize_on_recv_timestamps_ = true;
@@ -364,15 +361,17 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
 
         // This could just as well be an assert
         if (dbg_streams_peers_mask_ != mask) {
-            std::call_once(warning_more_than_one_peer_streaming, [](){
+            static bool call_once = [](){
                 LOG(ERROR) << "More than one Peer streams to the same NetStream instance (Local PeerId changed); buffering will likely fail.";
-            });
+                return true;
+            }();
         }
     }
     else {
-        std::call_once(warning_large_peerid, [](){
+        static bool call_once = [](){
             LOG(INFO) << "Local PeerId larger than 64 (additional debug checks not performed)";
-        });
+            return true;
+        }();
     }
 
     // Adjust buffering based on latency. Assumes only one Peer, in principle could be updated to work with more than
@@ -432,50 +431,34 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
             PROFILER_RUNTIME_PERSISTENT_NAME("packet buffer underruns: " + name);
         #endif
 
-        /* The code below tries to estimate base timestamp of the stream in local clock. Time synchronization
-           can not be relied on: it is not going to work over webservice. Instead the time of arrival for first 
-           packet is used as an optimistic guess (sensitivity to startup delay).
-
-        // Calculate local timestamp for the first packet using Peer's time offset
-        int64_t ts_local = spkt.timestamp + peer->getClockOffset();
-
-        // Estimated current network delay (half of rtt)
-        int32_t net_delay = peer->getRtt()/2;
-
-        if (ts_local > 0 && ts_local - net_delay - buffering_ < t_now) {
-            // Timestamp within buffering, set base to original timestamp (in local clock)
-            queue.ts_base_local = ts_local;
-        }
-        else {
-            // Use receive time as base (recorded stream etc)
-            queue.ts_base_local = t_now;
-        }
-        */
-        
+        // Timestmap from the first received packet is used as reference
         queue.ts_base_local = t_now;
     }
 
+    bool should_notify = netstream_thread_waiting_;
     queue_lock.unlock();
 
-    // Insert into queue, update completed time if End of Frame packet
-    auto lock = std::unique_lock(queue.mtx);
-    const int64_t ts = spkt.timestamp;
-    const int64_t ts_rel = ts - queue.ts_base_spkt;
-    queue.packets.emplace_back(std::move(spkt), std::move(dpkt), ts_rel);
+    {
+        // Insert into queue, update completed time if End of Frame packet
+        auto lock = std::unique_lock(queue.mtx);
+        const int64_t ts = spkt.timestamp;
+        const int64_t ts_rel = ts - queue.ts_base_spkt;
+        queue.packets.emplace_back(std::move(spkt), std::move(dpkt), ts_rel);
 
-    auto& count = queue.incomplete_packet_count[spkt.timestamp];
-    count++;
+        auto& count = queue.incomplete_packet_count[spkt.timestamp];
+        count++;
 
-    // EndOfFrame dpkt.packet_count has total number packets sent for this timestamp
-    if (is_eof_packet) { count -= dpkt.packet_count; }
-    
-    if (count == 0) {
-        queue.incomplete_packet_count.erase(ts);
-        FTL_PROFILE_FRAME_END(profiler_frame_id_);
+        // EndOfFrame dpkt.packet_count has total number packets sent for this timestamp
+        if (is_eof_packet) { count -= dpkt.packet_count; }
+        
+
+        if (count == 0) {
+            queue.incomplete_packet_count.erase(ts);
+            FTL_PROFILE_FRAME_END(profiler_frame_id_);
+        }
     }
 
-    // It might be necessary to add book keeping for end of frame counts per frameset ...
-    // On the other hand, is there anything to be done here if something is missing?
+    if (should_notify) { queue_cv_.notify_one(); } // Worker ran out of packets
 }
 
 void Net::process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>> packets, bool sync_frames) {
@@ -526,18 +509,7 @@ void Net::process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::pro
 
 void Net::netstream_thread_() {
     loguru::set_thread_name("netstream");
-    #ifndef WIN32
-    // TODO: Just remove? This probably was never effective, as in older
-    //       versions the return value was not checked.
-    sched_param p;
-    p.sched_priority = sched_get_priority_max(SCHED_RR);
-    if (pthread_setschedparam(thread_.native_handle(), SCHED_RR, &p) != 0) 
-    {
-        LOG(ERROR) << "Could not set netstream thread priority";
-    }
-    #endif
-
-    // There should be no assumptions on the accuracy of this timer.
+    // There should be no assumptions on the accuracy of this thread.
 
     int64_t next_frame_ts_local = ftl::time::get_time() + buffering_min_ms_;
     int64_t t_now_u = ftl::time::get_time_micro();
@@ -546,45 +518,55 @@ void Net::netstream_thread_() {
     std::vector<std::tuple<StreamPacket, DataPacket>*> packets_sorted; 
     std::vector<PacketQueue*> queues;
 
-    int64_t buffering = buffering_;
-    bool sync_frames = synchronize_on_recv_timestamps_;
+    constexpr auto t_max_ms = std::numeric_limits<decltype(next_frame_ts_local)>::max();
 
-    while(active_) {
-        FTL_PROFILE_SCOPE("NetStream Buffering");
+    auto queue_lk = std::unique_lock(queue_mtx_);
 
+    do {
         t_now_u = ftl::time::get_time_micro();
+        queues.clear();
+        
+        if (next_frame_ts_local != t_max_ms) {
+            int64_t t_wait_ms = next_frame_ts_local - ftl::time::get_time();
+            LOG_IF(WARNING, t_wait_ms > 1000) << "netstream waiting for " << t_wait_ms << "ms";
+            queue_cv_.wait_for(queue_lk, std::chrono::milliseconds(t_wait_ms), [&](){ return !active_; });
+        }
+        next_frame_ts_local = t_max_ms;
+
+        if (!active_) { break; }
+
+        for (auto& [fid, queue] : packet_queue_) {
+            if (queue.packets.size() > 0) {
+                queues.push_back(&queue);
+            }
+            // TODO: If necessary, unused queues could be removed by setting a flag (set once in,
+            //       when "removed", second time here to indicate the queue won't be used later).
+            //       Actual remove can then happen on either callback.
+        }
+
+        if (queues.size() == 0 && packets.size() == 0) {
+            // Underrun: no packets were processed and no incoming packets
+            underruns_++;
+            // Notified on packet when netstream_thread_waiting_ is set.
+            netstream_thread_waiting_ = true;
+            queue_cv_.wait_for(queue_lk, std::chrono::milliseconds(100));
+            netstream_thread_waiting_ = false;
+            continue; 
+        }
+
+        // Update local variables
+        int64_t buffering = buffering_;
+        bool sync_frames = synchronize_on_recv_timestamps_;
+    
+        queue_lk.unlock(); // Rest of the loop only uses local variables
 
         packets.clear();
         packets_sorted.clear();
-        queues.clear();
-        
-        {
-            auto lk = std::unique_lock(queue_mtx_);
-
-            int64_t t_wait_ms = std::max<int64_t>(next_frame_ts_local - ftl::time::get_time(), 1);
-            LOG_IF(WARNING, t_wait_ms > 1000) << "netstream waiting for " << t_wait_ms;
-            queue_cv_.wait_for(lk, std::chrono::milliseconds(t_wait_ms), [&](){ return !active_; });
-            if (packet_queue_.size() == 0) { continue; }
-
-            for (auto& [fid, queue] : packet_queue_) {
-                if (queue.packets.size() > 0) {
-                    queues.push_back(&queue);
-                }
-                // TODO: If necessary, unused queues could be removed by setting a flag (set once in,
-                //       when "removed", second time here to indicate the queue won't be used later).
-                //       Actual remove can then happen on either callback.
-            }
-
-            buffering = buffering_;
-            sync_frames = synchronize_on_recv_timestamps_;
-
-            if (queues.size() == 0) { // No packets in any of the queues
-                underruns_++;
-            }
-        }
 
         for (auto* queue : queues) {
-            auto lk = std::unique_lock(queue->mtx);
+            // TODO: Should all packets be moved to local queue here?
+
+            auto lk = std::unique_lock(queue->mtx); // per-queue lock
 
             // Actual buffer length in milliseconds
             int buffer_length_ms = queue->packets.back().spkt.timestamp - queue->packets.front().spkt.timestamp;
@@ -604,7 +586,7 @@ void Net::netstream_thread_() {
 
                 if (pkt.spkt.channel == Channel::kEndFrame && !have_all_packets) {
                     // All packets not yet received, but kEndOfFrame (with number of packets sent) already
-                    // received. This packet must not be sent until all actual data packets are.
+                    // received. This packet must not be sent until all actual data packets are received.
 
                     // This should not happen frames are assumed to be sent in order and not interleaved, see
                     // comment for allowFrameInterleaving(). However, the best place to handle this is
@@ -644,7 +626,10 @@ void Net::netstream_thread_() {
             LOG_IF(WARNING, n_pending > 3)  << "Netstream buffering: " << n_pending << " "
                                             << "framesets pending (processing too slow)";
         }
+        queue_lk.lock();
     }
+    while(active_); // Must own lock to check active_
+
     pending_packets_.stop(true);
     pending_packets_.wait();
 }

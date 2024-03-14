@@ -208,6 +208,7 @@ class Net : public Stream {
         PacketQueue(int64_t base_spkt, int64_t base_local=0) : ts_base_spkt(base_spkt), ts_base_local(base_local) {}
     };
 
+    bool netstream_thread_waiting_ = false;
     std::unordered_map<ftl::protocol::FrameID, PacketQueue> packet_queue_;
     ftl::TaskQueue pending_packets_;
 
