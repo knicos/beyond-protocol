@@ -463,6 +463,7 @@ void Net::queuePacket_(ftl::net::PeerBase* peer, ftl::protocol::StreamPacket spk
 
 void Net::process_buffered_packets_(Net* stream, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>> packets, bool sync_frames) {
     if (!stream->active_) { return; }
+    FTL_PROFILE_SCOPE("netstream::process");
 
     std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>*> packets_sorted;
     packets_sorted.reserve(packets.size());
@@ -621,10 +622,11 @@ void Net::netstream_thread_() {
         }
 
         if (packets.size() > 0) {
-            int n_pending = packet_process_queue_.queue(this, std::move(packets), sync_frames);
+            process_buffered_packets_(this, std::move(packets), sync_frames);
+            /*
             // Consumer should be fixed, dropping here is not a good idea (encoded video etc.)
             LOG_IF(WARNING, n_pending > 3)  << "Netstream buffering: " << n_pending << " "
-                                            << "framesets pending (processing too slow)";
+                                            << "framesets pending (processing too slow)";*/
         }
         queue_lk.lock();
     }
