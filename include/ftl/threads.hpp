@@ -194,7 +194,7 @@ public:
         auto lk = std::unique_lock(mtx_);
         if (!stop_) { return; }
         if (!busy_) { return; }
-        cv_.wait(lk, [&](){ return busy_; });
+        cv_.wait(lk, [&](){ return !busy_; });
     }
 
     /** Stop any further processing. Call wait() to wait for any running tasks to complete. */
