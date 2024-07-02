@@ -4,8 +4,6 @@
 
 #include "../../universe.hpp"
 
-#include "quic_websocket.cpp"
-
 using namespace beyond_impl;
 
 using ftl::protocol::NodeStatus;
@@ -367,119 +365,12 @@ void QuicPeerStream::OnWriteComplete(MsQuicStream* stream, void* Context, bool C
 
 // RECEIVE /////////////////////////////////////////////////////////////////////
 
-size_t QuicPeerStream::ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed)
-{
-    // Amount of bytes for websocket header consumed
-    size_t size_ws = 0;
-    
-    while (buffer_in.Length > 0)
-    {
-        // Complete frame has not yet been received
-        if (ws_payload_remaining_ > 0)
-        {
-            auto recv_size = std::min<int32_t>(buffer_in.Length, ws_payload_remaining_);
-            auto ws_buffer = nonstd::span<char>((char*)buffer_in.Buffer, recv_size);
-            
-            if (ws_mask_) { Mask(ws_buffer.data(), ws_buffer.size(), ws_mask_key_, ws_payload_recvd_); }
-            ws_payload_recvd_ += recv_size;
-            ws_payload_remaining_ -= recv_size;
-            
-            memcpy(recv_buffer_.buffer() + size_consumed, ws_buffer.data(), ws_buffer.size());
-            size_consumed += ws_buffer.size();
-
-            buffer_in.Length -= recv_size;
-            buffer_in.Buffer += recv_size;
-            
-            // Process any remaining buffer
-            continue;
-        }
-
-        // No previous frames or previous frame is complete, this buffer must contain header
-        WebSocketHeader header;
-        WsParseHeaderStatus status = INVALID;
-
-        if (ws_partial_header_recvd_ > 0)
-        {
-            // Read remaining header
-            CHECK(ws_partial_header_recvd_ < (int)ws_header_.size());
-            size_t cpy_size = std::min<size_t>(ws_header_.size() - ws_partial_header_recvd_, buffer_in.Length);
-            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, cpy_size);
-            status = WsParseHeader(ws_header_.data(), ws_partial_header_recvd_ + cpy_size, header);
-
-            // FIXME: In principle it is possible that the header still is not complete,
-            //         but rest of the code has to be checked for correctness (unit tests)
-            CHECK(status != NOT_ENOUGH_DATA);
-        }
-        else
-        {
-            status = WsParseHeader(buffer_in.Buffer, buffer_in.Length, header);
-        }
-
-        if (status == INVALID)
-        {
-            LOG(ERROR) << "[Quic/WebSocket] Protocol error, invalid header. Closing connection.";
-            close();
-        }
-        else if (status == NOT_ENOUGH_DATA)
-        {
-            CHECK(buffer_in.Length < ws_header_.size() && ws_partial_header_recvd_ == 0);
-            size_t cpy_size = std::min<size_t>(ws_header_.size() - ws_partial_header_recvd_, buffer_in.Length);
-            memcpy(ws_header_.data() + ws_partial_header_recvd_, buffer_in.Buffer, cpy_size);
-            ws_partial_header_recvd_ = std::min<uint32_t>(ws_header_.size(), ws_partial_header_recvd_ + buffer_in.Length);
-
-            size_ws += cpy_size;
-            buffer_in.Length -= cpy_size;
-            buffer_in.Buffer += cpy_size;
-        }
-        else if (status == OK)
-        {
-            if (header.OpCode == OpCodeType::CLOSE)
-            {
-                LOG(WARNING) << "[Quic/WebSocket] Received close control frame. Closing connection.";
-                close();
-            }
-            
-            auto offset = header.HeaderSize - ws_partial_header_recvd_;
-            size_ws += offset;
-            buffer_in.Length -= offset;
-            buffer_in.Buffer += offset;
-
-            ws_mask_ = header.Mask;
-            ws_mask_key_ = header.MaskingKey;
-
-            ws_partial_header_recvd_ = 0;
-            ws_payload_recvd_ = 0;
-            ws_payload_remaining_ = header.PayloadLength;
-
-            if (header.OpCode != OpCodeType::BINARY_FRAME)
-            {
-                LOG(WARNING) << "[Quic/WebSocket] Received non-binary frame "
-                             << "(OpCode: " << header.OpCode << ", size (header): " <<  header.HeaderSize << ", size (payload): "
-                             << header.PayloadLength << "). Frame ignored.";
-
-                if (header.OpCode == OpCodeType::TEXT_FRAME)
-                {
-                    LOG(WARNING) << "[Quic/WebSocket] Text Frame: " << std::string((char*)buffer_in.Buffer + header.HeaderSize, header.PayloadLength);
-                }
-                
-                size_ws += ws_payload_remaining_;
-                buffer_in.Length -= ws_payload_remaining_;
-                buffer_in.Buffer += ws_payload_remaining_;
-                ws_payload_remaining_ = 0;
-            }
-        }
-    }
-
-    return size_ws;
-}
-
 void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER> data)
 {
     FTL_PROFILE_SCOPE("OnData");
 
     size_t size_consumed = 0; // bytes written to current msgpack buffer
-    size_t size_total = 0;    // bytes already passed to msgpack
-    size_t size_ws = 0;       // number of bytes from websocket headers
+    size_t size_total = 0;    // bytes already passed to msgpack and websocket headers
 
     for (auto& buffer_in : data)
     {
@@ -499,7 +390,18 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
 
         if (ws_frame_)
         {
-            size_ws += ws_recv_(buffer_in, size_consumed);
+            ws_recv_.Next({ buffer_in.Buffer, buffer_in.Length });
+            auto ws_buffer = ws_recv_.Buffer();
+            size_t memcpy_size = 0;
+            while (ws_buffer.size() > 0)
+            {
+                memcpy(recv_buffer_.buffer() + size_consumed, ws_buffer.data(), ws_buffer.size());
+                size_consumed += ws_buffer.size();
+                memcpy_size += ws_buffer.size();
+                ws_buffer = ws_recv_.Buffer();
+            }
+            size_total += buffer_in.Length - memcpy_size; // counts websocket header bytes
+            if (ws_recv_.Error()) { close(); }
         }
         else
         {
@@ -508,10 +410,11 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
         }
     }
 
-    stream_->Consume(size_consumed + size_total + size_ws);
+    stream_->Consume(size_consumed + size_total);
+
     size_t sz = 0;
     for (auto& buffer_in : data) { sz += buffer_in.Length; }
-    CHECK((size_consumed + size_total + size_ws) == sz);
+    CHECK((size_consumed + size_total) == sz);
 
     {
         UNIQUE_LOCK_N(lk, recv_mtx_);
@@ -525,7 +428,7 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
         recv_queue_.pop_back(); // Last element always invalid (next() returns false)
         
         #ifdef TRACY_ENABLE
-        TracyPlot(profiler_id_.plt_recv_size, double(size_consumed + size_total + size_ws));
+        TracyPlot(profiler_id_.plt_recv_size, double(size_consumed + size_total));
         TracyPlot(profiler_id_.plt_recv_size_obj, double(recv_queue_.size()));
         #endif
         notify_recv_and_unlock_(lk);

@@ -10,6 +10,8 @@
 #include <deque>
 #include <array>
 
+#include "websocket.hpp"
+
 namespace beyond_impl 
 {
 using msgpack_buffer_t = ftl::net::PeerBase::msgpack_buffer_t;
@@ -111,13 +113,7 @@ private:
     // relay has to process msgpack messages and frame them once a complete message is received, increasing complexity
     // significantly there. Clients can still communicate directly with each other when both sides apply websocket
     // framing in this fashion.
-    int ws_payload_recvd_ = 0;
-    int ws_payload_remaining_ = 0;
-    int ws_partial_header_recvd_ = 0;
-    bool ws_mask_ = false;
-    std::array<unsigned char, 4> ws_mask_key_;
-    std::array<uint8_t, 14> ws_header_;
-    size_t ws_recv_(QUIC_BUFFER buffer_in, size_t& size_consumed);
+    WebsocketRead ws_recv_;
 
     // Send limits. Send methods will block if limits are exceeded (with warning message).
 
