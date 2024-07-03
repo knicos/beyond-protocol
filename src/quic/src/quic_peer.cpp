@@ -391,17 +391,19 @@ void QuicPeerStream::OnData(MsQuicStream* stream, nonstd::span<const QUIC_BUFFER
         if (ws_frame_)
         {
             ws_recv_.Next({ buffer_in.Buffer, buffer_in.Length });
-            auto ws_buffer = ws_recv_.Buffer();
             size_t memcpy_size = 0;
-            while (ws_buffer.size() > 0)
+            nonstd::span<uint8_t> ws_buffer;
+            while(true)
             {
+                ws_buffer = ws_recv_.Buffer();
+                if (ws_recv_.Error()) { close(); break; }
+                if (ws_buffer.size() == 0) { break; }
+
                 memcpy(recv_buffer_.buffer() + size_consumed, ws_buffer.data(), ws_buffer.size());
                 size_consumed += ws_buffer.size();
                 memcpy_size += ws_buffer.size();
-                ws_buffer = ws_recv_.Buffer();
             }
             size_total += buffer_in.Length - memcpy_size; // counts websocket header bytes
-            if (ws_recv_.Error()) { close(); }
         }
         else
         {

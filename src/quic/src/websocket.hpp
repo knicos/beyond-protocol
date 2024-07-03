@@ -54,6 +54,11 @@ inline uint32_t Mask(T* Buffer, int BufferSize, WsMaskKey& Key, uint32_t Offset 
     return BufferSize;
 }
 
+inline uint32_t Mask(nonstd::span<uint8_t> Buffer, WsMaskKey& Key, uint32_t Offset = 0)
+{
+    return Mask(Buffer.data(), Buffer.size(), Key, Offset);
+}
+
 inline void WsWriteMaskingKey(uint8_t* Buffer, WsMaskKey Key)
 {
     Buffer[0] = Key[0];
@@ -105,7 +110,6 @@ inline int WsWriteHeader(OpCodeType Op, bool UseMask, WsMaskKey Mask, const size
 
     return static_cast<int>(HeaderSize);
 }
-
 
 enum WsParseHeaderStatus
 {
@@ -199,7 +203,6 @@ private:
         memcpy(ws_header_.data() + ws_partial_header_read_, buffer_.data(), cpy_size);
         ws_partial_header_read_ += cpy_size;
         CHECK(ws_partial_header_read_ <= int(ws_header_.size()));
-        buffer_ = { buffer_.data() + cpy_size, buffer_.size() - cpy_size };
     }
 
     inline nonstd::span<uint8_t> NextBuffer()
@@ -209,7 +212,7 @@ private:
 
         buffer_ = { buffer_.data() + read_size, buffer_.size() - read_size };
 
-        if (ws_mask_) { Mask(buffer.data(), buffer.size(), ws_mask_key_, ws_payload_read_); }
+        if (ws_mask_) { Mask(buffer, ws_mask_key_, ws_payload_read_); }
         ws_payload_read_ += read_size;
         ws_payload_remaining_ -= read_size;
         
@@ -255,8 +258,10 @@ public:
 
         WebSocketHeader header;
         WsParseHeaderStatus status = INVALID;
+        // Number of bytes in header previously read (= not contained in this buffer)
+        int partial_header_offset = ws_partial_header_read_;
 
-        if (ws_partial_header_read_ > 0)
+        if (partial_header_offset > 0)
         {
             // Got partial bytes of header, copy remaining and try again
             CopyPartialHeader();
@@ -278,23 +283,18 @@ public:
             CHECK((buffer_.size() + ws_partial_header_read_) < ws_header_.size());
             if (ws_partial_header_read_ == 0) { CopyPartialHeader(); }
             else                              { /* already copied */ }
+
+            // the remaining buffer must be consumed at this point
+            CHECK(ws_partial_header_read_ - partial_header_offset == int32_t(buffer_.size()));
+            
+            buffer_ = {};
             return {};
         }
 
         CHECK(status == OK);
         
-        if (ws_partial_header_read_ == 0)
-        {
-            // Not partial header, just skip the bytes header
-            buffer_ = { buffer_.data() + header.HeaderSize, buffer_.size() - header.HeaderSize };
-        }
-        else
-        {
-            // Partial header read might have gone past the header bytes, adjust if necessary
-            CHECK(ws_partial_header_read_ <= header.HeaderSize);
-            auto adjust = ws_partial_header_read_ - header.HeaderSize;
-            buffer_ = { buffer_.data() - adjust, buffer_.size() + adjust };
-        }
+        int header_offset = header.HeaderSize - partial_header_offset;
+        buffer_ = { buffer_.data() + header_offset, buffer_.size() - header_offset };
 
         if (header.OpCode == OpCodeType::CLOSE)
         {
