@@ -254,7 +254,6 @@ class Net : public Stream {
         Net* stream,
         std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>,
         bool sync_frames);
-    ftl::WorkerQueue<process_buffered_packets_, Net*, std::vector<std::tuple<ftl::protocol::StreamPacket, ftl::protocol::DataPacket>>, bool> packet_process_queue_;
 };
 
 }  // namespace protocol
