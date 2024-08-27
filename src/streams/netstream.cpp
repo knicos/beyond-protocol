@@ -312,7 +312,11 @@ void Net::_processPacket(ftl::net::PeerBase *p, int16_t ttimeoff, const StreamPa
     ftl::protocol::PacketPair pair;
     StreamPacket &spkt = pair.first;
     spkt = spkt_raw;
-    spkt.localTimestamp = now - int64_t(ttimeoff); // What is this used for?
+    if (spkt.localTimestamp == 0)
+    {
+        // calculate local timestamp here if not previously set
+        spkt.localTimestamp = now - int64_t(ttimeoff);
+    }
     spkt.hint_capability = 0;
     spkt.hint_source_total = 0;
     spkt.version = 4;
@@ -648,35 +652,34 @@ bool Net::begin() {
     // FIXME: Potential race between above check and new binding
 
     // Add the RPC handler for the URI (called by Peer::process_message_())
-            
-    if (!host_) {
-        net_->bind(base_uri_, [this](
-            ftl::net::PeerBase &p,
-            int16_t ttimeoff, // Offset between capture and transmission
-            StreamPacketMSGPACK &spkt,
-            PacketMSGPACK &pkt) {
-                _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
-
-                if (spkt.flags & ftl::protocol::kFlagOutOfBand) {
-                    // FIXME: Timestamps are going to be incorrect; perhaps instead to next frame
-                    //        and rewrite timestamp to work around the design.
-                    _processPacket(&p, ttimeoff, spkt, pkt);
-                    return;
-                }
-
-                queuePacket_(&p, std::move(spkt), std::move(pkt));
-        });
-    }
-    else {
+    if (host_) {
         net_->bind(base_uri_, [this](
                 ftl::net::PeerBase &p,
-                int16_t ttimeoff, // Offset between capture and transmission
+                int16_t ttimeoff, // is this used?
                 StreamPacketMSGPACK &spkt,
                 PacketMSGPACK &pkt) {
             
             // process immediately
             _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
             _processPacket(&p, ttimeoff, spkt, pkt);
+        });
+    }
+    else {
+        net_->bind(base_uri_, [this](
+                ftl::net::PeerBase &p,
+                int16_t ttimeoff, // Offset between capture and transmission (sender processing latency)
+                StreamPacketMSGPACK &spkt,
+                PacketMSGPACK &pkt) {
+            spkt.localTimestamp = ftl::time::get_time() - ttimeoff; //
+            _earlyProcessPacket(&p, ttimeoff, spkt, pkt);
+
+            if (spkt.flags & ftl::protocol::kFlagOutOfBand) {
+                // FIXME: Timestamps are going to be incorrect; perhaps instead to next frame
+                //        and rewrite timestamp to work around the design.
+                _processPacket(&p, ttimeoff, spkt, pkt);
+                return;
+            }
+            queuePacket_(&p, std::move(spkt), std::move(pkt));
         });
     }
 
