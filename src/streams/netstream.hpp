@@ -66,6 +66,7 @@ class Net : public Stream {
     void refresh() override;
 
     void setBuffering(float seconds);
+    void disableBuffering(ftl::protocol::Channel c, bool value);
 
     void setAutoBufferAdjust(bool enable);
 
@@ -209,6 +210,7 @@ class Net : public Stream {
     };
 
     bool netstream_thread_waiting_ = false;
+    std::unordered_set<ftl::protocol::Channel> buffering_disabled_channels_;
     std::unordered_map<ftl::protocol::FrameID, PacketQueue> packet_queue_;
     ftl::TaskQueue pending_packets_;
 

@@ -68,6 +68,7 @@ enum struct StreamProperty {
     kUnderunCount,
     kDropCount,
     kAutoBufferAdjust, /// When enabled, buffer size may change runtime to minimize delay (and no underruns).
+    kDisableBuffering, /// enable/disable buffering for specific channel
 };
 
 /**

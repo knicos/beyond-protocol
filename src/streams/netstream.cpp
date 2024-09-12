@@ -640,6 +640,13 @@ void Net::netstream_thread_() {
     pending_packets_.wait();
 }
 
+void Net::disableBuffering(ftl::protocol::Channel c, bool disable)
+{
+    auto lk = std::unique_lock(mtx_);
+    if (disable) { buffering_disabled_channels_.insert(c); }
+    else         { buffering_disabled_channels_.erase(c); }
+}
+
 bool Net::begin() {
     if (active_) return true;
 
@@ -679,7 +686,14 @@ bool Net::begin() {
                 _processPacket(&p, ttimeoff, spkt, pkt);
                 return;
             }
-            queuePacket_(&p, std::move(spkt), std::move(pkt));
+            if (buffering_disabled_channels_.count(spkt.channel) > 0)
+            {
+                _processPacket(&p, ttimeoff, spkt, pkt);
+            }
+            else 
+            {
+                queuePacket_(&p, std::move(spkt), std::move(pkt));
+            }
         });
     }
 
@@ -1000,6 +1014,7 @@ void Net::setProperty(ftl::protocol::StreamProperty opt, std::any value) {
     case StreamProperty::kFrameRate     :
     case StreamProperty::kUnderunCount  :
     case StreamProperty::kDropCount     :
+    case StreamProperty::kDisableBuffering : disableBuffering(std::any_cast<ftl::protocol::Channel>(value), true); break;
     case StreamProperty::kURI           :  throw FTL_Error("Readonly property");
     default                             :  throw FTL_Error("Unsupported property");
     }
@@ -1022,6 +1037,7 @@ std::any Net::getProperty(ftl::protocol::StreamProperty opt) {
     case StreamProperty::kRequestSize   :  return frames_to_request_;
     case StreamProperty::kUnderunCount  :  return static_cast<int>(underruns_);
     case StreamProperty::kDropCount     :  return static_cast<int>(-1);
+    case StreamProperty::kDisableBuffering : return buffering_disabled_channels_.size();
     default                             :  throw FTL_Error("Unsupported property");
     }
 }
@@ -1044,6 +1060,7 @@ bool Net::supportsProperty(ftl::protocol::StreamProperty opt) {
                                              // stream is at capacity (more data is being passed than can be actually
                                              // sent) and any drops must happen at the source.
     case StreamProperty::kAutoBufferAdjust :
+    case StreamProperty::kDisableBuffering :
     case StreamProperty::kURI           :  return true;
     default                             :  return false;
     }
